@@ -3663,6 +3663,7 @@ function draw() {
   updateCamera();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawTerrain();
+  drawWorldReadabilityOverlays();
   drawWorldEntities();
   drawObjectiveHint();
 }
@@ -3719,6 +3720,117 @@ function drawObjectiveHint() {
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(hint, x + 14, y + 14);
+  ctx.restore();
+}
+
+function drawWorldReadabilityOverlays() {
+  drawTownInfluenceOverlays();
+  drawThreatOverlays();
+  drawLocationBanner();
+}
+
+function factionOverlayColor(faction) {
+  if (faction === "grove") return "rgba(104, 179, 107, 0.16)";
+  if (faction === "forge") return "rgba(217, 149, 93, 0.16)";
+  if (faction === "tide") return "rgba(102, 167, 216, 0.16)";
+  if (faction === "dusk") return "rgba(170, 128, 214, 0.16)";
+  return "rgba(244, 234, 215, 0.08)";
+}
+
+function townInfluenceRadius(event) {
+  return event.faction === "dusk" ? 80 : event.faction === "tide" ? 76 : event.faction === "forge" ? 72 : 68;
+}
+
+function drawTownInfluenceOverlays() {
+  events.forEach((event, key) => {
+    if (event.type !== "town") return;
+    const [x, y] = key.split(",").map(Number);
+    if (!isOnScreen(x, y, 4)) return;
+    const px = screenTileX(x) + 16;
+    const py = screenTileY(y) + 22;
+    const color = factionOverlayColor(event.faction);
+    const radius = townInfluenceRadius(event);
+    ctx.save();
+    const glow = ctx.createRadialGradient(px, py, 6, px, py, radius);
+    glow.addColorStop(0, color.replace("0.16", "0.28"));
+    glow.addColorStop(0.5, color);
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(px, py, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+function threatOverlayForEvent(event) {
+  if (event.type === "final") return { color: "rgba(122, 75, 181, 0.18)", radius: 116, label: "Fortress" };
+  if (event.gate) return { color: "rgba(217, 93, 93, 0.18)", radius: 74, label: "Gate Boss" };
+  if (event.type === "battle") return { color: "rgba(217, 93, 93, 0.12)", radius: 42, label: "" };
+  return null;
+}
+
+function drawThreatOverlays() {
+  events.forEach((event, key) => {
+    if (state.visited[key]) return;
+    const threat = threatOverlayForEvent(event);
+    if (!threat) return;
+    const [x, y] = key.split(",").map(Number);
+    if (!isOnScreen(x, y, 5)) return;
+    drawThreatHalo(screenTileX(x) + 16, screenTileY(y) + 18, threat.color, threat.radius, threat.label);
+  });
+  (state.enemyHeroes || []).forEach((hero) => {
+    if (hero.defeated || !isOnScreen(hero.x, hero.y, 4)) return;
+    drawThreatHalo(screenTileX(hero.x) + 16, screenTileY(hero.y) + 18, "rgba(217, 93, 93, 0.14)", 48, "Hunter");
+  });
+}
+
+function drawThreatHalo(cx, cy, color, radius, label = "") {
+  ctx.save();
+  const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, radius);
+  glow.addColorStop(0, color.replace(/0\.\d+\)/, "0.26)"));
+  glow.addColorStop(0.45, color);
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+  if (label) {
+    ctx.fillStyle = "rgba(15,18,25,0.7)";
+    ctx.fillRect(cx - 30, cy - radius + 8, 60, 16);
+    ctx.fillStyle = "#fff2b6";
+    ctx.font = "700 10px Trebuchet MS";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, cx, cy - radius + 16);
+  }
+  ctx.restore();
+}
+
+function currentRegionName() {
+  if (state.x >= 66 && state.y <= 8) return "Black Gate Approach";
+  if (state.x >= 56 && state.y >= 28) return "Southern Wilds";
+  if (state.x >= 56 && state.y <= 14) return "High March";
+  if (state.y >= 28) return "Low Roads";
+  if (state.x <= 18 && state.y <= 12) return "Dawnhaven March";
+  return "Central Kingdom";
+}
+
+function drawLocationBanner() {
+  const region = currentRegionName();
+  ctx.save();
+  ctx.font = "700 12px Trebuchet MS";
+  const width = Math.max(120, ctx.measureText(region).width + 24);
+  const x = 12;
+  const y = canvas.height - 36;
+  ctx.fillStyle = "rgba(15,18,25,0.7)";
+  ctx.fillRect(x, y, width, 22);
+  ctx.strokeStyle = "rgba(244,234,215,0.2)";
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 21);
+  ctx.fillStyle = "#f4ead7";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(region, x + 12, y + 11);
   ctx.restore();
 }
 
