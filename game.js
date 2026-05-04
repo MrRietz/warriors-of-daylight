@@ -39,6 +39,7 @@ const NIGHT_WAVE_STAGGER_MS = 180;
 const NIGHT_WAVE_TRIGGER_BUFFER_MS = 120;
 const MAX_PARTY_UNITS = 6;
 const HEALING_DRAUGHT_AMOUNT = 24;
+const AUTO_BATTLE_DELAY_MS = 720;
 
 const spriteSheet = new Image();
 let spriteSheetReady = false;
@@ -761,6 +762,7 @@ let musicTimer = 0;
 let musicStep = 0;
 let musicGain = null;
 let musicMode = "field";
+let autoBattleTimer = 0;
 let lastStepSoundAt = 0;
 const keyMap = {
   ArrowUp: [0, -1],
@@ -1018,56 +1020,63 @@ function scheduleMusicBeat() {
   }
   const patterns = {
     field: {
-      melody: [294, 330, 392, 494, 440, 392, 330, 392, 294, 330, 392, 587, 523, 494, 440, 392],
       variations: [
-        [294, 330, 392, 494, 440, 392, 330, 392, 294, 330, 392, 587, 523, 494, 440, 392],
-        [330, 392, 440, 523, 587, 523, 494, 440, 392, 440, 494, 659, 587, 523, 494, 440],
-        [247, 294, 330, 392, 494, 587, 494, 440, 392, 330, 294, 392, 440, 523, 494, 392],
-        [392, 440, 494, 587, 659, 587, 523, 494, 440, 392, 330, 392, 494, 587, 523, 494],
+        [294, 330, 392, 494, 440, 392, 330, 392, 294, 330, 392, 587, 523, 494, 440, 392, 330, 392, 440, 523, 587, 523, 494, 440, 392, 440, 494, 659, 587, 523, 494, 440],
+        [247, 294, 330, 392, 494, 587, 494, 440, 392, 330, 294, 392, 440, 523, 494, 392, 330, 392, 494, 587, 659, 587, 523, 494, 440, 392, 330, 392, 494, 587, 523, 440],
+        [294, 330, 370, 440, 494, 440, 392, 370, 330, 370, 392, 494, 554, 494, 440, 392, 330, 294, 330, 392, 440, 494, 523, 587, 523, 494, 440, 392, 370, 330, 294, 392],
+        [392, 440, 494, 587, 659, 587, 523, 494, 440, 392, 330, 392, 494, 587, 523, 494, 440, 494, 523, 587, 659, 740, 659, 587, 523, 494, 440, 392, 494, 587, 523, 440],
       ],
-      bass: [98, 98, 147, 147, 123, 123, 165, 147, 110, 110, 147, 147, 123, 165, 147, 123],
+      bass: [98, 98, 147, 147, 123, 123, 165, 147, 110, 110, 147, 147, 123, 165, 147, 123, 98, 98, 147, 147, 123, 123, 196, 165, 110, 110, 147, 147, 165, 147, 123, 98],
       tempo: 0.22,
       delay: 240,
+      sectionLength: 32,
     },
     night: {
-      melody: [147, 196, 220, 247, 294, 247, 220, 196, 165, 220, 247, 330, 294, 247, 220, 196],
       variations: [
-        [147, 196, 220, 247, 294, 247, 220, 196, 165, 220, 247, 330, 294, 247, 220, 196],
-        [165, 220, 247, 294, 330, 294, 247, 220, 196, 247, 294, 392, 330, 294, 247, 220],
-        [147, 165, 196, 247, 294, 330, 294, 247, 220, 196, 165, 220, 247, 294, 247, 196],
+        [147, 196, 220, 247, 294, 247, 220, 196, 165, 220, 247, 330, 294, 247, 220, 196, 147, 165, 196, 247, 294, 330, 294, 247, 220, 196, 165, 220, 247, 294, 247, 196],
+        [165, 220, 247, 294, 330, 294, 247, 220, 196, 247, 294, 392, 330, 294, 247, 220, 185, 220, 247, 277, 330, 392, 330, 294, 247, 220, 196, 165, 196, 220, 247, 196],
+        [147, 185, 196, 220, 247, 294, 247, 220, 196, 220, 247, 294, 330, 294, 247, 220, 165, 196, 220, 247, 294, 247, 220, 196, 185, 220, 247, 330, 294, 247, 220, 196],
       ],
-      bass: [73, 73, 98, 98, 82, 82, 110, 98, 65, 65, 98, 98, 82, 110, 98, 82],
+      bass: [73, 73, 98, 98, 82, 82, 110, 98, 65, 65, 98, 98, 82, 110, 98, 82, 73, 73, 98, 98, 82, 82, 123, 110, 65, 65, 98, 98, 82, 98, 73, 65],
       tempo: 0.27,
       delay: 300,
+      sectionLength: 32,
     },
     battle: {
-      melody: [220, 247, 294, 330, 392, 330, 294, 247, 262, 294, 349, 392, 440, 392, 349, 294],
       variations: [
-        [220, 247, 294, 330, 392, 330, 294, 247, 262, 294, 349, 392, 440, 392, 349, 294],
-        [247, 294, 330, 392, 494, 440, 392, 330, 294, 330, 392, 523, 494, 440, 392, 330],
-        [196, 220, 262, 330, 392, 330, 262, 220, 247, 294, 330, 440, 392, 349, 330, 294],
+        [220, 247, 294, 330, 392, 330, 294, 247, 262, 294, 349, 392, 440, 392, 349, 294, 247, 294, 330, 392, 494, 440, 392, 330, 294, 330, 392, 523, 494, 440, 392, 330],
+        [196, 220, 262, 330, 392, 330, 262, 220, 247, 294, 330, 440, 392, 349, 330, 294, 220, 247, 294, 349, 392, 440, 392, 349, 330, 294, 262, 294, 330, 392, 349, 294],
+        [247, 294, 330, 392, 494, 440, 392, 330, 294, 330, 392, 523, 494, 440, 392, 330, 262, 294, 349, 392, 440, 392, 349, 330, 294, 262, 247, 294, 330, 349, 392, 294],
       ],
-      bass: [55, 55, 82, 82, 73, 73, 98, 82, 65, 65, 98, 98, 73, 110, 98, 82],
+      bass: [55, 55, 82, 82, 73, 73, 98, 82, 65, 65, 98, 98, 73, 110, 98, 82, 55, 55, 82, 82, 73, 73, 110, 98, 65, 65, 98, 98, 82, 110, 98, 73],
       tempo: 0.16,
       delay: 170,
+      sectionLength: 32,
     },
   };
   const pattern = patterns[mode];
-  const phrase = pattern.variations?.[Math.floor(musicStep / 16) % pattern.variations.length] || pattern.melody;
-  const note = phrase[musicStep % phrase.length];
+  const sectionLength = pattern.sectionLength || 16;
+  const sectionIndex = Math.floor(musicStep / sectionLength);
+  const stepInSection = musicStep % sectionLength;
+  const phrase = pattern.variations?.[sectionIndex % pattern.variations.length] || pattern.variations?.[0] || [];
+  const note = phrase[stepInSection % phrase.length];
   const root = pattern.bass[Math.floor(musicStep / 2) % pattern.bass.length];
   const field = mode === "field";
   const battle = mode === "battle";
   const night = mode === "night";
   playTone(note, pattern.tempo, battle ? "square" : field ? "sawtooth" : "triangle", battle ? 0.07 : field ? 0.045 : 0.052, musicGain);
   if (field && musicStep % 4 === 0) playTone(note * 2, 0.09, "triangle", 0.026, musicGain);
-  if (field && musicStep % 8 === 7) playTone(note * 1.5, 0.11, "square", 0.024, musicGain);
+  if (field && [7, 15, 23, 31].includes(stepInSection)) playTone(note * 1.5, 0.11, "square", 0.024, musicGain);
+  if (field && [12, 28].includes(stepInSection)) playTone(note * 0.75, 0.16, "triangle", 0.022, musicGain);
   if (battle && musicStep % 4 === 1) playTone(note * 2, 0.055, "square", 0.033, musicGain);
+  if (battle && [14, 30].includes(stepInSection)) playTone(note * 1.5, 0.075, "sawtooth", 0.03, musicGain);
   if (night && musicStep % 8 === 5) playTone(note * 1.5, 0.12, "sine", 0.028, musicGain);
+  if (night && [10, 26].includes(stepInSection)) playTone(note * 2, 0.16, "triangle", 0.02, musicGain);
   if (musicStep % 2 === 0) playTone(root, pattern.tempo + 0.08, "sine", battle ? 0.13 : field ? 0.105 : 0.095, musicGain);
   if (field && musicStep % 4 === 2) playTone(root / 2, 0.12, "triangle", 0.07, musicGain);
   if (battle && musicStep % 4 === 2) playTone(55, 0.09, "sawtooth", 0.11, musicGain);
   if (mode !== "battle" && !field && musicStep % 8 === 6) playTone(note * 1.5, 0.14, "sine", 0.035, musicGain);
+  if (sectionLength > 16 && [15, 31].includes(stepInSection)) playTone(root * 2, 0.18, battle ? "square" : "triangle", battle ? 0.03 : 0.024, musicGain);
   if (mode === "field") playFieldDrums(musicStep);
   if (mode === "night") playNightDrums(musicStep);
   if (mode === "battle") playBattleDrums(musicStep);
@@ -3046,7 +3055,9 @@ function startBattle(key, event, enemyInput) {
     floaters: [],
     log: [`${enemyNames} engage your party.${trapLine}`],
     bossState: createBossBattleState(event),
+    auto: false,
   };
+  clearAutoBattleTimer();
   buildBattleQueue();
   advanceBattleTurn();
   renderBattle();
@@ -3098,6 +3109,7 @@ function advanceBattleTurn() {
 
 function renderBattle() {
   if (!activeBattle) return;
+  clearAutoBattleTimer();
   normalizeSelectedBattleEnemy();
   modalOpen = true;
   modalTitle.textContent = `Battle: ${battleEnemyTitle()}`;
@@ -3138,14 +3150,33 @@ function renderBattle() {
     guard.setAttribute("aria-label", "Current unit guards against the next enemy attack");
     guard.addEventListener("click", guardBattleAction);
     modalActions.appendChild(guard);
+    const auto = document.createElement("button");
+    auto.type = "button";
+    auto.className = `${activeBattle.auto ? "secondary " : ""}battle-action battle-action-auto`;
+    auto.innerHTML = activeBattle.auto
+      ? `<span>Auto Battle</span><b>Stop Auto</b>`
+      : `<span>${battleHasBoss() ? "Boss fight: risky" : "Repeat fight helper"}</span><b>Auto Battle</b>`;
+    auto.setAttribute("aria-label", activeBattle.auto ? "Stop auto battle" : "Enable auto battle");
+    auto.addEventListener("click", toggleAutoBattle);
+    modalActions.appendChild(auto);
   } else {
     const waiting = document.createElement("p");
     waiting.className = "battle-wait";
-    waiting.textContent = "Enemy turn...";
+    waiting.textContent = activeBattle.auto ? "Enemy turn... Auto Battle armed." : "Enemy turn...";
     modalActions.appendChild(waiting);
+    if (activeBattle.auto) {
+      const stopAuto = document.createElement("button");
+      stopAuto.type = "button";
+      stopAuto.className = "secondary battle-action battle-action-auto";
+      stopAuto.innerHTML = `<span>Auto Battle</span><b>Stop Auto</b>`;
+      stopAuto.setAttribute("aria-label", "Stop auto battle");
+      stopAuto.addEventListener("click", toggleAutoBattle);
+      modalActions.appendChild(stopAuto);
+    }
   }
 
   if (!modal.open) modal.showModal();
+  if (activeBattle.auto && activeBattle.turn === "player") scheduleAutoBattleAction();
 }
 
 function battleMarkup() {
@@ -3311,6 +3342,89 @@ function normalizeSelectedBattleEnemy() {
   const targetIndex = currentBattleTargetIndex();
   activeBattle.selectedEnemyIndex = targetIndex;
   return targetIndex;
+}
+
+function clearAutoBattleTimer() {
+  if (autoBattleTimer) window.clearTimeout(autoBattleTimer);
+  autoBattleTimer = 0;
+}
+
+function battleHasBoss() {
+  return Boolean(activeBattle?.event?.type === "final" || activeBattle?.event?.gate || activeBattle?.enemies?.some((enemy) => ["gatekeeper", "rival"].includes(enemy.sourceEncounter)));
+}
+
+function toggleAutoBattle() {
+  if (!activeBattle) return;
+  activeBattle.auto = !activeBattle.auto;
+  clearAutoBattleTimer();
+  activeBattle.log.push(activeBattle.auto
+    ? battleHasBoss()
+      ? "Auto Battle engaged. Boss fight warning: decisions may be risky."
+      : "Auto Battle engaged."
+    : "Auto Battle stopped.");
+  renderBattle();
+}
+
+function scheduleAutoBattleAction() {
+  clearAutoBattleTimer();
+  if (!activeBattle?.auto || activeBattle.turn !== "player") return;
+  autoBattleTimer = window.setTimeout(runAutoBattleAction, AUTO_BATTLE_DELAY_MS);
+}
+
+function runAutoBattleAction() {
+  if (!activeBattle?.auto || activeBattle.turn !== "player") return;
+  const activeUnit = selectedBattleUnit();
+  const activeIndex = activeBattle.selectedIndex;
+  const pos = activeBattle.positions[activeIndex];
+  if (!activeUnit || activeUnit.hp <= 0 || !pos || pos.acted) return;
+  const emergencyHeal = inventoryCount("healingDraught") > 0
+    && partyMissingHp() >= HEALING_DRAUGHT_AMOUNT
+    && [state.hero, ...state.party].some((unit) => unit.hp > 0 && unit.hp / unit.maxHp <= 0.35);
+  if (emergencyHeal) {
+    useBattleHealingDraught();
+    return;
+  }
+  const targetIndex = chooseAutoBattleTarget(activeIndex);
+  if (targetIndex >= 0) {
+    activeBattle.selectedEnemyIndex = targetIndex;
+    selectedBattleAttack(targetIndex);
+    return;
+  }
+  guardBattleAction();
+}
+
+function chooseAutoBattleTarget(unitIndex) {
+  if (!activeBattle) return -1;
+  const unit = [state.hero, ...state.party][unitIndex];
+  const pos = activeBattle.positions[unitIndex];
+  if (!unit || !pos) return -1;
+  const living = activeBattle.enemies
+    .map((enemy, index) => ({ enemy, index, pos: activeBattle.enemyPositions[index] }))
+    .filter(({ enemy, pos }) => enemy?.hp > 0 && pos);
+  if (!living.length) return -1;
+  const ranked = living
+    .map(({ enemy, index, pos: enemyPos }) => {
+      const attackPos = attackPositionForTarget(unit, unitIndex, enemyPos);
+      const inRangeNow = canAttackTarget(unit, pos, enemyPos);
+      const killable = inRangeNow && expectedPlayerDamage(unit, enemy, pos, enemyPos) >= enemy.hp;
+      const movementCost = attackPos ? battleDistance(pos, attackPos, unit) : Number.POSITIVE_INFINITY;
+      const distanceNow = battleDistance(pos, enemyPos, unit);
+      return { index, enemy, inRangeNow, killable, movementCost, distanceNow };
+    })
+    .filter((entry) => Number.isFinite(entry.movementCost))
+    .sort((a, b) =>
+      Number(b.killable) - Number(a.killable)
+      || Number(b.inRangeNow) - Number(a.inRangeNow)
+      || a.enemy.hp - b.enemy.hp
+      || a.movementCost - b.movementCost
+      || a.distanceNow - b.distanceNow
+      || a.enemy.name.localeCompare(b.enemy.name));
+  return ranked[0]?.index ?? -1;
+}
+
+function expectedPlayerDamage(unit, enemy, fromPos, enemyPos) {
+  const penalty = rangedDamagePenalty(unit, fromPos, enemyPos);
+  return Math.max(1, (unit.atk || 0) + (unit.power || 0) - (enemy.def || 0) - penalty * 2);
 }
 
 function battleAttackButtonText(unit, targetIndex) {
@@ -3864,6 +3978,7 @@ function battleEnemyTitle() {
 
 function finishBattle(wonBattle) {
   if (!activeBattle) return;
+  clearAutoBattleTimer();
   const { key, event, enemies, reward, log } = activeBattle;
   const leader = enemies[0];
   const enemyLabel = enemies.length > 1 ? `${leader.name}'s party` : leader.name;
