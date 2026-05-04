@@ -721,11 +721,36 @@ dialog.battle-modal {
     overflow: hidden;
   }
 
-  dialog.town-modal .modal-card,
+  dialog.town-modal .modal-card {
+    max-height: calc(100dvh - 16px);
+    overflow: auto;
+  }
+
   dialog.trade-modal .modal-card,
   dialog.night-modal .modal-card {
     max-height: calc(100dvh - 16px);
     overflow: hidden;
+  }
+
+  .town-view {
+    grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .town-yard {
+    min-height: 380px;
+  }
+
+  .town-info {
+    max-height: calc(100dvh - 220px);
+    padding-right: 4px;
+    overflow: auto;
+  }
+
+  .town-building-list,
+  .town-recruit-list {
+    max-height: 280px;
+    overflow: auto;
   }
 }
 
@@ -982,6 +1007,7 @@ dialog.name-modal {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-content: start;
   gap: 10px;
+  min-width: 0;
 }
 
 .town-info p {
@@ -1339,6 +1365,7 @@ dialog.name-modal {
   display: grid;
   align-content: start;
   gap: 8px;
+  min-width: 0;
   padding: 10px;
   border: 2px solid rgba(87, 96, 113, 0.72);
   border-radius: 4px;
@@ -1349,6 +1376,7 @@ dialog.name-modal {
   display: grid;
   align-content: start;
   gap: 8px;
+  min-width: 0;
   padding: 10px;
   border: 2px solid rgba(87, 96, 113, 0.72);
   border-radius: 4px;

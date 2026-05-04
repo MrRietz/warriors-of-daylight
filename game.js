@@ -5042,7 +5042,10 @@ function drawWorldEntities() {
 function drawEventEntity(key, event, x, y) {
   const px = screenTileX(x);
   const py = screenTileY(y);
-  if (event.type === "wall") return;
+  if (event.type === "wall") {
+    drawFortressWallSegment(px, py, x, y);
+    return;
+  }
   if (event.type === "landmark") drawLandmark(px, py, event);
   if (event.type === "town") drawBuilding(px, py, key, event);
   if (event.type === "npc") drawNpc(px, py, event);
@@ -5408,7 +5411,6 @@ function drawPlayerFlag(px, py) {
 function drawFinalFortress(px, py) {
   const centerX = px + 16;
   const keepX = centerX;
-  const gateX = centerX;
   let painted = false;
 
   drawFinalFortressGround(px, py);
@@ -5418,19 +5420,10 @@ function drawFinalFortress(px, py) {
   ctx.beginPath();
   ctx.ellipse(centerX, py + 62, 78, 32, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "rgba(242, 190, 83, 0.24)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(gateX - 16, py + 101);
-  ctx.lineTo(gateX - 40, py + 123);
-  ctx.moveTo(gateX + 16, py + 101);
-  ctx.lineTo(gateX - 8, py + 123);
-  ctx.stroke();
   ctx.restore();
 
-  painted = drawCastleWallFrame(centerX, py + 108, { targetHeight: 104 }) || painted;
-  painted = drawCastleCutout("keep", keepX, py + 69, { targetHeight: 58 }) || painted;
-  if (!painted) painted = drawCastleWallCutout("gate", gateX, py + 101, { targetHeight: 42 }) || painted;
+  painted = drawCastleCutout("keep", keepX, py + 72, { targetHeight: 78 }) || painted;
+  if (!painted) painted = drawAtlas("castle", px - 26, py - 34, 92, 74) || painted;
   return painted;
 }
 
@@ -5477,6 +5470,35 @@ function drawCastleWall(px, py) {
   ctx.moveTo(px + 8, py + 25);
   ctx.lineTo(px + 25, py + 25);
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawFortressWallSegment(px, py, x, y) {
+  const left = x === 69;
+  const right = x === 73;
+  const top = y === 3;
+  const bottom = y === 5;
+  drawShadow(px + 16, py + 29, top || bottom ? 34 : 24, 8);
+  if (left || right) {
+    if (drawCastleWallCutout("vertical", px + 16, py + 36, { targetHeight: 38, flip: right })) return;
+  } else if (top || bottom) {
+    if (drawCastleWallCutout("horizontal", px + 16, py + 34, { targetHeight: 30 })) return;
+  }
+  ctx.save();
+  ctx.fillStyle = "#555b6d";
+  if (left || right) {
+    ctx.fillRect(px + 9, py + 8, 14, 24);
+    ctx.fillStyle = "#747b8d";
+    for (let step = 0; step < 4; step += 1) ctx.fillRect(px + 8, py + 6 + step * 6, 16, 3);
+  } else {
+    ctx.fillRect(px + 2, py + 12, 28, 18);
+    ctx.fillStyle = "#747b8d";
+    for (let wallX = 3; wallX < 30; wallX += 8) ctx.fillRect(px + wallX, py + 6, 5, 9);
+  }
+  ctx.strokeStyle = "#272b37";
+  ctx.lineWidth = 2;
+  if (left || right) ctx.strokeRect(px + 9.5, py + 8.5, 13, 23);
+  else ctx.strokeRect(px + 2.5, py + 12.5, 27, 17);
   ctx.restore();
 }
 
