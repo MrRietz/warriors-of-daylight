@@ -691,6 +691,12 @@ const events = new Map([
   ["59,35", { type: "battle", encounter: "warlock" }],
   ["13,36", { type: "battle", encounter: "raiders" }],
   ["43,36", { type: "battle", encounter: "wyvern" }],
+  ["8,5", { type: "landmark", landmark: "signpost", title: "Dawnhaven Crossing" }],
+  ["18,11", { type: "landmark", landmark: "ruins", title: "Broken Watch" }],
+  ["33,8", { type: "landmark", landmark: "camp", title: "Cinder Road Camp" }],
+  ["41,21", { type: "landmark", landmark: "statue", title: "Sunfall Monument" }],
+  ["57,12", { type: "landmark", landmark: "signpost", title: "High March Road" }],
+  ["63,31", { type: "landmark", landmark: "camp", title: "South Road Camp" }],
   ["19,31", { type: "chest", gold: 105, item: "Healing Draught" }],
   ["65,16", { type: "chest", gold: 175, item: "Healing Draught" }],
   ["60,32", { type: "chest", gold: 190, item: "Banner of Luck" }],
@@ -721,6 +727,7 @@ const defaultState = () => ({
   campUpgrades: {},
   won: false,
   visited: {},
+  discoveredRegions: {},
   hero: { ...heroBaseStats, nameChosen: false, skills: [] },
   startingBonus: "",
   party: [makeCreature("leafFox")],
@@ -816,6 +823,7 @@ function normalizeState(saved) {
   });
   saved.tradeLedger = Array.isArray(saved.tradeLedger) ? saved.tradeLedger : [];
   saved.campUpgrades = saved.campUpgrades && typeof saved.campUpgrades === "object" ? saved.campUpgrades : {};
+  saved.discoveredRegions = saved.discoveredRegions && typeof saved.discoveredRegions === "object" ? saved.discoveredRegions : {};
   saved.enemyHeroes = normalizeEnemyHeroes(saved.enemyHeroes);
   saved.quests = saved.quests && typeof saved.quests === "object" ? saved.quests : {};
   saved.startingBonus ??= saved.hero?.nameChosen ? "legacy" : "";
@@ -1250,6 +1258,7 @@ function startMoveAnimation(fromX, fromY, toX, toY) {
     }
     visual = { x: toX, y: toY, fromX: toX, fromY: toY, toX, toY, moving: false, startedAt: 0, progress: 0 };
     triggerEvent();
+    checkRegionDiscovery();
     if (!modalOpen && !activeBattle && !activeNight) {
       advanceRoamingHeroes();
       checkRoamingHeroContact();
@@ -1313,6 +1322,10 @@ function triggerEvent() {
     return;
   }
   if (state.visited[key] && !["final", "town"].includes(event.type)) {
+    if (event.type === "landmark") {
+      setMessage(`${event.title || "This landmark"} is a known waypoint.`);
+      return;
+    }
     setMessage(`${eventLabel(event)} is already under your banner.`);
     return;
   }
@@ -1320,6 +1333,7 @@ function triggerEvent() {
   if (event.type === "npc") return npcEvent(key, event);
   if (event.type === "mine") return mineEvent(key, event);
   if (event.type === "chest") return chestEvent(key, event);
+  if (event.type === "landmark") return landmarkEvent(key, event);
   if (event.type === "battle" || event.type === "final") return battleEvent(key, event);
 }
 
@@ -1629,7 +1643,26 @@ function eventLabel(event) {
   if (event.type === "mine") return "This mine";
   if (event.type === "chest") return "This treasure";
   if (event.type === "battle") return "This outpost";
+  if (event.type === "landmark") return event.title || "This landmark";
   return "This place";
+}
+
+function landmarkFlavor(event) {
+  if (event.landmark === "signpost") return `${event.title || "The signpost"} points the way ahead. Fresh paint marks the safer road and warns that the darker trail leads toward trouble.`;
+  if (event.landmark === "ruins") return `${event.title || "The ruins"} still watch the road. Broken stone and old ash suggest this route has been contested for years.`;
+  if (event.landmark === "camp") return `${event.title || "The camp"} is warm but abandoned. The embers are recent enough to suggest travelers or raiders passed through not long ago.`;
+  if (event.landmark === "statue") return `${event.title || "The monument"} rises over the road, reminding every army marching past that someone else once tried to rule this ground.`;
+  return `${event.title || "The landmark"} breaks the road's monotony.`;
+}
+
+function landmarkEvent(key, event) {
+  const firstVisit = !state.visited[key];
+  state.visited[key] = true;
+  const text = landmarkFlavor(event);
+  setMessage(firstVisit ? `Discovered ${event.title || "a landmark"}.` : `${event.title || "This landmark"} is familiar now.`);
+  openModal(event.title || "Landmark", text, [
+    { label: firstVisit ? "Mark Route" : "Continue", action: () => renderAll() },
+  ]);
 }
 
 function townClaimCost(event) {
@@ -3723,6 +3756,39 @@ function drawObjectiveHint() {
   ctx.restore();
 }
 
+function currentRegionId() {
+  if (state.x >= 66 && state.y <= 8) return "black_gate_approach";
+  if (state.x >= 56 && state.y >= 28) return "southern_wilds";
+  if (state.x >= 56 && state.y <= 14) return "high_march";
+  if (state.y >= 28) return "low_roads";
+  if (state.x <= 18 && state.y <= 12) return "dawnhaven_march";
+  return "central_kingdom";
+}
+
+function regionFlavorText(regionId) {
+  return {
+    dawnhaven_march: "Soft roads, small banners, and early patrol routes make this the safest part of the realm.",
+    central_kingdom: "Trade roads and broken outposts cross here. The realm opens up and so do the risks.",
+    high_march: "The air thins and the road hardens. Every mile northeast feels closer to the fortress war.",
+    low_roads: "Merchants, scouts, and raiders all cut through these lower roads. Wealth and danger travel together here.",
+    southern_wilds: "Sparse banners and long distances turn the south into a harsher frontier.",
+    black_gate_approach: "The mountains choke the road into a killing pass. The fortress is no longer a rumor.",
+  }[regionId] || "Another stretch of contested road lies ahead.";
+}
+
+function checkRegionDiscovery() {
+  state.discoveredRegions ??= {};
+  const regionId = currentRegionId();
+  if (state.discoveredRegions[regionId]) return;
+  state.discoveredRegions[regionId] = true;
+  if (modalOpen) return;
+  const name = currentRegionName();
+  setMessage(`Entered ${name}.`);
+  openModal(name, regionFlavorText(regionId), [
+    { label: "Travel On", action: () => renderAll() },
+  ]);
+}
+
 function drawWorldReadabilityOverlays() {
   drawTownInfluenceOverlays();
   drawThreatOverlays();
@@ -3808,12 +3874,14 @@ function drawThreatHalo(cx, cy, color, radius, label = "") {
 }
 
 function currentRegionName() {
-  if (state.x >= 66 && state.y <= 8) return "Black Gate Approach";
-  if (state.x >= 56 && state.y >= 28) return "Southern Wilds";
-  if (state.x >= 56 && state.y <= 14) return "High March";
-  if (state.y >= 28) return "Low Roads";
-  if (state.x <= 18 && state.y <= 12) return "Dawnhaven March";
-  return "Central Kingdom";
+  return {
+    black_gate_approach: "Black Gate Approach",
+    southern_wilds: "Southern Wilds",
+    high_march: "High March",
+    low_roads: "Low Roads",
+    dawnhaven_march: "Dawnhaven March",
+    central_kingdom: "Central Kingdom",
+  }[currentRegionId()] || "Central Kingdom";
 }
 
 function drawLocationBanner() {
@@ -4756,6 +4824,7 @@ function drawEventEntity(key, event, x, y) {
   const px = screenTileX(x);
   const py = screenTileY(y);
   if (event.type === "wall") return;
+  if (event.type === "landmark") drawLandmark(px, py, event);
   if (event.type === "town") drawBuilding(px, py, key, event);
   if (event.type === "npc") drawNpc(px, py, event);
   if (event.type === "mine") drawMine(px, py);
@@ -4847,6 +4916,81 @@ function drawTradeCart(px, py, direction = 1, offset = 0) {
   ctx.beginPath();
   ctx.arc(-6, 7, 3, 0, Math.PI * 2);
   ctx.arc(7, 7, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawLandmark(px, py, event) {
+  if (event.landmark === "signpost") return drawSignpost(px, py);
+  if (event.landmark === "ruins") return drawRuins(px, py);
+  if (event.landmark === "camp") return drawRoadCamp(px, py);
+  if (event.landmark === "statue") return drawMonument(px, py);
+}
+
+function drawSignpost(px, py) {
+  drawShadow(px + 16, py + 27, 18, 6);
+  ctx.save();
+  ctx.fillStyle = "#6b4735";
+  ctx.fillRect(px + 14, py + 10, 4, 18);
+  ctx.fillStyle = "#d6aa62";
+  ctx.fillRect(px + 7, py + 8, 18, 9);
+  ctx.strokeStyle = "#51341f";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(px + 7.5, py + 8.5, 17, 8);
+  ctx.fillStyle = "#51341f";
+  ctx.fillRect(px + 10, py + 11, 10, 2);
+  ctx.restore();
+}
+
+function drawRuins(px, py) {
+  drawShadow(px + 16, py + 28, 26, 7);
+  ctx.save();
+  ctx.fillStyle = "#6b707d";
+  ctx.fillRect(px + 6, py + 16, 7, 12);
+  ctx.fillRect(px + 18, py + 12, 8, 16);
+  ctx.fillRect(px + 12, py + 20, 5, 8);
+  ctx.fillStyle = "#a7adb8";
+  ctx.fillRect(px + 7, py + 17, 5, 2);
+  ctx.fillRect(px + 19, py + 13, 6, 2);
+  ctx.restore();
+}
+
+function drawRoadCamp(px, py) {
+  drawShadow(px + 16, py + 28, 28, 8);
+  ctx.save();
+  ctx.fillStyle = "#8a5937";
+  ctx.beginPath();
+  ctx.moveTo(px + 16, py + 8);
+  ctx.lineTo(px + 7, py + 25);
+  ctx.lineTo(px + 25, py + 25);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#d6aa62";
+  ctx.fillRect(px + 6, py + 22, 20, 4);
+  ctx.fillStyle = "#f0c15b";
+  ctx.beginPath();
+  ctx.arc(px + 23, py + 22, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(240,193,91,0.3)";
+  ctx.beginPath();
+  ctx.arc(px + 23, py + 22, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawMonument(px, py) {
+  drawShadow(px + 16, py + 28, 24, 7);
+  ctx.save();
+  ctx.fillStyle = "#b8bfca";
+  ctx.fillRect(px + 12, py + 8, 8, 17);
+  ctx.fillRect(px + 9, py + 23, 14, 5);
+  ctx.fillStyle = "#fff2b6";
+  ctx.beginPath();
+  ctx.moveTo(px + 16, py + 4);
+  ctx.lineTo(px + 19, py + 10);
+  ctx.lineTo(px + 16, py + 9);
+  ctx.lineTo(px + 13, py + 10);
+  ctx.closePath();
   ctx.fill();
   ctx.restore();
 }
