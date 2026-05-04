@@ -695,7 +695,8 @@ dialog.victory-modal h2 {
 }
 
 dialog.town-modal {
-  width: min(1120px, calc(100% - 24px));
+  width: min(1540px, calc(100% - 12px));
+  overflow: hidden;
 }
 
 dialog.trade-modal {
@@ -715,15 +716,50 @@ dialog.battle-modal {
   width: min(1320px, calc(100% - 20px));
 }
 
-@media (min-width: 900px) and (min-height: 720px) {
+@media (min-width: 760px) {
   dialog.battle-modal .modal-card {
     max-height: calc(100dvh - 16px);
     overflow: hidden;
   }
 
+  dialog.town-modal {
+    height: min(920px, calc(100dvh - 16px));
+  }
+
   dialog.town-modal .modal-card {
-    max-height: calc(100dvh - 16px);
-    overflow: auto;
+    height: min(920px, calc(100dvh - 16px));
+    max-height: min(920px, calc(100dvh - 16px));
+    min-height: min(920px, calc(100dvh - 16px));
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    box-sizing: border-box;
+    padding: 12px;
+    overflow: hidden;
+  }
+
+  dialog.town-modal h2 {
+    margin-bottom: 4px;
+    font-size: 1.34rem;
+  }
+
+  dialog.town-modal .modal-text {
+    display: grid;
+    align-content: start;
+    margin-top: 6px;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  dialog.town-modal .modal-actions {
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 8px;
+  }
+
+  dialog.town-modal .modal-actions button {
+    min-width: 88px;
+    min-height: 34px;
+    padding-inline: 10px;
   }
 
   dialog.trade-modal .modal-card,
@@ -732,25 +768,97 @@ dialog.battle-modal {
     overflow: hidden;
   }
 
-  .town-view {
-    grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+  .town-view .town-overview {
+    grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
     align-items: stretch;
+    gap: 10px;
   }
 
   .town-yard {
-    min-height: 380px;
+    width: 100%;
+    min-height: 236px;
+    justify-self: stretch;
   }
 
-  .town-info {
-    max-height: calc(100dvh - 220px);
-    padding-right: 4px;
-    overflow: auto;
+  .town-yard.owned::before {
+    top: 6px;
+    left: 6px;
+    padding: 3px 6px;
+    font-size: 0.62rem;
+  }
+
+  .town-yard::after {
+    inset: auto 20px 18px;
+    height: 32px;
+  }
+
+  .town-yard-hall {
+    bottom: 56px;
+    width: 84px;
+    height: 72px;
+  }
+
+  .town-yard-slot.empty {
+    width: 72px;
+    height: 50px;
+  }
+
+  .town-yard-slot img {
+    max-width: 72px;
+    max-height: 58px;
+  }
+
+  .town-yard-slot.market {
+    left: 24px;
+    bottom: 22px;
+  }
+
+  .town-yard-slot.caravan-post {
+    right: 24px;
+    bottom: 22px;
+  }
+
+  .town-yard-slot.barracks {
+    left: 24px;
+    top: 28px;
+  }
+
+  .town-yard-slot.training-yard {
+    right: 24px;
+    top: 28px;
+  }
+
+  .building-ready {
+    font-size: 0.6rem;
+  }
+
+  .build-cost {
+    min-width: 106px;
+    max-width: 126px;
+    padding: 3px 6px;
+  }
+
+  .town-view .town-info {
+    grid-template-columns: 1fr;
+    max-height: none;
+    padding-right: 0;
+    overflow: visible;
+    gap: 8px;
+  }
+
+  .town-view .town-command-rail {
+    align-self: start;
+  }
+
+  .town-view .town-recruit-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px 6px;
   }
 
   .town-building-list,
   .town-recruit-list {
-    max-height: 280px;
-    overflow: auto;
+    max-height: none;
+    overflow: visible;
   }
 }
 
@@ -842,8 +950,15 @@ dialog.name-modal {
   display: grid;
   grid-template-columns: 1fr;
   align-items: start;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.town-overview {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
   gap: 12px;
-  margin-top: 10px;
 }
 
 .town-yard {
@@ -934,7 +1049,29 @@ dialog.name-modal {
   outline-offset: 2px;
 }
 
+.town-yard-slot.selected {
+  filter: brightness(1.1);
+  outline: 3px solid rgba(240, 193, 91, 0.92);
+  outline-offset: 2px;
+}
+
+.town-yard-slot.selected .building-ready {
+  color: #17120a;
+  background: #fff2b6;
+}
+
 .town-yard-slot.ready .building-ready {
+  color: #17120a;
+  background: var(--gold);
+}
+
+.town-yard-slot.empty .building-ready {
+  color: #f4ead7;
+  background: rgba(15, 18, 25, 0.76);
+}
+
+.town-yard-slot.empty:hover .building-ready,
+.town-yard-slot.empty:focus-visible .building-ready {
   color: #17120a;
   background: var(--gold);
 }
@@ -953,8 +1090,37 @@ dialog.name-modal {
   border-radius: 4px;
   color: var(--muted);
   background: #151a24;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;
   pointer-events: none;
+}
+
+.build-cost {
+  bottom: 6px;
+  min-width: 92px;
+  max-width: 118px;
+  padding: 3px 5px;
+  white-space: normal;
+}
+
+.build-cost b,
+.build-cost small {
+  display: block;
+}
+
+.build-cost b {
+  font-size: 0.61rem;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.build-cost small {
+  margin-top: 1px;
+  color: #fff2b6;
+  font-size: 0.54rem;
+  line-height: 1.05;
 }
 
 .town-yard-slot.empty {
@@ -1004,27 +1170,85 @@ dialog.name-modal {
 
 .town-info {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 1fr;
   align-content: start;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
-.town-info p {
-  grid-column: 1 / -1;
+.town-head {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 9px;
+  border: 2px solid rgba(87, 96, 113, 0.6);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(240, 193, 91, 0.12), rgba(15, 18, 25, 0) 55%),
+    rgba(15, 18, 25, 0.3);
+}
+
+.town-kicker {
+  display: inline-block;
+  margin-bottom: 3px;
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.town-head h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.08rem;
+  line-height: 1.05;
+}
+
+.town-head p {
+  margin: 2px 0 0;
+  font-size: 0.81rem;
+  line-height: 1.2;
+}
+
+.town-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.town-summary span {
+  display: grid;
+  gap: 2px;
+  padding: 6px 7px;
+  border: 2px solid #0f1219;
+  border-radius: 4px;
+  background: #151a24;
+}
+
+.town-summary small {
   color: var(--muted);
-  line-height: 1.45;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.town-summary strong {
+  color: #fff2b6;
+  font-size: 0.84rem;
 }
 
 .town-feedback {
   grid-column: 1 / -1;
-  min-height: 46px;
-  padding: 10px;
+  min-height: 0;
+  padding: 7px 8px;
   border: 2px solid #0f1219;
   border-radius: 4px;
   color: var(--ink);
   background: #10151f;
-  line-height: 1.4;
+  line-height: 1.2;
+  font-size: 0.76rem;
 }
 
 .town-feedback.good {
@@ -1037,6 +1261,65 @@ dialog.name-modal {
 
 .town-feedback.used {
   color: var(--muted);
+}
+
+.town-feedback.info {
+  border-color: rgba(102, 167, 216, 0.68);
+}
+
+.town-desk {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 2px solid rgba(102, 167, 216, 0.38);
+  border-radius: 6px;
+  background: rgba(21, 26, 36, 0.74);
+}
+
+.town-desk strong,
+.town-desk span {
+  display: block;
+}
+
+.town-desk strong {
+  color: var(--gold);
+}
+
+.town-desk span {
+  color: var(--muted);
+  line-height: 1.18;
+  font-size: 0.76rem;
+}
+
+.town-desk-line b {
+  color: #fff2b6;
+  margin-right: 5px;
+}
+
+.town-command-rail {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 7px;
+  border: 2px solid rgba(87, 96, 113, 0.72);
+  border-radius: 4px;
+  background: rgba(15, 18, 25, 0.28);
+}
+
+.town-command-button {
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 7px;
+  font-size: 0.7rem;
+}
+
+.town-command-button.used:disabled {
+  cursor: default;
+  color: rgba(244, 234, 215, 0.62);
+  background: #6a5740;
+  filter: none;
+  box-shadow: none;
 }
 
 .trade-panel {
@@ -1227,6 +1510,22 @@ dialog.name-modal {
   gap: 12px;
 }
 
+.nightfall-head {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 2px solid rgba(87, 96, 113, 0.7);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(122, 75, 181, 0.16), rgba(15, 18, 25, 0) 55%),
+    rgba(15, 18, 25, 0.34);
+}
+
+.nightfall-head strong {
+  color: #fff2b6;
+  font-size: 1rem;
+}
+
 .night-wave p {
   margin: 0;
   color: var(--muted);
@@ -1235,6 +1534,113 @@ dialog.name-modal {
 
 .night-wave strong {
   color: var(--gold);
+}
+
+.night-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.night-summary-bar span {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 2px solid #0f1219;
+  border-radius: 4px;
+  background: #151a24;
+}
+
+.night-summary-bar small {
+  color: var(--muted);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.night-summary-bar strong {
+  color: #fff2b6;
+  font-size: 0.95rem;
+}
+
+.night-plan-banner {
+  display: grid;
+  gap: 3px;
+  padding: 9px 11px;
+  border: 2px solid rgba(240, 193, 91, 0.5);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(240, 193, 91, 0.14), rgba(21, 26, 36, 0.92) 60%),
+    #151a24;
+}
+
+.night-plan-banner strong {
+  color: #fff2b6;
+  font-size: 0.92rem;
+}
+
+.night-plan-banner span {
+  color: var(--ink);
+  font-size: 0.8rem;
+  line-height: 1.28;
+}
+
+.night-prep-banner {
+  display: grid;
+  gap: 3px;
+  padding: 9px 11px;
+  border: 2px solid rgba(102, 167, 216, 0.46);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(102, 167, 216, 0.16), rgba(21, 26, 36, 0.9) 58%),
+    #151a24;
+}
+
+.night-prep-banner strong {
+  color: #d7ecff;
+  font-size: 0.9rem;
+}
+
+.night-prep-banner span {
+  color: var(--ink);
+  font-size: 0.8rem;
+  line-height: 1.28;
+}
+
+.night-defense-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.night-defense-strip span {
+  padding: 3px 7px;
+  border: 1px solid rgba(102, 167, 216, 0.28);
+  border-radius: 999px;
+  color: #d7ecff;
+  background: rgba(102, 167, 216, 0.12);
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+
+.night-section {
+  display: grid;
+  gap: 8px;
+}
+
+.night-section-head {
+  display: grid;
+  gap: 3px;
+}
+
+.night-section h3 {
+  margin: 0;
+  color: var(--gold);
+  font-size: 0.88rem;
+}
+
+.night-section-note {
+  font-size: 0.84rem;
 }
 
 .camp-scene {
@@ -1311,6 +1717,8 @@ dialog.name-modal {
 }
 
 .camp-upgrade {
+  display: grid;
+  gap: 7px;
   padding: 9px;
   border: 2px solid #0f1219;
   border-radius: 4px;
@@ -1319,6 +1727,24 @@ dialog.name-modal {
 
 .camp-upgrade.owned {
   border-color: rgba(104, 179, 107, 0.75);
+}
+
+.camp-upgrade.ready {
+  border-color: rgba(240, 193, 91, 0.65);
+}
+
+.night-plan-card.selected {
+  background:
+    linear-gradient(135deg, rgba(122, 75, 181, 0.16), rgba(21, 26, 36, 0.82)),
+    #151a24;
+  border-color: rgba(240, 193, 91, 0.68);
+}
+
+.camp-upgrade-topline {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .camp-upgrade strong,
@@ -1334,10 +1760,50 @@ dialog.name-modal {
 }
 
 .camp-upgrade p {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--muted);
   font-size: 0.8rem;
   line-height: 1.35;
+}
+
+.night-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.night-card-tags em {
+  padding: 2px 6px;
+  border: 1px solid rgba(240, 193, 91, 0.28);
+  border-radius: 999px;
+  color: #f4ead7;
+  background: rgba(240, 193, 91, 0.1);
+  font-size: 0.68rem;
+  font-style: normal;
+  line-height: 1.2;
+}
+
+.night-card-button {
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 2px solid rgba(240, 193, 91, 0.4);
+  border-radius: 4px;
+  color: #fff2b6;
+  background: linear-gradient(180deg, rgba(240, 193, 91, 0.16), rgba(240, 193, 91, 0.05));
+  font: 700 0.78rem/1.15 "Trebuchet MS", Verdana, sans-serif;
+  text-align: center;
+  cursor: pointer;
+}
+
+.night-card-button.selected {
+  border-color: rgba(104, 179, 107, 0.6);
+  color: #d6f3d4;
+  background: linear-gradient(180deg, rgba(104, 179, 107, 0.2), rgba(104, 179, 107, 0.06));
+}
+
+.night-card-button:disabled {
+  opacity: 0.66;
+  cursor: default;
 }
 
 @keyframes camp-sneak {
@@ -1364,9 +1830,9 @@ dialog.name-modal {
 .town-building-list {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  padding: 10px;
+  padding: 8px;
   border: 2px solid rgba(87, 96, 113, 0.72);
   border-radius: 4px;
   background: rgba(15, 18, 25, 0.28);
@@ -1375,9 +1841,9 @@ dialog.name-modal {
 .town-recruit-list {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
-  padding: 10px;
+  padding: 7px;
   border: 2px solid rgba(87, 96, 113, 0.72);
   border-radius: 4px;
   background: rgba(15, 18, 25, 0.28);
@@ -1389,14 +1855,25 @@ dialog.name-modal {
   color: var(--gold);
 }
 
+.town-panel > strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(244, 234, 215, 0.1);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
 .town-recruit-card {
   position: relative;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  min-height: 52px;
-  padding: 9px;
+  min-height: 40px;
+  padding: 6px 7px;
   color: var(--ink);
   background: #151a24;
   box-shadow: none;
@@ -1410,6 +1887,21 @@ dialog.name-modal {
   border-color: var(--blue);
   filter: none;
   outline: 2px solid rgba(102, 167, 216, 0.75);
+}
+
+.town-recruit-card.selected:not(:disabled) {
+  color: var(--ink);
+  border-color: rgba(240, 193, 91, 0.72);
+  background:
+    linear-gradient(90deg, rgba(240, 193, 91, 0.16), rgba(21, 26, 36, 0.96) 28%),
+    #151a24;
+  outline: 2px solid rgba(240, 193, 91, 0.78);
+  outline-offset: 1px;
+}
+
+.town-recruit-card.selected:not(:disabled) small,
+.town-recruit-card.selected:not(:disabled) em {
+  color: #fff2b6;
 }
 
 .town-recruit-card:not(:disabled):hover small,
@@ -1449,9 +1941,9 @@ dialog.name-modal {
 .town-recruit-card small,
 .town-recruit-card em {
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: 0.62rem;
   font-style: normal;
-  line-height: 1.25;
+  line-height: 1.12;
 }
 
 .town-recruit-card em {
@@ -1473,9 +1965,9 @@ dialog.name-modal {
 .town-building-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(66px, auto);
-  gap: 10px;
+  gap: 7px;
   align-items: center;
-  padding: 10px;
+  padding: 7px 8px;
   border: 2px solid #0f1219;
   border-radius: 4px;
   background: #151a24;
@@ -1503,23 +1995,23 @@ dialog.name-modal {
 
 .town-building-card span {
   color: var(--gold);
-  font-size: 0.8rem;
-  line-height: 1.25;
+  font-size: 0.74rem;
+  line-height: 1.12;
 }
 
 .town-building-card p {
-  margin-top: 5px;
+  margin-top: 3px;
   color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.35;
+  font-size: 0.72rem;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .town-building-card button {
   min-width: 66px;
-  min-height: 36px;
-  padding: 6px 8px;
-  font-size: 0.78rem;
+  min-height: 32px;
+  padding: 5px 7px;
+  font-size: 0.72rem;
 }
 
 .town-building-card button:disabled {
@@ -1528,6 +2020,39 @@ dialog.name-modal {
   background: #6a5740;
   filter: none;
   box-shadow: none;
+}
+
+.town-building-summary {
+  display: grid;
+  gap: 2px;
+  padding: 7px 8px;
+  border: 2px solid #0f1219;
+  border-radius: 4px;
+  background: #151a24;
+}
+
+.town-building-summary.built {
+  border-color: rgba(104, 179, 107, 0.75);
+}
+
+.town-building-summary.used {
+  border-color: rgba(188, 174, 148, 0.4);
+}
+
+.town-building-summary strong,
+.town-building-summary span {
+  display: block;
+}
+
+.town-building-summary strong {
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.town-building-summary span {
+  color: var(--gold);
+  font-size: 0.7rem;
+  line-height: 1.15;
 }
 
 .modal-actions {
@@ -2207,7 +2732,7 @@ dialog.name-modal {
   }
 }
 
-@media (max-width: 920px) {
+@media (max-width: 759px) {
   .shell {
     grid-template-columns: 1fr;
     align-items: stretch;
@@ -2222,6 +2747,7 @@ dialog.name-modal {
   }
 
   .town-view,
+  .town-overview,
   .town-info {
     grid-template-columns: 1fr;
   }
@@ -2301,6 +2827,10 @@ dialog.name-modal {
   }
 
   .town-view {
+    grid-template-columns: 1fr;
+  }
+
+  .town-overview {
     grid-template-columns: 1fr;
   }
 

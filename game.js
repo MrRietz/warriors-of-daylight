@@ -1463,16 +1463,15 @@ function npcEvent(key, event) {
 }
 
 function beginNight() {
-  if (modalOpen || state.won) return;
+  if (state.won) return;
+  if (modalOpen && modalTitle.textContent !== "Nightfall") return;
   heldKeys.clear();
   if (!activeNight) {
     activeNight = createNightState(state.nightPlan || "holdfast");
   }
   openModal("Nightfall", nightfallMarkup(), [
     { label: "Make Camp", action: () => startNextNightEncounter() },
-    ...nightPlanActions(),
-    ...campUpgradeActions(),
-  ], { html: true, className: "night-modal" });
+  ], { html: true, className: "night-modal", onRender: bindNightfallModal });
 }
 
 function createNightState(plan = "holdfast") {
@@ -1491,14 +1490,6 @@ function currentNightPlanId() {
 
 function currentNightPlan() {
   return nightPlanDefinitions[currentNightPlanId()] || nightPlanDefinitions.holdfast;
-}
-
-function nightPlanActions() {
-  return Object.entries(nightPlanDefinitions).map(([id, plan]) => ({
-    label: `${currentNightPlanId() === id ? "Plan:" : "Set"} ${plan.name}`,
-    secondary: true,
-    action: () => setNightPlan(id),
-  }));
 }
 
 function setNightPlan(id) {
@@ -1586,13 +1577,14 @@ function launchNightBattle(enemy) {
   activeNight.awaitingResult = true;
   if (state.campUpgrades?.healerFire) recoverParty(Math.max(6, Math.round(state.hero.maxHp * 0.16)));
   if (activeNight?.plan === "holdfast") recoverParty(Math.max(4, Math.round(state.hero.maxHp * 0.08)));
-  setMessage(`Night ${activeNight.index + 1}/${activeNight.encounters.length}: ${enemy.name} wave reaches camp.`);
+  setMessage(`Night ${activeNight.index + 1}/${activeNight.encounters.length}: ${enemy.name} reaches camp under the ${currentNightPlan().name} plan.`);
   startBattle(`night-${activeNight.day}-${activeNight.index}`, { type: "night", encounter: enemy.sourceEncounter }, enemy);
 }
 
 function nightWaveMarkup(enemy, remaining, partySize) {
   const sprite = enemyWaveSpriteUrl(enemy);
   const attackerCount = Math.min(5, partySize);
+  const plan = currentNightPlan();
   const attackers = Array.from({ length: Math.min(5, partySize) }, (_, index) => sprite
     ? `<img src="${sprite}" alt="" style="--i:${index};--delay:${index * NIGHT_WAVE_STAGGER_MS}ms;--sneak-ms:${NIGHT_WAVE_SNEAK_MS}ms" />`
     : `<i style="--i:${index};--delay:${index * NIGHT_WAVE_STAGGER_MS}ms;--sneak-ms:${NIGHT_WAVE_SNEAK_MS}ms"></i>`).join("");
@@ -1603,9 +1595,16 @@ function nightWaveMarkup(enemy, remaining, partySize) {
         <img class="camp-art" src="assets/night-camp-defense.png" alt="" />
         <div class="camp-attackers">${attackers}</div>
       </div>
+      <div class="night-prep-banner">
+        <strong>${plan.name}</strong>
+        <span>${nightWavePlanLead(plan.id || currentNightPlanId())}</span>
+      </div>
+      <div class="night-defense-strip">
+        ${nightDefenseEffectPills().map((item) => `<span>${item}</span>`).join("")}
+      </div>
       <p><strong>Wave ${activeNight.index + 1}/${activeNight.encounters.length}</strong>: shadows sneak toward the tent. Battle waits until the last of the ${attackerCount} raiders reaches camp.</p>
       <p>${remaining} wave${remaining === 1 ? "" : "s"} remain before dawn. ${escapeHtml(enemy.name)} waits in the dark.</p>
-      <p><strong>Night plan</strong>: ${currentNightPlan().name}. ${currentNightPlan().text}</p>
+      <p><strong>Night plan</strong>: ${plan.name}. ${plan.text}</p>
       ${campUpgradeSummary()}
     </div>
   `;
@@ -1621,15 +1620,53 @@ function enemyWaveSpriteUrl(enemy) {
 }
 
 function nightfallMarkup() {
+  const currentPlanId = currentNightPlanId();
+  const currentPlan = currentNightPlan();
+  const campBuilt = Object.entries(campUpgradeDefinitions).filter(([id]) => state.campUpgrades?.[id]).map(([, upgrade]) => upgrade.name);
   return `
     <div class="night-wave">
-      <p>Day ${state.day} ends. Spend the night and defend camp through ${activeNight.encounters.length} wave${activeNight.encounters.length === 1 ? "" : "s"}.</p>
-      <p><strong>Night plan</strong>: ${currentNightPlan().name}. ${currentNightPlan().text}</p>
-      <div class="camp-upgrade-list">${Object.entries(nightPlanDefinitions).map(([id, plan]) => `<div class="camp-upgrade ${currentNightPlanId() === id ? "owned" : ""}"><strong>${plan.name}</strong><span>${currentNightPlanId() === id ? "Selected" : "Available"}</span><p>${plan.text}</p></div>`).join("")}</div>
-      ${campUpgradeSummary()}
-      <div class="camp-upgrade-list">${Object.entries(campUpgradeDefinitions).map(([id, upgrade]) => campUpgradeCard(id, upgrade)).join("")}</div>
+      <div class="nightfall-head">
+        <strong>Night Watch</strong>
+        <p>Day ${state.day} ends. Hold the camp through ${activeNight.encounters.length} wave${activeNight.encounters.length === 1 ? "" : "s"} before dawn.</p>
+      </div>
+      <div class="night-summary-bar">
+        <span><small>Waves</small><strong>${activeNight.encounters.length}</strong></span>
+        <span><small>Plan</small><strong>${currentPlan.name}</strong></span>
+        <span><small>Camp</small><strong>${campBuilt.length ? campBuilt.length : "Basic"}</strong></span>
+      </div>
+      <div class="night-plan-banner">
+        <strong>${currentPlan.name}</strong>
+        <span>${currentPlan.text}</span>
+      </div>
+      <div class="night-section">
+        <div class="night-section-head">
+          <h3>Night Plans</h3>
+          <p class="night-section-note">Choose the camp posture before the first wave reaches the tent.</p>
+        </div>
+        <div class="camp-upgrade-list night-plan-list">${Object.entries(nightPlanDefinitions).map(([id, plan]) => nightPlanCard(id, plan, currentPlanId)).join("")}</div>
+      </div>
+      <div class="night-section">
+        <div class="night-section-head">
+          <h3>Camp Prep</h3>
+          <p class="night-section-note">${campBuilt.length ? `Built tonight: ${campBuilt.join(", ")}.` : "No camp structures built yet."}</p>
+        </div>
+        <div class="camp-upgrade-list">${Object.entries(campUpgradeDefinitions).map(([id, upgrade]) => campUpgradeCard(id, upgrade)).join("")}</div>
+      </div>
     </div>
   `;
+}
+
+function nightPlanCard(id, plan, currentPlanId = currentNightPlanId()) {
+  const selected = currentPlanId === id;
+  return `<div class="camp-upgrade night-plan-card ${selected ? "owned selected" : ""}">
+    <div class="camp-upgrade-topline">
+      <strong>${plan.name}</strong>
+      <span>${selected ? "Current Plan" : "Available"}</span>
+    </div>
+    <div class="night-card-tags">${nightPlanEffectTags(id).map((tag) => `<em>${tag}</em>`).join("")}</div>
+    <p>${plan.text}</p>
+    <button type="button" class="night-card-button ${selected ? "selected" : ""}" data-night-plan="${id}"${selected ? " disabled" : ""}>${selected ? "Selected for tonight" : `Use ${plan.name}`}</button>
+  </div>`;
 }
 
 function campUpgradeSummary() {
@@ -1637,20 +1674,73 @@ function campUpgradeSummary() {
   return `<p><strong>Camp</strong>: ${owned.length ? owned.join(", ") : "Basic tent"}</p><p><strong>Posture</strong>: ${currentNightPlan().name}</p>`;
 }
 
-function campUpgradeCard(id, upgrade) {
-  const owned = Boolean(state.campUpgrades?.[id]);
-  return `<div class="camp-upgrade ${owned ? "owned" : ""}"><strong>${upgrade.name}</strong><span>${owned ? "Built" : `${upgrade.cost} gold`}</span><p>${upgrade.text}</p></div>`;
+function nightWavePlanLead(planId) {
+  return {
+    holdfast: "Shields stay close, the fire burns low, and the warband braces for a steady defense.",
+    nightRaid: "Scouts pushed deep into the dark, so the camp meets a fiercer answer at the tent line.",
+    scoutLines: "Outriders keep moving beyond the firelight, feeding the camp a steadier picture of the road.",
+  }[planId] || currentNightPlan().text;
 }
 
-function campUpgradeActions() {
-  return Object.entries(campUpgradeDefinitions)
-    .filter(([id]) => !state.campUpgrades?.[id])
-    .slice(0, 2)
-    .map(([id, upgrade]) => ({
-      label: `Build ${upgrade.name} ${upgrade.cost}`,
-      secondary: true,
-      action: () => buildCampUpgrade(id),
-    }));
+function nightDefenseEffectPills() {
+  const pills = [];
+  if (currentNightPlanId() === "holdfast") pills.push("Hold Fast: extra recovery before battle");
+  if (currentNightPlanId() === "nightRaid") pills.push("Night Raid: bonus dawn gold if camp holds");
+  if (currentNightPlanId() === "scoutLines") pills.push("Scout Lines: dawn reveals the next target");
+  if (state.campUpgrades?.watchtower) pills.push("Watchtower: one fewer wave when possible");
+  if (state.campUpgrades?.stakeTraps) pills.push("Stake Traps: first raider weakened");
+  if (state.campUpgrades?.healerFire) pills.push("Healer Fire: party restored before each wave");
+  if (state.campUpgrades?.betterTent) pills.push("Better Tent: stronger dawn recovery");
+  if (!pills.length) pills.push("Basic camp: no extra defenses");
+  return pills.slice(0, 4);
+}
+
+function campUpgradeCard(id, upgrade) {
+  const owned = Boolean(state.campUpgrades?.[id]);
+  const affordable = state.gold >= upgrade.cost;
+  return `<div class="camp-upgrade ${owned ? "owned" : affordable ? "ready" : ""}">
+    <div class="camp-upgrade-topline">
+      <strong>${upgrade.name}</strong>
+      <span>${owned ? "Built" : `${upgrade.cost} gold`}</span>
+    </div>
+    <div class="night-card-tags">${campUpgradeEffectTags(id).map((tag) => `<em>${tag}</em>`).join("")}</div>
+    <p>${upgrade.text}</p>
+    <button type="button" class="night-card-button" data-camp-upgrade="${id}"${owned || !affordable ? " disabled" : ""}>${owned ? "Built" : affordable ? `Build ${upgrade.name}` : `Need ${upgrade.cost} gold`}</button>
+  </div>`;
+}
+
+function nightPlanEffectTags(id) {
+  return {
+    holdfast: ["Safer rest", "Fewer waves", "Steadier recovery"],
+    nightRaid: ["Harder waves", "Bonus dawn gold", "High pressure"],
+    scoutLines: ["Balanced defense", "Dawn scouting", "Target revealed"],
+  }[id] || [];
+}
+
+function campUpgradeEffectTags(id) {
+  return {
+    betterTent: ["More dawn healing", "Safer camp"],
+    watchtower: ["One fewer wave", "Early warning"],
+    stakeTraps: ["Weakens first raider", "Every wave"],
+    healerFire: ["Pre-wave healing", "Party sustain"],
+  }[id] || [];
+}
+
+function bindNightfallModal() {
+  modalText.querySelectorAll("[data-night-plan]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const { nightPlan } = button.dataset;
+      if (!nightPlan || button.disabled) return;
+      setNightPlan(nightPlan);
+    });
+  });
+  modalText.querySelectorAll("[data-camp-upgrade]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const { campUpgrade } = button.dataset;
+      if (!campUpgrade || button.disabled) return;
+      buildCampUpgrade(campUpgrade);
+    });
+  });
 }
 
 function buildCampUpgrade(id) {
@@ -1665,7 +1755,7 @@ function buildCampUpgrade(id) {
   state.campUpgrades ??= {};
   state.campUpgrades[id] = true;
   activeNight = null;
-  setMessage(`${upgrade.name} built for tonight and future camps.`);
+  setMessage(`${upgrade.name} built. Tonight's camp is now better prepared.`);
   renderAll();
   beginNight();
 }
@@ -1789,24 +1879,6 @@ function townEvent(key, event) {
       action: () => startBattle(key, { type: "townClaim", encounter: townGuardEncounter(event), townKey: key, townName: event.name }, createEnemyParty(townGuardEncounter(event))),
     });
   }
-  if (town.owner === "player") {
-    actions.push({
-      label: "Town Notice",
-      action: () => openTownCommissionModal(key, event),
-    });
-    actions.push({
-      label: "Rest",
-      action: () => {
-        state.hero.hp = state.hero.maxHp;
-        state.party.forEach((unit) => (unit.hp = unit.maxHp));
-        applyTownTraining(town);
-        state.visited[key] = true;
-        const scoutText = event.faction === "dusk" ? ` ${scoutingHintText()}` : "";
-        setMessage(`${event.name} restores your party.${scoutText}`);
-        renderAll();
-      },
-    });
-  }
   actions.push({ label: "Leave", secondary: true, action: () => {
     setMessage(`You leave ${event.name}.`);
     renderAll();
@@ -1867,6 +1939,56 @@ function getTownState(key) {
   return state.towns[key];
 }
 
+function defaultTownSelection(key, event) {
+  const town = getTownState(key);
+  const builtBuildings = Object.keys(townBuildingDefinitions).filter((id) => town.buildings.includes(id));
+  const readyBuilding = builtBuildings.find((id) => {
+    if (id === "caravanPost") return true;
+    return !isTownActionUsed(town, id);
+  });
+  if (readyBuilding) return `building:${readyBuilding}`;
+  const affordableRecruit = recruitableUnitsForTown(event).find((id) => {
+    const unit = creatureBook[id];
+    if (!unit) return false;
+    const primary = id === event.creature;
+    const existing = partyUnitForId(id);
+    if (!primary && !town.buildings.includes("barracks")) return false;
+    if (existing && isTownActionUsed(town, `upgrade:${id}`)) return false;
+    if (!existing && !primary && isTownActionUsed(town, "barracks")) return false;
+    const cost = existing ? townUpgradeCostForUnit(id, event) : recruitCostForTown(id, event);
+    return state.gold >= cost;
+  });
+  if (affordableRecruit) return `recruit:${affordableRecruit}`;
+  return town.owner === "player" ? "building:market" : "building:barracks";
+}
+
+function getTownSelection(key, event) {
+  const town = getTownState(key);
+  town.selection ??= defaultTownSelection(key, event);
+  return town.selection;
+}
+
+function setTownSelection(key, event, selection, preview = true) {
+  const town = getTownState(key);
+  town.selection = selection;
+  syncTownSelectionUi(selection);
+  if (!preview) return;
+  const [kind, id] = String(selection || "").split(":");
+  if (kind === "building" && id) previewTownBuilding(key, event, id);
+  if (kind === "recruit" && id) previewTownRecruit(key, event, id);
+}
+
+function syncTownSelectionUi(selection) {
+  modalText.querySelectorAll(".town-yard-slot, .town-recruit-card").forEach((node) => {
+    const current = node.dataset.townBuilding
+      ? `building:${node.dataset.townBuilding}`
+      : node.dataset.townRecruit
+        ? `recruit:${node.dataset.townRecruit}`
+        : "";
+    node.classList.toggle("selected", current === selection);
+  });
+}
+
 function townDescription(event, town, creature, cost, ownsCreature) {
   const owner = town.owner === "player" ? "Your town" : "Neutral town";
   const buildings = town.buildings.length ? town.buildings.map((id) => townBuildingDefinitions[id]?.name || id).join(", ") : "None";
@@ -1880,33 +2002,60 @@ function townModalMarkup(key, event, town, creature, cost, ownsCreature) {
   const recruit = ownsCreature ? `${faction.name} units already travel with you.` : `${creature.name} can join for ${cost} gold.`;
   const economy = townEconomyPreview();
   const income = town.owner === "player" ? economy.towns + economy.routes : 0;
+  const builtCount = town.buildings.length;
+  const recruitCount = recruitableUnitsForTown(event).length;
+  const builtNames = town.buildings.length ? town.buildings.map((id) => townBuildingDefinitions[id]?.name || id).join(", ") : "No structures built yet";
+  const selection = getTownSelection(key, event);
   return `
     <div class="town-view">
-      <div class="town-yard ${town.owner === "player" ? "owned" : "neutral"}" aria-label="${event.name} town yard">
-        <div class="town-yard-hall" aria-hidden="true"><img src="${townSpriteDataUrl("ownedTown", town.owner === "player")}" alt="" /></div>
-        ${townYardSprite("market", "market", town.buildings.includes("market"), town, "market")}
-        ${townYardSprite("caravanPost", "caravan-post", town.buildings.includes("caravanPost"), town, "caravanPost")}
-        ${townYardSprite("barracks", "barracks", town.buildings.includes("barracks"), town, "barracks")}
-        ${townYardSprite("trainingYard", "training-yard", town.buildings.includes("trainingYard"), town, "trainingYard")}
+      <div class="town-overview">
+        <div class="town-yard ${town.owner === "player" ? "owned" : "neutral"}" aria-label="${event.name} town yard">
+          <div class="town-yard-hall" aria-hidden="true"><img src="${townSpriteDataUrl("ownedTown", town.owner === "player")}" alt="" /></div>
+          ${townYardSprite("market", "market", town.buildings.includes("market"), town, "market", true, selection === "building:market")}
+          ${townYardSprite("caravanPost", "caravan-post", town.buildings.includes("caravanPost"), town, "caravanPost", true, selection === "building:caravanPost")}
+          ${townYardSprite("barracks", "barracks", town.buildings.includes("barracks"), town, "barracks", true, selection === "building:barracks")}
+          ${townYardSprite("trainingYard", "training-yard", town.buildings.includes("trainingYard"), town, "trainingYard", true, selection === "building:trainingYard")}
+        </div>
+        <div class="town-info">
+          <div class="town-head">
+            <div>
+              <span class="town-kicker">${owner}</span>
+              <h3>${event.name}</h3>
+              <p>${faction.name}. ${recruit}</p>
+            </div>
+            <div class="town-summary">
+              <span><small>Gold</small><strong>${state.gold}</strong></span>
+              <span><small>Income</small><strong>${income}</strong></span>
+              <span><small>Buildings</small><strong>${builtCount}/4</strong></span>
+              <span><small>Units</small><strong>${recruitCount}</strong></span>
+            </div>
+          </div>
+          <div class="town-desk town-panel">
+            <strong>Town Desk</strong>
+            <span class="town-desk-line"><b>Faction Perk</b> ${faction.perk}</span>
+            <span class="town-desk-line"><b>Built</b> ${builtNames}</span>
+            <div id="townFeedback" class="town-feedback">Select a building plot to inspect it. Built plots act immediately, and empty owned plots can be purchased from the square.</div>
+          </div>
+          ${town.owner === "player" ? townCommandRailMarkup(key, event, town) : ""}
+        </div>
       </div>
-      <div class="town-info">
-        <p><strong>${owner}</strong>. ${faction.name}. ${recruit}</p>
-        <p><strong>Faction Perk</strong>: ${faction.perk}</p>
-        <p>Gold: ${state.gold}. Daily town trade income: ${income}.</p>
-        <div id="townFeedback" class="town-feedback">Click a building in the yard to inspect or use it.</div>
-        <div class="town-building-list">
-          <strong>Faction Command</strong>
-          ${townFactionActionMarkup(key, event, town)}
-        </div>
-        <div class="town-recruit-list">
-          <strong>Recruit ${faction.name}</strong>
-          ${recruitableUnitsForTown(event).map((id) => townRecruitCard(key, event, town, id)).join("")}
-        </div>
-        <div class="town-building-list">
-          <strong>Town Buildings</strong>
-          ${Object.entries(townBuildingDefinitions).map(([id, building]) => townBuildingCard(id, building, town)).join("")}
-        </div>
+      <div class="town-recruit-list town-panel">
+        <strong>Recruit ${faction.name}</strong>
+        ${recruitableUnitsForTown(event).map((id) => townRecruitCard(key, event, town, id)).join("")}
       </div>
+    </div>
+  `;
+}
+
+function townCommandRailMarkup(key, event, town) {
+  const actionId = townFactionActionId(event);
+  const factionUsed = isTownActionUsed(town, actionId);
+  return `
+    <div class="town-command-rail town-panel">
+      <strong>Town Actions</strong>
+      <button type="button" class="town-command-button" data-town-action="rest">Rest Party</button>
+      <button type="button" class="town-command-button secondary" data-town-action="notice">Open Notice Board</button>
+      <button type="button" class="town-command-button ${factionUsed ? "used" : ""}" data-town-action="faction"${factionUsed ? " disabled" : ""}>${factionUsed ? `${townFactionActionLabel(event)} Used` : townFactionActionLabel(event)}</button>
     </div>
   `;
 }
@@ -1963,22 +2112,6 @@ function townFactionActionDescription(event) {
   return "Restore the party, or brew a Healing Draught if everyone is already fit.";
 }
 
-function townFactionActionMarkup(key, event, town) {
-  if (town.owner !== "player") return "";
-  const used = isTownActionUsed(town, townFactionActionId(event));
-  const status = used ? "Used today" : "Ready";
-  return `
-    <div class="town-building-card built ${used ? "used" : ""}">
-      <div>
-        <strong>${townFactionActionLabel(event)}</strong>
-        <span>${status}</span>
-        <p>${townFactionActionDescription(event)}</p>
-      </div>
-      <button type="button" data-town-faction-action="${event.faction || "grove"}"${used ? " disabled" : ""}>${used ? "Used" : "Use"}</button>
-    </div>
-  `;
-}
-
 function useTownFactionAction(key, event) {
   const town = getTownState(key);
   const actionId = townFactionActionId(event);
@@ -2030,10 +2163,11 @@ function useTownFactionAction(key, event) {
     if (missing > 0) {
       const amount = Math.max(10, Math.round(missing * 0.45));
       recoverParty(amount);
-      messageText = `${event.name}'s wardens restore ${amount} HP across the party.`;
+      const remaining = totalMissingPartyHealth();
+      messageText = `${event.name}'s wardens call a Grove Blessing and restore ${amount} HP across the party.${remaining > 0 ? ` ${remaining} HP still needs mending.` : " The warband is fully restored."}`;
     } else {
       addInventoryItem("healingDraught", 1);
-      messageText = `${event.name}'s herbalists brew a Healing Draught for the road.`;
+      messageText = `${event.name}'s herbalists answer the Grove Blessing with a Healing Draught. You now carry ${inventoryCount("healingDraught")} draught${inventoryCount("healingDraught") === 1 ? "" : "s"}.`;
     }
     markTownActionUsed(town, actionId);
   }
@@ -2086,24 +2220,48 @@ function townRecruitCard(key, event, town, id) {
   const disabled = locked || used ? " disabled" : "";
   const note = locked ? "Needs Barracks" : used ? "Trained today" : existing ? `Upgrade ${townUpgradeCostForUnit(id, event)} gold` : partyFull ? `Replace ${recruitCostForTown(id, event)} gold` : `Recruit ${recruitCostForTown(id, event)} gold`;
   const role = unitRole(unit);
+  const selected = getTownSelection(key, event) === `recruit:${id}` ? " selected" : "";
   return `
-    <button type="button" class="town-recruit-card" data-town-recruit="${id}"${disabled}>
+    <button type="button" class="town-recruit-card${selected}" data-town-recruit="${id}" aria-label="${unit.name}"${disabled}>
       <span class="recruit-dot" style="--unit-color:${unit.color}"></span>
-      <span><b>${unit.name}</b><small>${role} / ${rangeText(unit)} / ${unit.skill}</small><small>${unitRoleSummary(unit)}</small></span>
+      <span><b>${unit.name}</b><small>${role} / ${rangeText(unit)}</small></span>
       <em>${note}</em>
     </button>
   `;
 }
 
-function townYardSprite(sprite, slot, visible, town, buildingId, owned = true) {
+function townYardSprite(sprite, slot, visible, town, buildingId, owned = true, selected = false) {
   const stateClass = visible ? "built" : "empty";
   const building = slot.replace(/-([a-z])/g, (_, chr) => chr.toUpperCase());
-  const labelText = buildingId === "townHall" ? "Town Hall" : townBuildingDefinitions[buildingId]?.name || "Building";
+  const definition = townBuildingDefinitions[buildingId];
+  const labelText = buildingId === "townHall" ? "Town Hall" : definition?.name || "Building";
   const used = visible && isTownActionUsed(town, buildingId);
   const caravanPost = buildingId === "caravanPost";
   const readyClass = visible ? used && !caravanPost ? "used" : "ready" : "";
-  const label = visible ? `<span class="building-ready">${caravanPost ? "Shop" : used ? "Used" : "Ready"}</span>` : `<span>${labelText} plot</span>`;
-  return `<button type="button" class="town-yard-slot ${slot} ${stateClass} ${readyClass}" data-town-building="${building}" aria-label="${labelText}">${visible ? `<img src="${townSpriteDataUrl(sprite, owned)}" alt="" />` : ""}${label}</button>`;
+  const cost = definition ? townBuildingCost(definition) : 0;
+  const canBuild = owned && !visible && definition;
+  const label = visible
+    ? `<span class="building-ready">${caravanPost ? "Shop" : used ? "Used" : "Ready"}</span>`
+    : canBuild
+      ? `<span class="building-ready build-cost"><b>${labelText}</b><small>${town.owner === "player" ? `${cost} gold` : "Claim first"}</small></span>`
+      : `<span>${labelText} plot</span>`;
+  return `<button type="button" class="town-yard-slot ${slot} ${stateClass} ${readyClass}${selected ? " selected" : ""}" data-town-building="${building}" aria-label="${labelText}">${visible ? `<img src="${townSpriteDataUrl(sprite, owned)}" alt="" />` : ""}${label}</button>`;
+}
+
+function townBuildingPreviewText(event, town, buildingId) {
+  const definition = townBuildingDefinitions[buildingId];
+  if (!definition) return "";
+  const built = town.buildings.includes(buildingId);
+  const cost = townBuildingCost(definition);
+  const caravanPost = buildingId === "caravanPost";
+  if (!built) {
+    if (town.owner !== "player") return `${definition.name}: ${definition.text} Claim ${event.name} before building here. Cost: ${cost} gold.`;
+    if (state.gold < cost) return `${definition.name}: ${definition.text} Cost: ${cost} gold. Need ${cost - state.gold} more gold.`;
+    return `${definition.name}: ${definition.text} Ready to build now for ${cost} gold.`;
+  }
+  if (caravanPost) return `${definition.name}: ${definition.text} Opens the trade shop and keeps routes moving automatically.`;
+  if (isTownActionUsed(town, buildingId)) return `${definition.name}: ${definition.text} Already used today. Ready again tomorrow.`;
+  return `${definition.name}: ${definition.text} Ready to use now.`;
 }
 
 function townBuildingCard(id, building, town) {
@@ -2150,10 +2308,20 @@ function townSpriteDataUrl(name, owned = true) {
 
 function bindTownModal(key, event) {
   modalText.querySelectorAll("[data-town-building]").forEach((button) => {
-    button.addEventListener("click", () => handleTownBuildingClick(key, event, button.dataset.townBuilding));
+    button.addEventListener("click", () => {
+      setTownSelection(key, event, `building:${button.dataset.townBuilding}`);
+      handleTownBuildingClick(key, event, button.dataset.townBuilding);
+    });
+    button.addEventListener("mouseenter", () => setTownSelection(key, event, `building:${button.dataset.townBuilding}`));
+    button.addEventListener("focus", () => setTownSelection(key, event, `building:${button.dataset.townBuilding}`));
   });
   modalText.querySelectorAll("[data-town-recruit]").forEach((button) => {
-    button.addEventListener("click", () => recruitTownUnit(key, event, button.dataset.townRecruit));
+    button.addEventListener("click", () => {
+      setTownSelection(key, event, `recruit:${button.dataset.townRecruit}`);
+      recruitTownUnit(key, event, button.dataset.townRecruit);
+    });
+    button.addEventListener("mouseenter", () => setTownSelection(key, event, `recruit:${button.dataset.townRecruit}`));
+    button.addEventListener("focus", () => setTownSelection(key, event, `recruit:${button.dataset.townRecruit}`));
   });
   modalText.querySelectorAll("[data-town-build]").forEach((button) => {
     button.addEventListener("click", () => buildTownBuilding(key, event, button.dataset.townBuild));
@@ -2161,9 +2329,56 @@ function bindTownModal(key, event) {
   modalText.querySelectorAll("[data-town-use]").forEach((button) => {
     button.addEventListener("click", () => handleTownBuildingClick(key, event, button.dataset.townUse));
   });
-  modalText.querySelectorAll("[data-town-faction-action]").forEach((button) => {
-    button.addEventListener("click", () => useTownFactionAction(key, event));
+  modalText.querySelectorAll("[data-town-action]").forEach((button) => {
+    button.addEventListener("click", () => handleTownBodyAction(key, event, button.dataset.townAction));
   });
+  syncTownSelectionUi(getTownSelection(key, event));
+  setTownSelection(key, event, getTownSelection(key, event));
+}
+
+function handleTownBodyAction(key, event, action) {
+  if (action === "notice") {
+    openTownCommissionModal(key, event);
+    return;
+  }
+  if (action === "faction") {
+    useTownFactionAction(key, event);
+    return;
+  }
+  if (action === "rest") {
+    const town = getTownState(key);
+    state.hero.hp = state.hero.maxHp;
+    state.party.forEach((unit) => (unit.hp = unit.maxHp));
+    applyTownTraining(town);
+    state.visited[key] = true;
+    const scoutText = event.faction === "dusk" ? ` ${scoutingHintText()}` : "";
+    refreshTownModal(key, event, `${event.name} restores your party.${scoutText}`, "good");
+  }
+}
+
+function previewTownBuilding(key, event, buildingId) {
+  const town = getTownState(key);
+  const preview = townBuildingPreviewText(event, town, buildingId);
+  if (preview) setTownFeedback(preview, "info");
+}
+
+function previewTownRecruit(key, event, unitId) {
+  const town = getTownState(key);
+  const unit = creatureBook[unitId];
+  if (!unit) return;
+  const primary = unitId === event.creature;
+  const existing = partyUnitForId(unitId);
+  const builtBarracks = town.buildings.includes("barracks");
+  const baseStatus = !primary && !builtBarracks
+    ? `Needs Barracks before ${unit.name} can join.`
+    : existing
+      ? isTownActionUsed(town, `upgrade:${unitId}`)
+        ? `${unit.name} already trained here today.`
+        : `Ready to upgrade for ${townUpgradeCostForUnit(unitId, event)} gold.`
+      : state.party.length >= MAX_PARTY_UNITS
+        ? `Ready to replace a creature for ${recruitCostForTown(unitId, event)} gold.`
+        : `Ready to recruit for ${recruitCostForTown(unitId, event)} gold.`;
+  setTownFeedback(`${unit.name}: ${unitRole(unit)}, ${rangeText(unit)}, ${unit.skill}. ${baseStatus}`, !primary && !builtBarracks ? "warn" : existing && isTownActionUsed(town, `upgrade:${unitId}`) ? "used" : "info");
 }
 
 function handleTownBuildingClick(key, event, buildingId) {
@@ -2176,7 +2391,7 @@ function handleTownBuildingClick(key, event, buildingId) {
     } else if (state.gold < townBuildingCost(definition)) {
       setTownFeedback(`${definition.name} costs ${townBuildingCost(definition)} gold. You have ${state.gold}, so you need ${townBuildingCost(definition) - state.gold} more.`, "warn");
     } else {
-      setTownFeedback(`${definition.name} is ready to build. Press Build ${townBuildingCost(definition)} on its card.`, "good");
+      buildTownBuilding(key, event, buildingId);
     }
     return;
   }
@@ -2433,12 +2648,7 @@ function setTownFeedback(text, type = "info") {
 }
 
 function refreshTownModal(key, event, feedbackText = "", feedbackType = "info") {
-  const town = getTownState(key);
-  const creature = creatureBook[event.creature];
-  const owned = recruitableUnitsForTown(event).some((id) => state.party.some((unit) => unit.id === id));
-  const cost = recruitCostForTown(event.creature, event);
-  modalText.innerHTML = townModalMarkup(key, event, town, creature, cost, owned);
-  bindTownModal(key, event);
+  townEvent(key, event);
   if (feedbackText) setTownFeedback(feedbackText, feedbackType);
   renderSidebar();
 }
@@ -3840,8 +4050,10 @@ function openModal(title, text, actions, options = {}) {
     button.textContent = item.label;
     if (item.secondary) button.className = "secondary";
     button.addEventListener("click", () => {
-      if (modal.open) modal.close();
-      modalOpen = false;
+      if (!item.keepOpen) {
+        if (modal.open) modal.close();
+        modalOpen = false;
+      }
       item.action?.();
       if (state.nightReady && !modalOpen && !activeBattle && !activeNight && !state.won) beginNight();
     });
