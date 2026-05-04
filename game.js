@@ -674,17 +674,6 @@ const events = new Map([
   ["51,25", { type: "battle", encounter: "warlock" }],
   ["71,5", { type: "battle", encounter: "gatekeeper", gate: true }],
   ["71,4", { type: "final", encounter: "rival" }],
-  ["69,3", { type: "wall" }],
-  ["70,3", { type: "wall" }],
-  ["71,3", { type: "wall" }],
-  ["72,3", { type: "wall" }],
-  ["73,3", { type: "wall" }],
-  ["69,4", { type: "wall" }],
-  ["73,4", { type: "wall" }],
-  ["69,5", { type: "wall" }],
-  ["70,5", { type: "wall" }],
-  ["72,5", { type: "wall" }],
-  ["73,5", { type: "wall" }],
   ["5,6", { type: "mine", gold: 20 }],
   ["20,2", { type: "mine", gold: 25 }],
   ["21,9", { type: "mine", gold: 25 }],
@@ -1243,7 +1232,7 @@ function move(dx, dy) {
     return;
   }
   if (nx === finalFortressAnchor.x && ny === finalFortressAnchor.y && !finalGateCleared()) {
-    setMessage("The sealed gate bars the way. Defeat the warden outside before entering the fortress.");
+    setMessage("The mountain pass is still guarded. Defeat the warden in the gap before entering the fortress.");
     return;
   }
   facing = dx < 0 ? "left" : dx > 0 ? "right" : dy < 0 ? "up" : "down";
@@ -2214,11 +2203,12 @@ function townRecruitCard(key, event, town, id) {
   const primary = id === event.creature;
   const existing = partyUnitForId(id);
   const actionId = existing ? `upgrade:${id}` : "barracks";
+  const unclaimed = town.owner !== "player";
   const locked = !primary && !builtBarracks;
   const used = existing ? isTownActionUsed(town, actionId) : builtBarracks && !primary && isTownActionUsed(town, "barracks");
   const partyFull = !existing && state.party.length >= MAX_PARTY_UNITS;
-  const disabled = locked || used ? " disabled" : "";
-  const note = locked ? "Needs Barracks" : used ? "Trained today" : existing ? `Upgrade ${townUpgradeCostForUnit(id, event)} gold` : partyFull ? `Replace ${recruitCostForTown(id, event)} gold` : `Recruit ${recruitCostForTown(id, event)} gold`;
+  const disabled = unclaimed || locked || used ? " disabled" : "";
+  const note = unclaimed ? "Claim town first" : locked ? "Needs Barracks" : used ? "Trained today" : existing ? `Upgrade ${townUpgradeCostForUnit(id, event)} gold` : partyFull ? `Replace ${recruitCostForTown(id, event)} gold` : `Recruit ${recruitCostForTown(id, event)} gold`;
   const role = unitRole(unit);
   const selected = getTownSelection(key, event) === `recruit:${id}` ? " selected" : "";
   return `
@@ -2366,6 +2356,10 @@ function previewTownRecruit(key, event, unitId) {
   const town = getTownState(key);
   const unit = creatureBook[unitId];
   if (!unit) return;
+  if (town.owner !== "player") {
+    setTownFeedback(`${unit.name}: claim ${event.name} before recruiting or training units here.`, "warn");
+    return;
+  }
   const primary = unitId === event.creature;
   const existing = partyUnitForId(unitId);
   const builtBarracks = town.buildings.includes("barracks");
@@ -2657,6 +2651,10 @@ function recruitTownUnit(key, event, unitId) {
   const town = getTownState(key);
   const unit = creatureBook[unitId];
   if (!unit) return;
+  if (town.owner !== "player") {
+    setTownFeedback(`Claim ${event.name} before recruiting or training units here.`, "warn");
+    return;
+  }
   const primary = unitId === event.creature;
   const existing = partyUnitForId(unitId);
   const actionId = existing ? `upgrade:${unitId}` : "barracks";
@@ -2688,7 +2686,6 @@ function recruitTownUnit(key, event, unitId) {
   } else {
     state.party.push(makeRecruitedCreature(unitId));
   }
-  town.owner = "player";
   state.visited[key] = true;
   if (!existing && !primary) markTownActionUsed(town, "barracks");
   refreshTownModal(key, event, existing ? `${event.name} upgrades ${existing.name} to level ${existing.level}.` : `${event.name} recruits ${unit.name}.`, "good");
@@ -2713,7 +2710,6 @@ function openReplaceUnitModal(key, event, unitId, cost) {
           state.gold -= cost;
           state.party.splice(index, 1, makeRecruitedCreature(unitId));
           const town = getTownState(key);
-          town.owner = "player";
           if (unitId !== event.creature) markTownActionUsed(town, "barracks");
           state.visited[key] = true;
           setMessage(`${removed.name} leaves. ${unit.name} joins the party.`);
@@ -2897,7 +2893,7 @@ function battleEvent(key, event) {
 function battlePreviewMarkup(event, enemies, tier, enemyText) {
   const reward = enemies.reduce((sum, enemy) => sum + (enemy.reward || 0), 0);
   const icons = enemies.map((enemy) => `<span class="enemy-icon ${enemyArchetype(enemy)}" title="${escapeHtml(enemy.name)}">${enemyArchetypeIcon(enemy)}</span>`).join("");
-  const gateText = event.gate ? "<p><strong>Castle Gate</strong>: defeat this boss to open the road to Orius.</p>" : "";
+  const gateText = event.gate ? "<p><strong>Mountain Gap</strong>: defeat this guardian creature to clear the pass to Orius.</p>" : "";
   const bossText = event.encounter === "gatekeeper"
     ? "<p><strong>Boss Trait</strong>: the Warden begins behind an iron bulwark, then enrages and crushes harder below half health.</p>"
     : event.encounter === "rival"
@@ -2911,7 +2907,7 @@ function battlePreviewMarkup(event, enemies, tier, enemyText) {
       <div class="enemy-icon-row">${icons}</div>
       <div class="battle-reward-preview">
         <span>Reward ${reward} gold</span>
-        <span>${event.type === "final" ? "Victory fight" : event.gate ? "Gate boss" : `${enemies.length} enemy unit${enemies.length === 1 ? "" : "s"}`}</span>
+        <span>${event.type === "final" ? "Victory fight" : event.gate ? "Pass guardian" : `${enemies.length} enemy unit${enemies.length === 1 ? "" : "s"}`}</span>
       </div>
     </div>
   `;
@@ -4228,7 +4224,7 @@ function drawTownInfluenceOverlays() {
 
 function threatOverlayForEvent(event) {
   if (event.type === "final") return { color: "rgba(122, 75, 181, 0.18)", radius: 116, label: "Fortress" };
-  if (event.gate) return { color: "rgba(217, 93, 93, 0.18)", radius: 74, label: "Gate Boss" };
+  if (event.gate) return { color: "rgba(217, 93, 93, 0.18)", radius: 74, label: "Pass Guardian" };
   if (event.type === "battle") return { color: "rgba(217, 93, 93, 0.12)", radius: 42, label: "" };
   return null;
 }
@@ -5254,17 +5250,13 @@ function drawWorldEntities() {
 function drawEventEntity(key, event, x, y) {
   const px = screenTileX(x);
   const py = screenTileY(y);
-  if (event.type === "wall") {
-    drawFortressWallSegment(px, py, x, y);
-    return;
-  }
   if (event.type === "landmark") drawLandmark(px, py, event);
   if (event.type === "town") drawBuilding(px, py, key, event);
   if (event.type === "npc") drawNpc(px, py, event);
   if (event.type === "mine") drawMine(px, py);
   if (event.type === "chest") drawChest(px, py, state.visited[key]);
   if (event.type === "battle" && event.gate) {
-    drawCastleGate(px, py);
+    drawMonster(encounters[event.encounter].color, x, y, event.encounter);
     if (!state.visited[key]) drawEnemyHeroMarker(px, py - 10);
   }
   if (event.type === "battle" && !state.visited[key] && !event.gate) drawMonster(encounters[event.encounter].color, x, y, event.encounter);
@@ -5626,16 +5618,16 @@ function drawFinalFortress(px, py) {
   let painted = false;
 
   drawFinalFortressGround(px, py);
-  drawShadow(centerX, py + 84, 168, 20);
+  drawShadow(centerX, py + 80, 176, 18);
   ctx.save();
   ctx.fillStyle = "rgba(55, 49, 41, 0.18)";
   ctx.beginPath();
-  ctx.ellipse(centerX, py + 62, 78, 32, 0, 0, Math.PI * 2);
+  ctx.ellipse(centerX, py + 52, 84, 28, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
-  painted = drawCastleCutout("keep", keepX, py + 72, { targetHeight: 78 }) || painted;
-  if (!painted) painted = drawAtlas("castle", px - 26, py - 34, 92, 74) || painted;
+  painted = drawCastleCutout("keep", keepX, py + 58, { targetHeight: 94 }) || painted;
+  if (!painted) painted = drawAtlas("castle", px - 30, py - 48, 100, 82) || painted;
   return painted;
 }
 
