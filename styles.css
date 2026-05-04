@@ -762,6 +762,18 @@ dialog.battle-modal {
     padding-inline: 10px;
   }
 
+  dialog.night-modal .modal-actions button:not(.secondary) {
+    color: #17120a;
+    background: linear-gradient(180deg, #f3d57f, #c9952f);
+    border-color: #4f3d12;
+  }
+
+  dialog.night-modal .modal-actions button:not(.secondary):hover,
+  dialog.night-modal .modal-actions button:not(.secondary):focus-visible {
+    background: linear-gradient(180deg, #ffe7a4, #dfab42);
+    border-color: #fff2b6;
+  }
+
   dialog.trade-modal .modal-card,
   dialog.night-modal .modal-card {
     max-height: calc(100dvh - 16px);
@@ -1786,24 +1798,43 @@ dialog.name-modal {
 .night-card-button {
   min-height: 38px;
   padding: 7px 10px;
-  border: 2px solid rgba(240, 193, 91, 0.4);
+  border: 2px solid #4f3d12;
   border-radius: 4px;
-  color: #fff2b6;
-  background: linear-gradient(180deg, rgba(240, 193, 91, 0.16), rgba(240, 193, 91, 0.05));
+  color: #17120a;
+  background: linear-gradient(180deg, #f3d57f, #c9952f);
   font: 700 0.78rem/1.15 "Trebuchet MS", Verdana, sans-serif;
   text-align: center;
   cursor: pointer;
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.24), inset 2px 2px 0 rgba(255, 255, 255, 0.14);
 }
 
 .night-card-button.selected {
-  border-color: rgba(104, 179, 107, 0.6);
-  color: #d6f3d4;
-  background: linear-gradient(180deg, rgba(104, 179, 107, 0.2), rgba(104, 179, 107, 0.06));
+  border-color: #244b2a;
+  color: #10180f;
+  background: linear-gradient(180deg, #9bd38e, #5c9c51);
 }
 
 .night-card-button:disabled {
-  opacity: 0.66;
+  opacity: 1;
+  color: rgba(244, 234, 215, 0.78);
+  background: linear-gradient(180deg, #65533b, #4d3f2e);
+  border-color: #352a1d;
+  box-shadow: none;
   cursor: default;
+}
+
+.night-card-button:not(:disabled):hover,
+.night-card-button:not(:disabled):focus-visible {
+  border-color: #fff2b6;
+  background: linear-gradient(180deg, #ffe7a4, #dfab42);
+  filter: none;
+  outline: 2px solid rgba(255, 242, 182, 0.82);
+}
+
+.night-card-button.selected:not(:disabled):hover,
+.night-card-button.selected:not(:disabled):focus-visible {
+  border-color: #d6f3d4;
+  background: linear-gradient(180deg, #b4e3a8, #70b564);
 }
 
 @keyframes camp-sneak {
