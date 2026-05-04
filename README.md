@@ -18,6 +18,6 @@ Then visit `http://localhost:4173`.
 - Use the on-screen pad on small screens.
 - Visit towns to recruit creatures and heal.
 - Claim mines and treasure chests for gold and relics.
-- Explore the larger scrolling overworld, clear outposts, claim mines, gather four relics, and challenge the rival mage at the southeast tower.
+- Explore the larger scrolling overworld, clear outposts, claim mines, gather four relics, survive the nightly camp defense, defeat the Black Gate Warden, and challenge Rival Mage Orius inside the northeast fortress.
 
 The game uses a generated pixel-art asset sheet at `assets/generated-spritesheet.png` and canvas-rendered gameplay sprites for reliable play.

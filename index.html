@@ -14,8 +14,15 @@
           <div>
             <h1>Warriors of Daylight</h1>
             <p id="statusLine">Loading the realm...</p>
+            <p id="objectiveHint" class="objective-hint">Next: explore the realm</p>
+          </div>
+          <div class="resource-bar" aria-label="Campaign resources">
+            <span id="topDay">Day 1</span>
+            <span id="topLight">Daylight 0%</span>
+            <span id="topGold">Gold 80</span>
           </div>
           <div class="controls">
+            <button id="musicBtn" type="button" title="Toggle music">Music</button>
             <button id="saveBtn" type="button" title="Save game">Save</button>
             <button id="resetBtn" type="button" title="Reset game">Reset</button>
           </div>
@@ -29,29 +36,40 @@
         </div>
       </section>
 
-      <aside class="side-panel" aria-label="Party and quest log">
-        <div class="asset-frame">
-          <img src="assets/generated-spritesheet.png" alt="Generated retro fantasy sprite sheet" />
-        </div>
-        <section>
+      <aside class="side-panel" aria-label="Game menu">
+        <nav class="menu-tabs" aria-label="Game menu tabs">
+          <button type="button" class="active" data-panel-tab="champion">Info</button>
+          <button type="button" data-panel-tab="party">Party</button>
+          <button type="button" data-panel-tab="inventory">Bag</button>
+          <button type="button" data-panel-tab="quests">Quests</button>
+          <button type="button" data-panel-tab="map">Map</button>
+        </nav>
+        <section class="menu-panel active" data-panel="champion">
           <h2>Champion</h2>
           <div id="heroStats" class="stat-grid"></div>
         </section>
-        <section>
+        <section class="menu-panel" data-panel="party">
           <h2>Party</h2>
           <div id="partyList" class="party-list"></div>
         </section>
-        <section>
+        <section class="menu-panel" data-panel="inventory">
           <h2>Inventory</h2>
           <div id="inventoryList" class="inventory-list"></div>
         </section>
-        <section>
+        <section class="menu-panel" data-panel="quests">
           <h2>Quest Log</h2>
-          <ol id="questLog" class="quest-log"></ol>
-        </section>
-        <section>
+          <div id="questLog" class="quest-log"></div>
           <h2>How To Play</h2>
-          <p class="small">Move with WASD, arrow keys, or the pad. Visit towns to recruit, mines for gold, chests for relics, and challenge wild guardians. Defeat the rival mage at the black tower.</p>
+          <p class="small">Move with WASD, arrow keys, or the pad. Visit towns to recruit, claim mines for gold, recover relic chests, survive each night, and break through the northeast fortress. Defeat the Black Gate Warden outside, then Rival Mage Orius inside.</p>
+        </section>
+        <section class="menu-panel" data-panel="map">
+          <h2>Minimap</h2>
+          <canvas id="minimap" width="220" height="132" aria-label="Realm minimap"></canvas>
+          <div class="map-legend">
+            <span><i class="legend-player"></i>You</span>
+            <span><i class="legend-event"></i>Event</span>
+            <span><i class="legend-done"></i>Claimed</span>
+          </div>
         </section>
       </aside>
     </main>

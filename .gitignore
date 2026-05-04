@@ -1,0 +1,6 @@
+.playwright-mcp/
+_bmad/
+.agents/
+node_modules/
+dist/
+test-results/
