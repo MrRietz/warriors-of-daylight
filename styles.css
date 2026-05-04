@@ -1249,7 +1249,7 @@ dialog.name-modal {
   right: -42px;
   bottom: calc(38px + var(--i) * 19px);
   z-index: 4;
-  animation: camp-sneak 3200ms linear var(--delay) forwards;
+  animation: camp-sneak var(--sneak-ms, 3200ms) linear var(--delay) forwards;
 }
 
 .camp-attackers img {

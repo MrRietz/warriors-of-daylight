@@ -34,6 +34,9 @@ const IDLE_FRAME_MS = 620;
 const DAY_LENGTH_STEPS = 48;
 const NIGHT_ENCOUNTER_MIN = 1;
 const NIGHT_ENCOUNTER_MAX = 2;
+const NIGHT_WAVE_SNEAK_MS = 3200;
+const NIGHT_WAVE_STAGGER_MS = 180;
+const NIGHT_WAVE_TRIGGER_BUFFER_MS = 120;
 const MAX_PARTY_UNITS = 6;
 const HEALING_DRAUGHT_AMOUNT = 24;
 
@@ -422,6 +425,21 @@ const campUpgradeDefinitions = {
   healerFire: { name: "Healer Fire", cost: 180, text: "Restores the party before each wave reaches camp." },
 };
 
+const nightPlanDefinitions = {
+  holdfast: {
+    name: "Hold Fast",
+    text: "Safer rest. Fewer risks, steadier recovery, and slightly weaker night waves.",
+  },
+  nightRaid: {
+    name: "Night Raid",
+    text: "Press the dark for extra dawn gold, but draw a harder night response.",
+  },
+  scoutLines: {
+    name: "Scout Lines",
+    text: "Keep outriders moving. Dawn reveals the next major target on the overworld.",
+  },
+};
+
 const itemDefinitions = {
   healingDraught: {
     name: "Healing Draught",
@@ -728,6 +746,8 @@ const defaultState = () => ({
   won: false,
   visited: {},
   discoveredRegions: {},
+  scoutMarker: "",
+  nightPlan: "holdfast",
   hero: { ...heroBaseStats, nameChosen: false, skills: [] },
   startingBonus: "",
   party: [makeCreature("leafFox")],
@@ -824,6 +844,8 @@ function normalizeState(saved) {
   saved.tradeLedger = Array.isArray(saved.tradeLedger) ? saved.tradeLedger : [];
   saved.campUpgrades = saved.campUpgrades && typeof saved.campUpgrades === "object" ? saved.campUpgrades : {};
   saved.discoveredRegions = saved.discoveredRegions && typeof saved.discoveredRegions === "object" ? saved.discoveredRegions : {};
+  saved.scoutMarker = typeof saved.scoutMarker === "string" ? saved.scoutMarker : "";
+  saved.nightPlan = nightPlanDefinitions[saved.nightPlan] ? saved.nightPlan : "holdfast";
   saved.enemyHeroes = normalizeEnemyHeroes(saved.enemyHeroes);
   saved.quests = saved.quests && typeof saved.quests === "object" ? saved.quests : {};
   saved.startingBonus ??= saved.hero?.nameChosen ? "legacy" : "";
@@ -1444,26 +1466,58 @@ function beginNight() {
   if (modalOpen || state.won) return;
   heldKeys.clear();
   if (!activeNight) {
-    activeNight = {
-      day: state.day,
-      encounters: buildNightEncounters(),
-      index: 0,
-      awaitingResult: false,
-    };
+    activeNight = createNightState(state.nightPlan || "holdfast");
   }
   openModal("Nightfall", nightfallMarkup(), [
     { label: "Make Camp", action: () => startNextNightEncounter() },
+    ...nightPlanActions(),
     ...campUpgradeActions(),
   ], { html: true, className: "night-modal" });
 }
 
-function buildNightEncounters() {
+function createNightState(plan = "holdfast") {
+  return {
+    day: state.day,
+    plan,
+    encounters: buildNightEncounters(plan),
+    index: 0,
+    awaitingResult: false,
+  };
+}
+
+function currentNightPlanId() {
+  return activeNight?.plan || state.nightPlan || "holdfast";
+}
+
+function currentNightPlan() {
+  return nightPlanDefinitions[currentNightPlanId()] || nightPlanDefinitions.holdfast;
+}
+
+function nightPlanActions() {
+  return Object.entries(nightPlanDefinitions).map(([id, plan]) => ({
+    label: `${currentNightPlanId() === id ? "Plan:" : "Set"} ${plan.name}`,
+    secondary: true,
+    action: () => setNightPlan(id),
+  }));
+}
+
+function setNightPlan(id) {
+  if (!nightPlanDefinitions[id]) return beginNight();
+  state.nightPlan = id;
+  activeNight = createNightState(id);
+  setMessage(`Night plan set: ${nightPlanDefinitions[id].name}.`);
+  beginNight();
+}
+
+function buildNightEncounters(planId = currentNightPlanId()) {
   const tier = campaignDifficultyTier();
   const watchtowerReduction = state.campUpgrades?.watchtower ? 1 : 0;
-  const count = Math.max(1, Math.min(4, NIGHT_ENCOUNTER_MIN + Math.floor(Math.random() * (NIGHT_ENCOUNTER_MAX - NIGHT_ENCOUNTER_MIN + 1)) + (tier.rank >= 2 ? 1 : 0) - watchtowerReduction));
+  const nightRaid = planId === "nightRaid" ? 1 : 0;
+  const holdfastReduction = planId === "holdfast" ? 1 : 0;
+  const count = Math.max(1, Math.min(4, NIGHT_ENCOUNTER_MIN + Math.floor(Math.random() * (NIGHT_ENCOUNTER_MAX - NIGHT_ENCOUNTER_MIN + 1)) + (tier.rank >= 2 ? 1 : 0) + nightRaid - watchtowerReduction - holdfastReduction));
   const partyLevel = averagePartyLevel();
   return Array.from({ length: count }, (_, index) => {
-    const difficulty = partyLevel + Math.floor((state.day - 1) / 2) + index;
+    const difficulty = partyLevel + Math.floor((state.day - 1) / 2) + index + (planId === "nightRaid" ? 1 : 0) - (planId === "holdfast" ? 1 : 0);
     const poolIndex = Math.min(nightEncounterPool.length - 1, Math.max(0, Math.floor(difficulty / 2) + Math.floor(Math.random() * 2)));
     const encounterId = nightEncounterPool[poolIndex];
     return scaledNightEnemy(encounterId, difficulty, index);
@@ -1516,24 +1570,32 @@ function openNightWaveModal(enemy) {
 }
 
 function armNightWaveAutoStart(enemy) {
+  const totalTravelMs = nightWaveTravelMs(enemy.partySize || 1);
   window.setTimeout(() => {
     if (!activeNight || activeNight.awaitingResult || !modal.open || modalTitle.textContent !== "Camp Defense") return;
     launchNightBattle(enemy);
-  }, 3200);
+  }, totalTravelMs);
+}
+
+function nightWaveTravelMs(partySize) {
+  const attackers = Math.min(5, Math.max(1, partySize || 1));
+  return NIGHT_WAVE_SNEAK_MS + (attackers - 1) * NIGHT_WAVE_STAGGER_MS + NIGHT_WAVE_TRIGGER_BUFFER_MS;
 }
 
 function launchNightBattle(enemy) {
   activeNight.awaitingResult = true;
   if (state.campUpgrades?.healerFire) recoverParty(Math.max(6, Math.round(state.hero.maxHp * 0.16)));
+  if (activeNight?.plan === "holdfast") recoverParty(Math.max(4, Math.round(state.hero.maxHp * 0.08)));
   setMessage(`Night ${activeNight.index + 1}/${activeNight.encounters.length}: ${enemy.name} wave reaches camp.`);
   startBattle(`night-${activeNight.day}-${activeNight.index}`, { type: "night", encounter: enemy.sourceEncounter }, enemy);
 }
 
 function nightWaveMarkup(enemy, remaining, partySize) {
   const sprite = enemyWaveSpriteUrl(enemy);
+  const attackerCount = Math.min(5, partySize);
   const attackers = Array.from({ length: Math.min(5, partySize) }, (_, index) => sprite
-    ? `<img src="${sprite}" alt="" style="--i:${index};--delay:${index * 180}ms" />`
-    : `<i style="--i:${index};--delay:${index * 180}ms"></i>`).join("");
+    ? `<img src="${sprite}" alt="" style="--i:${index};--delay:${index * NIGHT_WAVE_STAGGER_MS}ms;--sneak-ms:${NIGHT_WAVE_SNEAK_MS}ms" />`
+    : `<i style="--i:${index};--delay:${index * NIGHT_WAVE_STAGGER_MS}ms;--sneak-ms:${NIGHT_WAVE_SNEAK_MS}ms"></i>`).join("");
   return `
     <div class="night-wave">
       <div class="camp-scene" aria-label="Night camp under attack">
@@ -1541,8 +1603,9 @@ function nightWaveMarkup(enemy, remaining, partySize) {
         <img class="camp-art" src="assets/night-camp-defense.png" alt="" />
         <div class="camp-attackers">${attackers}</div>
       </div>
-      <p><strong>Wave ${activeNight.index + 1}/${activeNight.encounters.length}</strong>: shadows sneak toward the tent. Battle starts when they reach camp.</p>
+      <p><strong>Wave ${activeNight.index + 1}/${activeNight.encounters.length}</strong>: shadows sneak toward the tent. Battle waits until the last of the ${attackerCount} raiders reaches camp.</p>
       <p>${remaining} wave${remaining === 1 ? "" : "s"} remain before dawn. ${escapeHtml(enemy.name)} waits in the dark.</p>
+      <p><strong>Night plan</strong>: ${currentNightPlan().name}. ${currentNightPlan().text}</p>
       ${campUpgradeSummary()}
     </div>
   `;
@@ -1561,6 +1624,8 @@ function nightfallMarkup() {
   return `
     <div class="night-wave">
       <p>Day ${state.day} ends. Spend the night and defend camp through ${activeNight.encounters.length} wave${activeNight.encounters.length === 1 ? "" : "s"}.</p>
+      <p><strong>Night plan</strong>: ${currentNightPlan().name}. ${currentNightPlan().text}</p>
+      <div class="camp-upgrade-list">${Object.entries(nightPlanDefinitions).map(([id, plan]) => `<div class="camp-upgrade ${currentNightPlanId() === id ? "owned" : ""}"><strong>${plan.name}</strong><span>${currentNightPlanId() === id ? "Selected" : "Available"}</span><p>${plan.text}</p></div>`).join("")}</div>
       ${campUpgradeSummary()}
       <div class="camp-upgrade-list">${Object.entries(campUpgradeDefinitions).map(([id, upgrade]) => campUpgradeCard(id, upgrade)).join("")}</div>
     </div>
@@ -1569,7 +1634,7 @@ function nightfallMarkup() {
 
 function campUpgradeSummary() {
   const owned = Object.entries(campUpgradeDefinitions).filter(([id]) => state.campUpgrades?.[id]).map(([, upgrade]) => upgrade.name);
-  return `<p><strong>Camp</strong>: ${owned.length ? owned.join(", ") : "Basic tent"}</p>`;
+  return `<p><strong>Camp</strong>: ${owned.length ? owned.join(", ") : "Basic tent"}</p><p><strong>Posture</strong>: ${currentNightPlan().name}</p>`;
 }
 
 function campUpgradeCard(id, upgrade) {
@@ -1618,14 +1683,31 @@ function continueNightAfterBattle() {
 
 function finishNight() {
   const completedDay = activeNight?.day || state.day;
+  const planId = activeNight?.plan || state.nightPlan || "holdfast";
   activeNight = null;
   state.day += 1;
   state.dayProgress = 0;
   state.nightReady = false;
   const economy = collectTownIncome();
-  recoverParty(Math.max(8, Math.round(state.hero.maxHp * 0.35)));
-  setMessage(`Dawn breaks on day ${state.day}. Camp survived night ${completedDay}.`);
-  openModal("Dawn", `Your party rests before sunrise. Day ${state.day} begins.${economy.text ? ` ${economy.text}` : ""}`, [
+  const dawnRecovery = Math.max(8, Math.round(state.hero.maxHp * (planId === "holdfast" ? 0.47 : 0.35)));
+  recoverParty(dawnRecovery);
+  let dawnText = `Your party rests before sunrise. Day ${state.day} begins.`;
+  if (planId === "nightRaid") {
+    const raidBonus = 24 + completedDay * 8;
+    state.gold += raidBonus;
+    dawnText += ` Night riders return with ${raidBonus} extra gold.`;
+  } else if (planId === "scoutLines") {
+    const target = nearestScoutingTarget();
+    if (target) {
+      state.scoutMarker = target.key;
+      dawnText += ` Scouts mark ${target.event.type === "town" ? target.event.name : target.event.type === "chest" ? "a relic chest" : "a hostile outpost"} at ${target.x},${target.y}.`;
+    } else {
+      dawnText += " Scouts report no urgent targets beyond your current map.";
+    }
+  }
+  if (economy.text) dawnText += ` ${economy.text}`;
+  setMessage(`Dawn breaks on day ${state.day}. Camp survived night ${completedDay} under the ${nightPlanDefinitions[planId].name} plan.`);
+  openModal("Dawn", dawnText, [
     { label: "Continue", action: () => renderAll() },
   ]);
 }
@@ -1812,6 +1894,10 @@ function townModalMarkup(key, event, town, creature, cost, ownsCreature) {
         <p><strong>Faction Perk</strong>: ${faction.perk}</p>
         <p>Gold: ${state.gold}. Daily town trade income: ${income}.</p>
         <div id="townFeedback" class="town-feedback">Click a building in the yard to inspect or use it.</div>
+        <div class="town-building-list">
+          <strong>Faction Command</strong>
+          ${townFactionActionMarkup(key, event, town)}
+        </div>
         <div class="town-recruit-list">
           <strong>Recruit ${faction.name}</strong>
           ${recruitableUnitsForTown(event).map((id) => townRecruitCard(key, event, town, id)).join("")}
@@ -1857,6 +1943,101 @@ function scoutingHintText() {
       ? `${target.event.name}, an unclaimed town`
       : "an active outpost";
   return `Scouts mark ${label} at ${target.x},${target.y}.`;
+}
+
+function townFactionActionId(event) {
+  return `faction:${event.faction || "grove"}`;
+}
+
+function townFactionActionLabel(event) {
+  if (event.faction === "forge") return "Run Forge Drills";
+  if (event.faction === "tide") return "Dispatch Harbor Levy";
+  if (event.faction === "dusk") return "Cast Moon Scry";
+  return "Call Grove Blessing";
+}
+
+function townFactionActionDescription(event) {
+  if (event.faction === "forge") return "Grant the whole warband bonus drill XP once today.";
+  if (event.faction === "tide") return "Collect an immediate trade payout based on your realm.";
+  if (event.faction === "dusk") return "Mark the nearest unrecovered target directly on the world map.";
+  return "Restore the party, or brew a Healing Draught if everyone is already fit.";
+}
+
+function townFactionActionMarkup(key, event, town) {
+  if (town.owner !== "player") return "";
+  const used = isTownActionUsed(town, townFactionActionId(event));
+  const status = used ? "Used today" : "Ready";
+  return `
+    <div class="town-building-card built ${used ? "used" : ""}">
+      <div>
+        <strong>${townFactionActionLabel(event)}</strong>
+        <span>${status}</span>
+        <p>${townFactionActionDescription(event)}</p>
+      </div>
+      <button type="button" data-town-faction-action="${event.faction || "grove"}"${used ? " disabled" : ""}>${used ? "Used" : "Use"}</button>
+    </div>
+  `;
+}
+
+function useTownFactionAction(key, event) {
+  const town = getTownState(key);
+  const actionId = townFactionActionId(event);
+  if (town.owner !== "player") {
+    setTownFeedback(`Claim ${event.name} before calling on its faction support.`, "warn");
+    return;
+  }
+  if (isTownActionUsed(town, actionId)) {
+    setTownFeedback(`${townFaction(event).name} has already answered your call today.`, "used");
+    return;
+  }
+  let messageText = "";
+  let messageType = "good";
+  if (event.faction === "forge") {
+    const xp = 24 + state.hero.level * 5;
+    const report = gainXp(xp);
+    const levelText = report.unitLevelUps.length ? ` ${report.unitLevelUps.length} unit${report.unitLevelUps.length === 1 ? "" : "s"} advanced.` : "";
+    messageText = `${event.name}'s smiths run live drills. The warband gains ${xp} XP.${levelText}`;
+    markTownActionUsed(town, actionId);
+    if (report.heroLevels > 0) {
+      setMessage(messageText);
+      refreshTownModal(key, event, messageText, messageType);
+      pendingPostBattleAction = () => reopenTownModal(key, event);
+      openSkillChoice();
+      return;
+    }
+  } else if (event.faction === "tide") {
+    const bonus = 26 + ownedTownEntries().length * 10 + Math.max(0, state.day - 1) * 2;
+    state.gold += bonus;
+    messageText = `${event.name}'s harbor brokers return ${bonus} gold from priority cargo levies.`;
+    markTownActionUsed(town, actionId);
+  } else if (event.faction === "dusk") {
+    const target = nearestScoutingTarget();
+    if (!target) {
+      messageText = `${event.name}'s moon seers find no urgent target beyond your current charts.`;
+      messageType = "info";
+    } else {
+      state.scoutMarker = target.key;
+      const label = target.event.type === "chest"
+        ? "a relic chest"
+        : target.event.type === "town"
+          ? target.event.name
+          : "a hostile outpost";
+      messageText = `${event.name}'s moon seers pin ${label} to your war map at ${target.x},${target.y}.`;
+    }
+    markTownActionUsed(town, actionId);
+  } else {
+    const missing = totalMissingPartyHealth();
+    if (missing > 0) {
+      const amount = Math.max(10, Math.round(missing * 0.45));
+      recoverParty(amount);
+      messageText = `${event.name}'s wardens restore ${amount} HP across the party.`;
+    } else {
+      addInventoryItem("healingDraught", 1);
+      messageText = `${event.name}'s herbalists brew a Healing Draught for the road.`;
+    }
+    markTownActionUsed(town, actionId);
+  }
+  refreshTownModal(key, event, messageText, messageType);
 }
 
 function recruitableUnitsForTown(event) {
@@ -1979,6 +2160,9 @@ function bindTownModal(key, event) {
   });
   modalText.querySelectorAll("[data-town-use]").forEach((button) => {
     button.addEventListener("click", () => handleTownBuildingClick(key, event, button.dataset.townUse));
+  });
+  modalText.querySelectorAll("[data-town-faction-action]").forEach((button) => {
+    button.addEventListener("click", () => useTownFactionAction(key, event));
   });
 }
 
@@ -3792,6 +3976,7 @@ function checkRegionDiscovery() {
 function drawWorldReadabilityOverlays() {
   drawTownInfluenceOverlays();
   drawThreatOverlays();
+  drawScoutMarkerOverlay();
   drawLocationBanner();
 }
 
@@ -3870,6 +4055,40 @@ function drawThreatHalo(cx, cy, color, radius, label = "") {
     ctx.textBaseline = "middle";
     ctx.fillText(label, cx, cy - radius + 16);
   }
+  ctx.restore();
+}
+
+function drawScoutMarkerOverlay() {
+  if (!state.scoutMarker) return;
+  if (state.visited[state.scoutMarker] || !events.has(state.scoutMarker)) {
+    state.scoutMarker = "";
+    return;
+  }
+  const [x, y] = state.scoutMarker.split(",").map(Number);
+  if (!isOnScreen(x, y, 3)) return;
+  const cx = screenTileX(x) + 16;
+  const cy = screenTileY(y) + 18;
+  ctx.save();
+  ctx.strokeStyle = "rgba(194, 146, 232, 0.95)";
+  ctx.fillStyle = "rgba(194, 146, 232, 0.18)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 19, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - 11, cy);
+  ctx.lineTo(cx + 11, cy);
+  ctx.moveTo(cx, cy - 11);
+  ctx.lineTo(cx, cy + 11);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(15,18,25,0.76)";
+  ctx.fillRect(cx - 33, cy - 34, 66, 16);
+  ctx.fillStyle = "#f7dcff";
+  ctx.font = "700 10px Trebuchet MS";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("Moon Mark", cx, cy - 26);
   ctx.restore();
 }
 
