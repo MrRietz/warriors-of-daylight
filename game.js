@@ -1871,10 +1871,11 @@ function townRecruitCard(key, event, town, id) {
   const partyFull = !existing && state.party.length >= MAX_PARTY_UNITS;
   const disabled = locked || used ? " disabled" : "";
   const note = locked ? "Needs Barracks" : used ? "Trained today" : existing ? `Upgrade ${townUpgradeCostForUnit(id, event)} gold` : partyFull ? `Replace ${recruitCostForTown(id, event)} gold` : `Recruit ${recruitCostForTown(id, event)} gold`;
+  const role = unitRole(unit);
   return `
     <button type="button" class="town-recruit-card" data-town-recruit="${id}"${disabled}>
       <span class="recruit-dot" style="--unit-color:${unit.color}"></span>
-      <span><b>${unit.name}</b><small>${rangeText(unit)} / ${unit.moveType} / ${unit.skill}</small></span>
+      <span><b>${unit.name}</b><small>${role} / ${rangeText(unit)} / ${unit.skill}</small><small>${unitRoleSummary(unit)}</small></span>
       <em>${note}</em>
     </button>
   `;
@@ -2470,10 +2471,16 @@ function battlePreviewMarkup(event, enemies, tier, enemyText) {
   const reward = enemies.reduce((sum, enemy) => sum + (enemy.reward || 0), 0);
   const icons = enemies.map((enemy) => `<span class="enemy-icon ${enemyArchetype(enemy)}" title="${escapeHtml(enemy.name)}">${enemyArchetypeIcon(enemy)}</span>`).join("");
   const gateText = event.gate ? "<p><strong>Castle Gate</strong>: defeat this boss to open the road to Orius.</p>" : "";
+  const bossText = event.encounter === "gatekeeper"
+    ? "<p><strong>Boss Trait</strong>: the Warden begins behind an iron bulwark, then enrages and crushes harder below half health.</p>"
+    : event.encounter === "rival"
+      ? "<p><strong>Boss Trait</strong>: Orius blinks away with a moon ward and can unleash an arcane barrage across your whole party.</p>"
+      : "";
   return `
     <div class="battle-preview">
       <p>${escapeHtml(enemyText)} Threat: <strong>${tier.label}</strong>.</p>
       ${gateText}
+      ${bossText}
       <div class="enemy-icon-row">${icons}</div>
       <div class="battle-reward-preview">
         <span>Reward ${reward} gold</span>
@@ -2568,6 +2575,25 @@ function normalizeEnemyUnit(enemy) {
   return enemy;
 }
 
+function createBossBattleState(event) {
+  if (event.encounter === "gatekeeper") {
+    return {
+      kind: "gatekeeper",
+      shieldCharges: 2,
+      enraged: false,
+    };
+  }
+  if (event.encounter === "rival") {
+    return {
+      kind: "rival",
+      wardStrength: 0,
+      blinkUsed: false,
+      lastBarrageRound: 0,
+    };
+  }
+  return null;
+}
+
 function startBattle(key, event, enemyInput) {
   const team = [state.hero, ...state.party];
   const positions = team.map((unit, index) => ({ x: index >= BATTLE_ROWS ? 0 : 1, y: index % BATTLE_ROWS, acted: unit.hp <= 0 }));
@@ -2596,6 +2622,7 @@ function startBattle(key, event, enemyInput) {
     enemyPositions,
     floaters: [],
     log: [`${enemyNames} engage your party.${trapLine}`],
+    bossState: createBossBattleState(event),
   };
   buildBattleQueue();
   advanceBattleTurn();
@@ -2775,7 +2802,8 @@ function battleRosterMarkup() {
 
 function battleStatCard(unit, active, enemy = false) {
   const attackText = rangeText(unit);
-  return `<div class="battle-stat-card ${active ? "active" : ""} ${enemy ? "enemy" : ""}"><strong>${unit.name}</strong><span>HP ${Math.max(0, unit.hp)}/${unit.maxHp || unit.hp}</span><span>Attack ${unit.atk || 0} / Defense ${unit.def || 0}</span><span>Speed ${unit.speed || 1} / Move ${moveRange(unit)} ${unit.moveType || "ground"}</span><span>${attackText}</span></div>`;
+  const role = unitRole(unit);
+  return `<div class="battle-stat-card ${active ? "active" : ""} ${enemy ? "enemy" : ""}"><strong>${unit.name}</strong><span>${role}</span><span>HP ${Math.max(0, unit.hp)}/${unit.maxHp || unit.hp}</span><span>Attack ${unit.atk || 0} / Defense ${unit.def || 0}</span><span>Speed ${unit.speed || 1} / Move ${moveRange(unit)} ${unit.moveType || "ground"}</span><span>${attackText}</span></div>`;
 }
 
 function bindBattleBoard() {
@@ -3080,6 +3108,44 @@ function rangeText(unit) {
   return attackTypeLabel(unit) === "Ranged" ? `Ranged, best <= ${attackRange(unit)}` : "Melee adjacent";
 }
 
+function unitRole(unit) {
+  if (!unit) return "Adventurer";
+  if ((unit.def || 0) >= 5 && (unit.maxHp || 0) >= 28) return "Bulwark";
+  if (attackTypeLabel(unit) === "Ranged" && (unit.speed || 0) >= 6) return "Skirmisher";
+  if (attackTypeLabel(unit) === "Ranged") return "Artillery";
+  if (unit.moveType === "flying" && (unit.speed || 0) >= 7) return "Diver";
+  if ((unit.speed || 0) >= 7) return "Striker";
+  if ((unit.power || 0) >= 7) return "Caster";
+  return "Vanguard";
+}
+
+function unitRoleSummary(unit) {
+  const role = unitRole(unit);
+  if (role === "Bulwark") return "Absorbs pressure and anchors the line.";
+  if (role === "Skirmisher") return "Repositions fast and punishes from range.";
+  if (role === "Artillery") return "Softens targets before they reach your front.";
+  if (role === "Diver") return "Jumps fragile backliners and hard-to-reach threats.";
+  if (role === "Striker") return "Wins trades by reaching key targets first.";
+  if (role === "Caster") return "Relies on power spikes more than raw toughness.";
+  return "Reliable frontline pressure for steady turns.";
+}
+
+function partyCompositionSummary() {
+  const team = [state.hero, ...state.party];
+  const ranged = team.filter((unit) => attackTypeLabel(unit) === "Ranged").length;
+  const flying = team.filter((unit) => unit.moveType === "flying").length;
+  const tanks = team.filter((unit) => unitRole(unit) === "Bulwark").length;
+  const fast = team.filter((unit) => (unit.speed || 0) >= 7).length;
+  const notes = [];
+  if (!tanks) notes.push("add a bulwark");
+  if (!ranged) notes.push("add ranged pressure");
+  if (!flying) notes.push("add a flanker");
+  if (fast <= 1) notes.push("improve initiative");
+  const strengths = `Line ${tanks} / Range ${ranged} / Flight ${flying} / Fast ${fast}`;
+  const advice = notes.length ? `Needs: ${notes.join(", ")}.` : "Balanced warband with answers for most fights.";
+  return { strengths, advice };
+}
+
 function isTargetInAttackRange(attacker, from, to) {
   return Boolean(attacker && from && to && attackDistance(from, to) <= attackRange(attacker));
 }
@@ -3120,12 +3186,27 @@ function playerBattleAction(attackerIndex, enemyIndex) {
   const enemyPos = activeBattle.enemyPositions[enemyIndex];
   const penalty = rangedDamagePenalty(attacker, attackerPos, enemyPos);
   const moraleBonus = (attacker.morale || 0) >= 7 ? 2 : 0;
-  const damage = Math.max(1, attacker.atk + Math.ceil((attacker.power || 0) / 2) + attacker.level + moraleBonus - (enemy.def || 0) - penalty * 2 + Math.floor(Math.random() * 4) - 1);
+  let damage = Math.max(1, attacker.atk + Math.ceil((attacker.power || 0) / 2) + attacker.level + moraleBonus - (enemy.def || 0) - penalty * 2 + Math.floor(Math.random() * 4) - 1);
+  let bossNote = "";
+  if (enemy.sourceEncounter === "gatekeeper" && activeBattle.bossState?.kind === "gatekeeper" && activeBattle.bossState.shieldCharges > 0) {
+    const absorbed = Math.min(Math.max(0, damage - 1), 6);
+    damage = Math.max(1, damage - absorbed);
+    activeBattle.bossState.shieldCharges -= 1;
+    bossNote = ` The iron bulwark absorbs ${absorbed}.`;
+    addBattleFloater(enemyPos.x, enemyPos.y, "Block", "guard");
+  } else if (enemy.sourceEncounter === "rival" && activeBattle.bossState?.kind === "rival" && activeBattle.bossState.wardStrength > 0) {
+    const absorbed = Math.min(Math.max(0, damage - 1), activeBattle.bossState.wardStrength);
+    damage = Math.max(1, damage - absorbed);
+    activeBattle.bossState.wardStrength = 0;
+    bossNote = ` Moon ward absorbs ${absorbed} before shattering.`;
+    addBattleFloater(enemyPos.x, enemyPos.y, "Ward", "guard");
+  }
   activeBattle.feedback = { type: "hit", unitIndex: attackerIndex, enemyIndex, target: "enemy" };
   enemy.hp -= damage;
   addBattleFloater(enemyPos.x, enemyPos.y, `-${damage}`, "damage");
   playSfx("hit");
-  activeBattle.log.push(`${attacker.name} hits ${enemy.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}. ${randomBattleQuip("playerHit")}`);
+  activeBattle.log.push(`${attacker.name} hits ${enemy.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}.${bossNote} ${randomBattleQuip("playerHit")}`);
+  if (enemy.hp > 0) maybeTriggerBossPhase(enemyIndex);
   if (enemy.hp <= 0) {
     enemy.hp = 0;
     activeBattle.log.push(`${enemy.name} falls. ${randomBattleQuip("enemyDown")}`);
@@ -3133,6 +3214,42 @@ function playerBattleAction(attackerIndex, enemyIndex) {
   }
   if (!livingEnemies().length) return finishBattle(true);
   finishBattleUnitAction();
+}
+
+function maybeTriggerBossPhase(enemyIndex) {
+  const enemy = activeBattle?.enemies?.[enemyIndex];
+  const enemyPos = activeBattle?.enemyPositions?.[enemyIndex];
+  if (!activeBattle || !enemy || enemy.hp <= 0) return false;
+  if (enemy.sourceEncounter === "gatekeeper" && activeBattle.bossState?.kind === "gatekeeper" && !activeBattle.bossState.enraged && enemy.hp <= Math.ceil(enemy.maxHp * 0.5)) {
+    activeBattle.bossState.enraged = true;
+    enemy.atk += 3;
+    enemy.def += 1;
+    enemy.speed += 1;
+    activeBattle.log.push(`${enemy.name} roars behind the broken gate and fights in a rage.`);
+    if (enemyPos) addBattleFloater(enemyPos.x, enemyPos.y, "Rage", "attack");
+    return true;
+  }
+  if (enemy.sourceEncounter === "rival" && activeBattle.bossState?.kind === "rival" && !activeBattle.bossState.blinkUsed && enemy.hp <= Math.ceil(enemy.maxHp * 0.5)) {
+    activeBattle.bossState.blinkUsed = true;
+    activeBattle.bossState.wardStrength = 8;
+    if (enemyPos) {
+      const fallback = { x: BATTLE_COLS - 2, y: 2 };
+      let blinkTile = fallback;
+      for (let y = 0; y < BATTLE_ROWS; y += 1) {
+        const x = BATTLE_COLS - 2;
+        if (!isBattleOccupiedByOther(x, y, enemyIndex)) {
+          blinkTile = { x, y };
+          break;
+        }
+      }
+      enemyPos.x = blinkTile.x;
+      enemyPos.y = blinkTile.y;
+      addBattleFloater(enemyPos.x, enemyPos.y, "Blink", "move");
+    }
+    activeBattle.log.push(`${enemy.name} slips through moonlight, reforms in the rear, and raises a moon ward.`);
+    return true;
+  }
+  return false;
 }
 
 function guardBattleAction() {
@@ -3181,6 +3298,11 @@ function enemyBattleTurn() {
     advanceBattleTurn();
     return renderBattle();
   }
+  maybeTriggerBossPhase(enemyIndex);
+  if (enemy.sourceEncounter === "rival" && activeBattle.bossState?.kind === "rival" && activeBattle.round >= 2 && activeBattle.bossState.lastBarrageRound !== activeBattle.round) {
+    activeBattle.bossState.lastBarrageRound = activeBattle.round;
+    return performOriusBarrage(enemyIndex);
+  }
   const targets = livingTeam();
   if (!targets.length) return finishBattle(false);
   const target = nearestEnemyTarget(enemyIndex, targets);
@@ -3193,6 +3315,33 @@ function enemyBattleTurn() {
     return;
   }
   resolveEnemyAttack(enemyIndex, [state.hero, ...state.party].indexOf(target));
+}
+
+function performOriusBarrage(enemyIndex) {
+  if (!activeBattle) return;
+  const enemy = activeBattle.enemies[enemyIndex];
+  const enemyPos = activeBattle.enemyPositions[enemyIndex];
+  const targets = livingTeam();
+  if (!enemy || !targets.length) {
+    advanceBattleTurn();
+    return renderBattle();
+  }
+  activeBattle.feedback = { type: "hit", enemyIndex, target: "enemy" };
+  activeBattle.log.push(`${enemy.name} unleashes Arcane Barrage across the field.`);
+  targets.forEach((unit) => {
+    const targetIndex = [state.hero, ...state.party].indexOf(unit);
+    const targetPos = activeBattle.positions[targetIndex];
+    const damage = Math.max(2, Math.round(enemy.power * 0.7 + activeBattle.round - (unit.def || 0) * 0.35));
+    unit.hp = Math.max(0, unit.hp - damage);
+    if (targetPos) addBattleFloater(targetPos.x, targetPos.y, `-${damage}`, "damage");
+    if (unit.hp <= 0) activeBattle.log.push(`${unit.name} is blasted down by the barrage.`);
+  });
+  if (enemyPos) addBattleFloater(enemyPos.x, enemyPos.y, "Burst", "attack");
+  playSfx("hit");
+  activeBattle.guarding = false;
+  if (!livingTeam().length) return finishBattle(false);
+  advanceBattleTurn();
+  renderBattle();
 }
 
 function resolveEnemyAttack(enemyIndex, targetIndex) {
@@ -3220,13 +3369,14 @@ function resolveEnemyAttack(enemyIndex, targetIndex) {
   const guardReduction = activeBattle.guarding ? 4 : 0;
   const penalty = rangedDamagePenalty(enemy, enemyPos, targetPos);
   const partyCourage = Math.min(2, Math.floor(livingTeam().length / 3));
-  const damage = Math.max(1, enemy.atk - (resolvedTarget.def || 1) - guardReduction - partyCourage - penalty * 2 + Math.floor(Math.random() * 3));
+  const gatekeeperCrush = enemy.sourceEncounter === "gatekeeper" && activeBattle.bossState?.kind === "gatekeeper" && activeBattle.bossState.enraged;
+  const damage = Math.max(1, enemy.atk - (resolvedTarget.def || 1) - guardReduction - partyCourage - penalty * 2 + (gatekeeperCrush ? 3 : 0) + Math.floor(Math.random() * 3));
   activeBattle.feedback = { type: "hit", unitIndex: targetIndex, target: "unit" };
   resolvedTarget.hp -= damage;
   if (resolvedTarget.hp <= 0) resolvedTarget.hp = 0;
   addBattleFloater(targetPos.x, targetPos.y, `-${damage}`, "damage");
   playSfx("hit");
-  activeBattle.log.push(`${enemy.name} strikes ${resolvedTarget.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}. ${randomBattleQuip("enemyHit")}`);
+  activeBattle.log.push(`${enemy.name} ${gatekeeperCrush ? "crushes" : "strikes"} ${resolvedTarget.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}. ${randomBattleQuip("enemyHit")}`);
   if (resolvedTarget.hp <= 0) activeBattle.log.push(`${resolvedTarget.name} falls.`);
   activeBattle.guarding = false;
   if (!livingTeam().length) return finishBattle(false);
@@ -5016,6 +5166,7 @@ function renderSidebar() {
   const townTarget = countEvents("town");
   const relicCount = uniqueRelicCount();
   const incomePreview = townEconomyPreview().total;
+  const formation = partyCompositionSummary();
   const immediateRows = [
     { text: `Main objective: ${campaignMainObjective()}`, done: state.won },
     { text: campaignSideObjective() || "Side objective: none", done: false },
@@ -5055,7 +5206,7 @@ function renderSidebar() {
     stat("Mines", `${mineCount}/${mineTarget}`) +
     stat("Outposts", `${battleCount}/${battleTarget}`) +
     stat("Skills", state.hero.skills?.length ? state.hero.skills.join(", ") : "None");
-  partyList.innerHTML = renderUnit(state.hero, -1) + state.party.map((unit, index) => renderUnit(unit, index)).join("");
+  partyList.innerHTML = `<div class="unit"><div><div class="unit-name"><span>Warband Readout</span><span>${state.party.length + 1} units</span></div><div class="unit-stats">${formation.strengths}</div><div class="unit-skill">${formation.advice}</div></div></div>` + renderUnit(state.hero, -1) + state.party.map((unit, index) => renderUnit(unit, index)).join("");
   renderInventory();
   const storyQuests = [
     { text: `Build a four-unit warband (${state.party.length}/4)`, done: state.party.length >= 4 },
@@ -5202,8 +5353,10 @@ function renderUnit(unit, partyIndex = -1) {
     ? `<img class="unit-sprite-img" src="${portrait}" alt="" />`
     : `<div class="unit-sprite${spriteClass}" style="--unit-color:${color}"></div>`;
   const controls = partyIndex >= 0 ? `<div class="unit-actions"><button type="button" data-party-move="${partyIndex}" data-dir="-1" aria-label="Move ${unit.name} up">Up</button><button type="button" data-party-move="${partyIndex}" data-dir="1" aria-label="Move ${unit.name} down">Down</button><button type="button" class="danger" data-party-dismiss="${partyIndex}" aria-label="Dismiss ${unit.name}">Dismiss</button></div>` : "";
-  const role = unit.skill ? `<div class="unit-skill">${escapeHtml(unit.skill)}</div>` : "";
-  return `<div class="unit">${sprite}<div><div class="unit-name"><span>${unit.name}</span><span>Lv ${unit.level}</span></div><div class="unit-stats">Atk ${unit.atk} / Def ${unit.def} / Spd ${unit.speed} / ${unit.moveType || "ground"} / ${rangeText(unit)}</div>${role}<div class="meter" style="--fill:${fill}%"><span></span></div><div class="meter xp-meter" title="Experience ${unit.xp || 0}/${xpToNext(unit)}" style="--fill:${xpFill}%"><span></span></div>${controls}</div></div>`;
+  const role = unitRole(unit);
+  const summary = unitRoleSummary(unit);
+  const skill = unit.skill ? ` Skill: ${escapeHtml(unit.skill)}.` : "";
+  return `<div class="unit">${sprite}<div><div class="unit-name"><span>${unit.name}</span><span>Lv ${unit.level}</span></div><div class="unit-stats">${role} / Atk ${unit.atk} / Def ${unit.def} / Spd ${unit.speed} / ${unit.moveType || "ground"} / ${rangeText(unit)}</div><div class="unit-skill">${summary}${skill}</div><div class="meter" style="--fill:${fill}%"><span></span></div><div class="meter xp-meter" title="Experience ${unit.xp || 0}/${xpToNext(unit)}" style="--fill:${xpFill}%"><span></span></div>${controls}</div></div>`;
 }
 
 function battleModalLocked() {
