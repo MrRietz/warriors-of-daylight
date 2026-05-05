@@ -18,6 +18,7 @@ const modal = document.getElementById("modal");
 const modalTitle = document.getElementById("modalTitle");
 const modalText = document.getElementById("modalText");
 const modalActions = document.getElementById("modalActions");
+const snackbarStack = document.getElementById("snackbarStack");
 const musicBtn = document.getElementById("musicBtn");
 
 const TILE = 32;
@@ -52,7 +53,7 @@ spriteSheet.onload = () => {
   cutoutCache.clear();
   portraitCache.clear();
   prewarmCutouts();
-  renderAll();
+  renderAfterArtLoad();
 };
 spriteSheet.src = "assets/generated-spritesheet.png";
 
@@ -64,7 +65,7 @@ characterSheet.onload = () => {
   characterCutoutCache.clear();
   portraitCache.clear();
   prewarmCharacterCutouts();
-  renderAll();
+  renderAfterArtLoad();
 };
 characterSheet.src = "assets/character-animation-sheet.png";
 
@@ -76,7 +77,7 @@ heroDirectionSheet.onload = () => {
   heroDirectionCutoutCache.clear();
   portraitCache.clear();
   prewarmHeroDirectionCutouts();
-  renderAll();
+  renderAfterArtLoad();
 };
 heroDirectionSheet.src = "assets/hero-directional-animation.png";
 
@@ -88,7 +89,7 @@ enemySheet.onload = () => {
   enemyCutoutCache.clear();
   portraitCache.clear();
   prewarmEnemyCutouts();
-  renderAll();
+  renderAfterArtLoad();
 };
 enemySheet.src = "assets/enemy-animation-sheet.png";
 
@@ -149,14 +150,14 @@ unitSheet.onload = () => {
   unitSheetReady = true;
   unitCutoutCache.clear();
   portraitCache.clear();
-  renderAll();
+  renderAfterArtLoad();
 };
 unitSheet.src = "assets/creature-unit-sheet.png?v=4";
 extraUnitSheet.onload = () => {
   extraUnitSheetReady = true;
   unitCutoutCache.clear();
   portraitCache.clear();
-  renderAll();
+  renderAfterArtLoad();
 };
 extraUnitSheet.src = "assets/creature-unit-sheet-extra.png?v=2";
 
@@ -295,14 +296,14 @@ const townFactions = {
 };
 
 const heroSkillCatalog = [
-  { name: "Command", type: "Offense", text: "+2 attack. All your direct strikes hit harder.", apply: () => (state.hero.atk += 2) },
-  { name: "Fortitude", type: "Survival", text: "+10 max HP and full heal. Best when fights run long.", apply: () => { state.hero.maxHp += 10; state.hero.hp = state.hero.maxHp; } },
-  { name: "Tactics", type: "Defense", text: "+2 defense. Reduces most incoming melee and ranged damage.", apply: () => (state.hero.def += 2) },
-  { name: "Skirmisher", type: "Mobility", text: "+1 speed. Move earlier and reach better tiles in battle.", apply: () => (state.hero.speed += 1) },
-  { name: "Battle Standard", type: "Morale", text: "+2 morale. Improves damage consistency for the whole campaign leader.", apply: () => (state.hero.morale += 2) },
-  { name: "Power Channel", type: "Magic", text: "+2 power and ranged attack. Turns the champion into a flexible back-line threat.", apply: () => { state.hero.power += 2; state.hero.attackType = "ranged"; state.hero.attackRange = Math.max(state.hero.attackRange || 1, 5); } },
-  { name: "Field Medic", type: "Support", text: "+6 max HP and +1 defense. Also fully heals the party now.", apply: () => { state.hero.maxHp += 6; state.hero.def += 1; state.hero.hp = state.hero.maxHp; state.party.forEach((unit) => (unit.hp = unit.maxHp)); } },
-  { name: "Quartermaster", type: "Economy", text: "+80 gold and +1 morale. Helps recover from expensive recruitment turns.", apply: () => { state.gold += 80; state.hero.morale += 1; } },
+  { name: "Command", type: "Offense", icon: "command", text: "+2 attack. All your direct strikes hit harder.", apply: () => (state.hero.atk += 2) },
+  { name: "Fortitude", type: "Survival", icon: "fortitude", text: "+10 max HP and full heal. Best when fights run long.", apply: () => { state.hero.maxHp += 10; state.hero.hp = state.hero.maxHp; } },
+  { name: "Tactics", type: "Defense", icon: "tactics", text: "+2 defense. Reduces most incoming melee and ranged damage.", apply: () => (state.hero.def += 2) },
+  { name: "Skirmisher", type: "Mobility", icon: "skirmisher", text: "+1 speed. Move earlier and reach better tiles in battle.", apply: () => (state.hero.speed += 1) },
+  { name: "Battle Standard", type: "Morale", icon: "battleStandard", text: "+2 morale. Improves damage consistency for the whole campaign leader.", apply: () => (state.hero.morale += 2) },
+  { name: "Power Channel", type: "Magic", icon: "powerChannel", text: "+2 power and ranged attack. Turns the champion into a flexible back-line threat.", apply: () => { state.hero.power += 2; state.hero.attackType = "ranged"; state.hero.attackRange = Math.max(state.hero.attackRange || 1, 5); } },
+  { name: "Field Medic", type: "Support", icon: "fieldMedic", text: "+6 max HP and +1 defense. Also fully heals the party now.", apply: () => { state.hero.maxHp += 6; state.hero.def += 1; state.hero.hp = state.hero.maxHp; state.party.forEach((unit) => (unit.hp = unit.maxHp)); } },
+  { name: "Quartermaster", type: "Economy", icon: "quartermaster", text: "+80 gold and +1 morale. Helps recover from expensive recruitment turns.", apply: () => { state.gold += 80; state.hero.morale += 1; } },
 ];
 
 const encounters = {
@@ -519,49 +520,72 @@ const itemDefinitions = {
   bannerOfLuck: {
     name: "Banner of Luck",
     type: "equipment",
-    description: "Equip once: your champion gains +1 attack.",
+    description: "Equip: your champion gains +1 attack.",
     use: () => {
       state.hero.atk += 1;
       return `${championName()} equips the Banner of Luck and gains +1 attack.`;
+    },
+    unequip: () => {
+      state.hero.atk -= 1;
+      return `${championName()} lowers the Banner of Luck and loses its +1 attack.`;
     },
   },
   dawnwoodBow: {
     name: "Dawnwood Bow",
     type: "equipment",
-    description: "Equip once: your champion becomes ranged, gains +1 power, and shoots best within 6 tiles.",
+    description: "Equip: your champion becomes ranged, gains +1 power, and shoots best within 6 tiles.",
     use: () => {
       state.hero.power += 1;
       state.hero.attackType = "ranged";
       state.hero.attackRange = Math.max(state.hero.attackRange || 1, 6);
       return `${championName()} equips the Dawnwood Bow and can now attack from range.`;
     },
+    unequip: () => {
+      state.hero.power -= 1;
+      state.hero.attackType = heroBaseStats.attackType;
+      state.hero.attackRange = heroBaseStats.attackRange;
+      return `${championName()} slings the Dawnwood Bow and returns to melee fighting.`;
+    },
   },
   silverBridle: {
     name: "Silver Bridle",
     type: "equipment",
-    description: "Equip once: your champion gains +1 defense.",
+    description: "Equip: your champion gains +1 defense.",
     use: () => {
       state.hero.def += 1;
       return `${championName()} equips the Silver Bridle and gains +1 defense.`;
+    },
+    unequip: () => {
+      state.hero.def -= 1;
+      return `${championName()} removes the Silver Bridle and loses its +1 defense.`;
     },
   },
   starlitCompass: {
     name: "Starlit Compass",
     type: "equipment",
-    description: "Equip once: your champion gains +1 speed.",
+    description: "Equip: your champion gains +1 speed.",
     use: () => {
       state.hero.speed += 1;
       return `${championName()} equips the Starlit Compass and gains +1 speed.`;
+    },
+    unequip: () => {
+      state.hero.speed -= 1;
+      return `${championName()} packs away the Starlit Compass and loses its +1 speed.`;
     },
   },
   forgeCharm: {
     name: "Forge Charm",
     type: "equipment",
-    description: "Equip once: your champion gains +6 max HP and fully heals.",
+    description: "Equip: your champion gains +6 max HP and fully heals.",
     use: () => {
       state.hero.maxHp += 6;
       state.hero.hp = state.hero.maxHp;
       return `${championName()} equips the Forge Charm and gains +6 max HP.`;
+    },
+    unequip: () => {
+      state.hero.maxHp -= 6;
+      state.hero.hp = Math.min(state.hero.hp, state.hero.maxHp);
+      return `${championName()} removes the Forge Charm and loses its +6 max HP.`;
     },
   },
 };
@@ -1005,6 +1029,8 @@ let musicGain = null;
 let musicMode = "field";
 let autoBattleTimer = 0;
 let lastStepSoundAt = 0;
+let lastSnackbarText = "";
+let lastSnackbarAt = 0;
 const keyMap = {
   ArrowUp: [0, -1],
   w: [0, -1],
@@ -1163,6 +1189,49 @@ function resetGame() {
 function setMessage(text) {
   message = text;
   statusLine.textContent = text;
+  showSnackbar(text);
+}
+
+function renderAfterArtLoad() {
+  if (activeBattle) {
+    renderBattle();
+    return;
+  }
+  renderAll();
+}
+
+function showSnackbar(text, type = snackbarTypeForMessage(text)) {
+  if (!snackbarStack || !text || !type) return;
+  syncSnackbarHost();
+  const now = performance.now();
+  if (text === lastSnackbarText && now - lastSnackbarAt < 900) return;
+  lastSnackbarText = text;
+  lastSnackbarAt = now;
+  while (snackbarStack.children.length >= 3) snackbarStack.firstElementChild?.remove();
+  const toast = document.createElement("div");
+  toast.className = `snackbar ${type}`;
+  toast.innerHTML = `<i aria-hidden="true"></i><span>${escapeHtml(text)}</span>`;
+  snackbarStack.appendChild(toast);
+  window.setTimeout(() => toast.classList.add("show"), 20);
+  window.setTimeout(() => {
+    toast.classList.remove("show");
+    toast.classList.add("leaving");
+  }, 3200);
+  window.setTimeout(() => toast.remove(), 3800);
+}
+
+function syncSnackbarHost() {
+  if (!snackbarStack) return;
+  const host = modal?.open ? modal : document.body;
+  if (snackbarStack.parentElement !== host) host.appendChild(snackbarStack);
+}
+
+function snackbarTypeForMessage(text) {
+  const value = String(text).toLowerCase();
+  if (/(defeat|cannot|blocked|requires|costs|need |not enough|still guards|still holds|impassable|sealed)/.test(value)) return "warn";
+  if (/(victory|learned|found|gained|reward|restores|built|claimed|accepted|completed|complete\.|recruits|upgrades|equips|unequipped|defeated|falls|clear|open|yields|joins|leaves the party|game saved|fresh campaign)/.test(value)) return "good";
+  if (/(dusk falls|night plan set|dawn breaks|marked on the overworld|scout marker|challenge the black gate)/.test(value)) return "info";
+  return "";
 }
 
 function ensureAudioContext() {
@@ -1306,6 +1375,84 @@ function scheduleMusicBeat() {
       delay: 170,
       sectionLength: 32,
     },
+    "battle:skirmish": {
+      variations: [
+        [247, 294, 330, 392, 330, 294, 247, 220, 247, 294, 349, 392, 349, 294, 262, 247],
+        [294, 330, 392, 440, 392, 330, 294, 262, 294, 349, 392, 494, 440, 392, 330, 294],
+      ],
+      bass: [55, 55, 82, 82, 73, 73, 98, 82, 55, 55, 82, 98, 73, 98, 82, 73],
+      tempo: 0.15,
+      delay: 155,
+      sectionLength: 16,
+      wave: "square",
+      accentWave: "sawtooth",
+      drumStyle: "march",
+    },
+    "battle:beast": {
+      variations: [
+        [196, 247, 294, 247, 330, 294, 247, 196, 220, 262, 330, 294, 392, 330, 294, 247],
+        [220, 277, 330, 277, 415, 370, 330, 277, 247, 294, 370, 330, 440, 392, 330, 294],
+      ],
+      bass: [49, 49, 73, 49, 82, 82, 73, 49, 55, 55, 82, 55, 98, 82, 73, 55],
+      tempo: 0.19,
+      delay: 205,
+      sectionLength: 16,
+      wave: "sawtooth",
+      accentWave: "triangle",
+      drumStyle: "stomp",
+    },
+    "battle:arcane": {
+      variations: [
+        [277, 330, 415, 494, 554, 494, 415, 330, 311, 370, 466, 554, 622, 554, 466, 370],
+        [247, 311, 370, 466, 554, 622, 554, 466, 415, 370, 311, 370, 466, 554, 494, 415],
+      ],
+      bass: [62, 62, 93, 93, 74, 74, 111, 93, 69, 69, 104, 104, 83, 111, 104, 74],
+      tempo: 0.18,
+      delay: 190,
+      sectionLength: 16,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "arcane",
+    },
+    "battle:guardian": {
+      variations: [
+        [165, 220, 247, 294, 330, 294, 247, 220, 196, 247, 294, 349, 392, 349, 294, 247],
+        [196, 247, 294, 330, 392, 330, 294, 247, 220, 262, 330, 392, 440, 392, 330, 294],
+      ],
+      bass: [41, 41, 62, 62, 55, 55, 82, 62, 49, 49, 73, 73, 62, 82, 73, 55],
+      tempo: 0.2,
+      delay: 220,
+      sectionLength: 16,
+      wave: "square",
+      accentWave: "square",
+      drumStyle: "siege",
+    },
+    "battle:boss": {
+      variations: [
+        [147, 196, 247, 294, 392, 370, 294, 247, 165, 220, 262, 330, 440, 415, 330, 262],
+        [196, 247, 294, 392, 494, 440, 392, 294, 220, 262, 330, 440, 523, 494, 392, 330],
+      ],
+      bass: [37, 37, 55, 55, 49, 49, 73, 55, 41, 41, 62, 62, 55, 82, 73, 55],
+      tempo: 0.22,
+      delay: 235,
+      sectionLength: 16,
+      wave: "sawtooth",
+      accentWave: "square",
+      drumStyle: "boss",
+    },
+    "battle:night": {
+      variations: [
+        [165, 196, 247, 294, 247, 196, 185, 165, 196, 247, 330, 294, 247, 220, 196, 165],
+        [147, 185, 220, 277, 330, 277, 247, 220, 185, 220, 277, 330, 392, 330, 277, 220],
+      ],
+      bass: [37, 37, 55, 55, 46, 46, 73, 55, 41, 41, 62, 62, 55, 73, 62, 46],
+      tempo: 0.21,
+      delay: 230,
+      sectionLength: 16,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "nightBattle",
+    },
   };
   const fieldPatterns = {
     "field:dawnhaven_march": {
@@ -1317,8 +1464,11 @@ function scheduleMusicBeat() {
       tempo: 0.24,
       delay: 260,
       sectionLength: 16,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "light",
     },
-    "field:central_kingdom": patterns.field,
+    "field:central_kingdom": { ...patterns.field, wave: "sawtooth", accentWave: "triangle", drumStyle: "road" },
     "field:high_march": {
       variations: [
         [392, 494, 587, 740, 659, 587, 494, 587, 440, 523, 659, 784, 740, 659, 587, 494],
@@ -1328,6 +1478,9 @@ function scheduleMusicBeat() {
       tempo: 0.2,
       delay: 225,
       sectionLength: 16,
+      wave: "square",
+      accentWave: "triangle",
+      drumStyle: "high",
     },
     "field:low_roads": {
       variations: [
@@ -1338,6 +1491,9 @@ function scheduleMusicBeat() {
       tempo: 0.27,
       delay: 285,
       sectionLength: 16,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "low",
     },
     "field:southern_wilds": {
       variations: [
@@ -1348,6 +1504,9 @@ function scheduleMusicBeat() {
       tempo: 0.25,
       delay: 270,
       sectionLength: 16,
+      wave: "sawtooth",
+      accentWave: "square",
+      drumStyle: "wild",
     },
     "field:black_gate_approach": {
       variations: [
@@ -1358,6 +1517,9 @@ function scheduleMusicBeat() {
       tempo: 0.29,
       delay: 315,
       sectionLength: 16,
+      wave: "sine",
+      accentWave: "triangle",
+      drumStyle: "gate",
     },
   };
   const pattern = patterns[mode] || fieldPatterns[mode] || patterns.field;
@@ -1368,30 +1530,62 @@ function scheduleMusicBeat() {
   const note = phrase[stepInSection % phrase.length];
   const root = pattern.bass[Math.floor(musicStep / 2) % pattern.bass.length];
   const field = mode.startsWith("field");
-  const battle = mode === "battle";
+  const battle = mode.startsWith("battle");
   const night = mode === "night";
-  playTone(note, pattern.tempo, battle ? "square" : field ? "sawtooth" : "triangle", battle ? 0.07 : field ? 0.045 : 0.052, musicGain);
-  if (field && musicStep % 4 === 0) playTone(note * 2, 0.09, "triangle", 0.026, musicGain);
-  if (field && [7, 15, 23, 31].includes(stepInSection)) playTone(note * 1.5, 0.11, "square", 0.024, musicGain);
-  if (field && [12, 28].includes(stepInSection)) playTone(note * 0.75, 0.16, "triangle", 0.022, musicGain);
-  if (battle && musicStep % 4 === 1) playTone(note * 2, 0.055, "square", 0.033, musicGain);
-  if (battle && [14, 30].includes(stepInSection)) playTone(note * 1.5, 0.075, "sawtooth", 0.03, musicGain);
+  const leadWave = pattern.wave || (battle ? "square" : field ? "sawtooth" : "triangle");
+  const accentWave = pattern.accentWave || (battle ? "sawtooth" : "triangle");
+  playTone(note, pattern.tempo, leadWave, battle ? 0.075 : field ? 0.047 : 0.052, musicGain);
+  if (field && musicStep % 4 === 0) playTone(note * 2, 0.09, accentWave, 0.026, musicGain);
+  if (field && [7, 15, 23, 31].includes(stepInSection)) playTone(note * (pattern.drumStyle === "low" ? 1.25 : 1.5), 0.11, accentWave, 0.024, musicGain);
+  if (field && [12, 28].includes(stepInSection)) playTone(note * 0.75, 0.16, pattern.drumStyle === "gate" ? "sine" : "triangle", 0.022, musicGain);
+  if (battle && musicStep % 4 === 1) playTone(note * 2, 0.055, accentWave, 0.036, musicGain);
+  if (battle && [6, 14].includes(stepInSection)) playTone(note * 1.5, 0.075, pattern.drumStyle === "arcane" ? "sine" : "sawtooth", 0.032, musicGain);
   if (night && musicStep % 8 === 5) playTone(note * 1.5, 0.12, "sine", 0.028, musicGain);
   if (night && [10, 26].includes(stepInSection)) playTone(note * 2, 0.16, "triangle", 0.02, musicGain);
-  if (musicStep % 2 === 0) playTone(root, pattern.tempo + 0.08, "sine", battle ? 0.13 : field ? 0.105 : 0.095, musicGain);
-  if (field && musicStep % 4 === 2) playTone(root / 2, 0.12, "triangle", 0.07, musicGain);
-  if (battle && musicStep % 4 === 2) playTone(55, 0.09, "sawtooth", 0.11, musicGain);
+  if (musicStep % 2 === 0) playTone(root, pattern.tempo + 0.08, pattern.drumStyle === "high" ? "square" : "sine", battle ? 0.135 : field ? 0.105 : 0.095, musicGain);
+  if (field && musicStep % 4 === 2) playTone(root / 2, 0.12, pattern.drumStyle === "gate" ? "sine" : "triangle", pattern.drumStyle === "light" ? 0.045 : 0.07, musicGain);
+  if (battle && musicStep % 4 === 2) playTone(pattern.drumStyle === "boss" ? 37 : 55, 0.09, "sawtooth", pattern.drumStyle === "arcane" ? 0.075 : 0.11, musicGain);
   if (mode !== "battle" && !field && musicStep % 8 === 6) playTone(note * 1.5, 0.14, "sine", 0.035, musicGain);
   if (sectionLength > 16 && [15, 31].includes(stepInSection)) playTone(root * 2, 0.18, battle ? "square" : "triangle", battle ? 0.03 : 0.024, musicGain);
-  if (field) playFieldDrums(musicStep);
+  if (field) playFieldDrums(musicStep, pattern.drumStyle || "road");
   if (mode === "night") playNightDrums(musicStep);
-  if (mode === "battle") playBattleDrums(musicStep);
+  if (battle) playBattleDrums(musicStep, pattern.drumStyle || "march");
   musicStep += 1;
   musicTimer = window.setTimeout(scheduleMusicBeat, pattern.delay);
 }
 
-function playFieldDrums(step) {
+function playFieldDrums(step, style = "road") {
   const beat = step % 16;
+  if (style === "light") {
+    if ([0, 8].includes(beat)) playTone(82, 0.08, "triangle", 0.07, musicGain);
+    if ([4, 12].includes(beat)) playNoise(0.04, 0.022, musicGain, 3600, "highpass");
+    if ([3, 7, 11, 15].includes(beat)) playTone(2349, 0.018, "sine", 0.012, musicGain);
+    return;
+  }
+  if (style === "low") {
+    if ([0, 7, 12].includes(beat)) playTone(41, 0.16, "sine", 0.105, musicGain);
+    if ([5, 13].includes(beat)) playNoise(0.075, 0.035, musicGain, 460, "bandpass");
+    if (step % 4 === 2) playTone(98, 0.05, "triangle", 0.025, musicGain);
+    return;
+  }
+  if (style === "high") {
+    if ([0, 4, 8, 12].includes(beat)) playTone(98, 0.06, "square", 0.08, musicGain);
+    if ([2, 6, 10, 14].includes(beat)) playNoise(0.026, 0.02, musicGain, 5200, "highpass");
+    if ([7, 15].includes(beat)) playTone(1760, 0.035, "triangle", 0.018, musicGain);
+    return;
+  }
+  if (style === "wild") {
+    if ([0, 3, 8, 11].includes(beat)) playTone(55, 0.09, "sawtooth", 0.105, musicGain);
+    if ([5, 12].includes(beat)) playNoise(0.085, 0.045, musicGain, 620, "bandpass");
+    if (step % 2 === 1) playNoise(0.018, 0.018, musicGain, 4300, "highpass");
+    return;
+  }
+  if (style === "gate") {
+    if ([0, 8].includes(beat)) playTone(37, 0.2, "sine", 0.115, musicGain);
+    if ([6, 14].includes(beat)) playNoise(0.11, 0.028, musicGain, 320, "lowpass");
+    if ([3, 11].includes(beat)) playTone(740, 0.09, "triangle", 0.014, musicGain);
+    return;
+  }
   if ([0, 6, 8, 14].includes(beat)) {
     playTone(54, 0.095, "sine", 0.13, musicGain);
     playTone(82, 0.045, "triangle", 0.05, musicGain);
@@ -1415,8 +1609,41 @@ function playNightDrums(step) {
   if (step % 2 === 1) playNoise(0.02, 0.01, musicGain, 3400, "highpass");
 }
 
-function playBattleDrums(step) {
+function playBattleDrums(step, style = "march") {
   const beat = step % 16;
+  if (style === "stomp") {
+    if ([0, 5, 8, 13].includes(beat)) playTone(41, 0.13, "sawtooth", 0.16, musicGain);
+    if ([3, 11].includes(beat)) playNoise(0.09, 0.05, musicGain, 520, "bandpass");
+    if ([7, 15].includes(beat)) playTone(123, 0.045, "square", 0.03, musicGain);
+    return;
+  }
+  if (style === "arcane") {
+    if ([0, 8].includes(beat)) playTone(62, 0.1, "sine", 0.095, musicGain);
+    if ([4, 10, 14].includes(beat)) playTone(988, 0.04, "sine", 0.028, musicGain);
+    if (step % 2 === 1) playNoise(0.018, 0.012, musicGain, 6400, "highpass");
+    return;
+  }
+  if (style === "siege") {
+    if ([0, 4, 8, 12].includes(beat)) playTone(46, 0.12, "square", 0.14, musicGain);
+    if ([6, 14].includes(beat)) playNoise(0.11, 0.052, musicGain, 420, "bandpass");
+    if ([2, 10].includes(beat)) playTone(92, 0.06, "sawtooth", 0.04, musicGain);
+    return;
+  }
+  if (style === "boss") {
+    if ([0, 3, 8, 11].includes(beat)) {
+      playTone(37, 0.14, "sawtooth", 0.18, musicGain);
+      playTone(55, 0.08, "square", 0.07, musicGain);
+    }
+    if ([4, 12].includes(beat)) playNoise(0.12, 0.065, musicGain, 360, "bandpass");
+    if ([7, 15].includes(beat)) playTone(1480, 0.035, "square", 0.022, musicGain);
+    return;
+  }
+  if (style === "nightBattle") {
+    if ([0, 8].includes(beat)) playTone(44, 0.14, "sine", 0.13, musicGain);
+    if ([5, 12].includes(beat)) playNoise(0.075, 0.038, musicGain, 520, "bandpass");
+    if ([3, 7, 11, 15].includes(beat)) playTone(196, 0.035, "triangle", 0.024, musicGain);
+    return;
+  }
   if ([0, 3, 8, 11].includes(beat)) {
     playTone(46, 0.085, "sine", 0.15, musicGain);
     playTone(69, 0.04, "triangle", 0.06, musicGain);
@@ -1430,9 +1657,20 @@ function playBattleDrums(step) {
 }
 
 function currentMusicMode() {
-  if (activeBattle) return "battle";
+  if (activeBattle) return currentBattleMusicMode();
   if (activeNight || state.nightReady) return "night";
   return `field:${currentRegionId()}`;
+}
+
+function currentBattleMusicMode() {
+  const event = activeBattle?.event || {};
+  const encounterId = event.encounter || activeBattle?.enemies?.[0]?.sourceEncounter || "";
+  if (event.type === "night") return "battle:night";
+  if (event.type === "final" || event.gate || encounterId === "rival" || encounterId === "gatekeeper") return "battle:boss";
+  if (event.passName || event.type === "townClaim" || event.type === "chestGuard") return "battle:guardian";
+  if (encounterId === "warlock") return "battle:arcane";
+  if (encounterId === "basilisk" || encounterId === "wyvern") return "battle:beast";
+  return "battle:skirmish";
 }
 
 function updateMusicButton() {
@@ -1565,9 +1803,26 @@ function finalGateCleared() {
   return Boolean(state.visited[`${finalFortressGateTile.x},${finalFortressGateTile.y}`]);
 }
 
+function fortressGateRequirements() {
+  const relicCount = uniqueRelicCount();
+  const outpostCount = countVisitedEvents("battle");
+  return {
+    relicCount,
+    outpostCount,
+    relicTarget: 4,
+    outpostTarget: 8,
+    ready: relicCount >= 4 && outpostCount >= 8,
+  };
+}
+
+function fortressGateRequirementText() {
+  const gate = fortressGateRequirements();
+  return `Recover 4 relics and clear 8 outposts before challenging the Black Gate Warden (${gate.relicCount}/${gate.relicTarget} relics, ${gate.outpostCount}/${gate.outpostTarget} outposts).`;
+}
+
 function move(dx, dy) {
-  if (modalOpen || state.won || visual.moving) return;
-  if (state.nightReady || activeNight) return beginNight();
+  if (modalOpen || visual.moving) return;
+  if (!state.won && (state.nightReady || activeNight)) return beginNight();
   const ox = state.x;
   const oy = state.y;
   const nx = state.x + dx;
@@ -1618,9 +1873,11 @@ function startMoveAnimation(fromX, fromY, toX, toY) {
       return;
     }
     visual = { x: toX, y: toY, fromX: toX, fromY: toY, toX, toY, moving: false, startedAt: 0, progress: 0 };
+    const steppedOntoEvent = Boolean(events.get(`${toX},${toY}`));
     triggerEvent();
     checkRegionDiscovery();
     if (!modalOpen && !activeBattle && !activeNight) {
+      if (!steppedOntoEvent) maybeSetAmbientTravelMessage();
       advanceRoamingHeroes();
       checkRoamingHeroContact();
     }
@@ -1636,8 +1893,8 @@ function smoothStep(t) {
 }
 
 function continueHeldMovement() {
-  if (modalOpen || state.won || visual.moving) return;
-  if (state.nightReady || activeNight) return beginNight();
+  if (modalOpen || visual.moving) return;
+  if (!state.won && (state.nightReady || activeNight)) return beginNight();
   const next = getHeldDirection();
   if (next) move(next[0], next[1]);
 }
@@ -1649,7 +1906,7 @@ function ensureHeldMovementLoop() {
       stopHeldMovementLoop();
       return;
     }
-    if (!modalOpen && !state.won && !visual.moving) {
+    if (!modalOpen && !visual.moving) {
       continueHeldMovement();
     }
   }, 40);
@@ -1700,6 +1957,10 @@ function triggerEvent() {
       return;
     }
     setMessage(`${eventLabel(event)} is already under your banner.`);
+    return;
+  }
+  if (state.won && event.type === "final") {
+    setMessage("Orius is already defeated. The fortress is yours to leave behind.");
     return;
   }
   if (event.type === "town") return townEvent(key, event);
@@ -1763,13 +2024,55 @@ function activeRoamingHeroAt(x, y) {
 }
 
 function randomTravelLine() {
-  const lines = [
-    "Scouts report movement beyond the trees.",
-    "The road bends toward old banners and buried coins.",
-    "Your creatures are ready for the next skirmish.",
-    "A wind from the fortress carries a challenge.",
-  ];
+  const regionalLines = {
+    dawnhaven_march: [
+      "Farm smoke curls over Dawnhaven March while your banner stirs beside the road.",
+      "A friendly patrol taps spear-butts in greeting, then points you toward the next ridge.",
+      "Leaf shadows move in the hedges. Your creatures seem calmer on these softer roads.",
+    ],
+    central_kingdom: [
+      "Cart tracks split across the central road. One trail smells of coin, the other of trouble.",
+      "Crows lift from an old battlefield as your warband passes the marker stones.",
+      "A runner from a nearby town waves once, then vanishes back into the trade road dust.",
+    ],
+    high_march: [
+      "Cold wind scrapes across High March. The fortress road feels closer with every step.",
+      "Loose stones skitter down the slope. Something large moved above the pass recently.",
+      "Your banner snaps hard in the thin air, loud enough to answer the distant war drums.",
+    ],
+    low_roads: [
+      "The Low Roads smell of wet wood, mule sweat, and hidden toll knives.",
+      "A merchant caravan has passed recently. Its wheel ruts are fresh and hurried.",
+      "Lantern hooks hang from the roadside posts, but most of them are empty.",
+    ],
+    southern_wilds: [
+      "Grass leans away from the southern wind. The frontier feels wider than the map admits.",
+      "A broken campfire smokes under thorn scrub. Someone left in a hurry.",
+      "The road thins into a hunter's path and every sound carries too far.",
+    ],
+    black_gate_approach: [
+      "The Black Gate mountains swallow sound. Even your party lowers its voice here.",
+      "Iron-black banners flicker ahead between the rocks.",
+      "The road narrows into a place built for ambush, not travel.",
+    ],
+  };
+  const lines = regionalLines[currentRegionId()] || ["The road changes underfoot."];
   return lines[(state.day + state.x + state.y) % lines.length];
+}
+
+function nearbyWorldHint() {
+  const nearby = Array.from(events.entries())
+    .map(([key, event]) => ({ key, event, point: pointFromKeyString(key) }))
+    .filter(({ key, event, point }) => !state.visited[key] && Math.abs(point.x - state.x) + Math.abs(point.y - state.y) <= 4 && !["landmark", "final"].includes(event.type))
+    .sort((a, b) => (Math.abs(a.point.x - state.x) + Math.abs(a.point.y - state.y)) - (Math.abs(b.point.x - state.x) + Math.abs(b.point.y - state.y)))[0];
+  if (!nearby) return "";
+  const label = scoutingTargetLabel(nearby);
+  return ` Nearby: ${label} at ${nearby.point.x},${nearby.point.y}.`;
+}
+
+function maybeSetAmbientTravelMessage() {
+  if (state.steps % 5 !== 0) return;
+  setMessage(`${randomTravelLine()}${nearbyWorldHint()}`);
 }
 
 function npcEvent(key, event) {
@@ -1821,7 +2124,7 @@ function beginNight() {
     activeNight = createNightState(state.nightPlan || "holdfast");
   }
   openModal("Nightfall", nightfallMarkup(), [
-    { label: "Make Camp", action: () => startNextNightEncounter() },
+    { label: "Start Night Watch", action: () => startNextNightEncounter() },
   ], { html: true, className: "night-modal", onRender: bindNightfallModal });
 }
 
@@ -1863,6 +2166,7 @@ function createNightReport(planId, encounters) {
     income: { total: 0, mines: 0, towns: 0, routes: 0, text: "" },
     scoutingTarget: null,
     scoutingText: "",
+    todayLead: "",
   };
 }
 
@@ -2011,32 +2315,45 @@ function nightfallMarkup() {
   const currentPlanId = currentNightPlanId();
   const currentPlan = currentNightPlan();
   const campBuilt = Object.entries(campUpgradeDefinitions).filter(([id]) => state.campUpgrades?.[id]).map(([, upgrade]) => upgrade.name);
+  const effects = nightDefenseEffectPills();
   return `
     <div class="night-wave">
       <div class="nightfall-head">
-        <strong>Night Watch</strong>
-        <p>Day ${state.day} ends. Hold the camp through ${activeNight.encounters.length} wave${activeNight.encounters.length === 1 ? "" : "s"} before dawn.</p>
+        <div class="night-watch-crest" aria-hidden="true"><i></i></div>
+        <div>
+          <strong>Night Watch</strong>
+          <p>Pick one tactic, optionally build camp prep, then start the watch.</p>
+        </div>
       </div>
       <div class="night-summary-bar">
         <span><small>Waves</small><strong>${activeNight.encounters.length}</strong></span>
-        <span><small>Plan</small><strong>${currentPlan.name}</strong></span>
+        <span><small>Chosen</small><strong>${currentPlan.name}</strong></span>
         <span><small>Camp</small><strong>${campBuilt.length ? campBuilt.length : "Basic"}</strong></span>
       </div>
-      <div class="night-plan-banner">
-        <strong>${currentPlan.name}</strong>
-        <span>${currentPlan.text}</span>
+      <div class="night-step-callout">
+        <span>1</span>
+        <strong>Choose your night tactic</strong>
+        <small>${escapeHtml(nightTacticShortText(currentPlanId))}</small>
       </div>
       <div class="night-section">
         <div class="night-section-head">
-          <h3>Night Plans</h3>
-          <p class="night-section-note">Choose the camp posture before the first wave reaches the tent.</p>
+          <h3>Tactics</h3>
+          <p class="night-section-note">Tap a card. Only one tactic runs tonight.</p>
         </div>
         <div class="camp-upgrade-list night-plan-list">${Object.entries(nightPlanDefinitions).map(([id, plan]) => nightPlanCard(id, plan, currentPlanId)).join("")}</div>
+      </div>
+      <div class="night-defense-strip night-active-effects">
+        ${effects.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+      </div>
+      <div class="night-step-callout optional">
+        <span>2</span>
+        <strong>Optional camp prep</strong>
+        <small>${campBuilt.length ? `${escapeHtml(campBuilt.join(", "))} ready.` : "Build only if you want to spend gold before the waves."}</small>
       </div>
       <div class="night-section">
         <div class="night-section-head">
           <h3>Camp Prep</h3>
-          <p class="night-section-note">${campBuilt.length ? `Built tonight: ${campBuilt.join(", ")}.` : "No camp structures built yet."}</p>
+          <p class="night-section-note">Permanent upgrades. Skip them and press Start Night Watch if you are ready.</p>
         </div>
         <div class="camp-upgrade-list">${Object.entries(campUpgradeDefinitions).map(([id, upgrade]) => campUpgradeCard(id, upgrade)).join("")}</div>
       </div>
@@ -2046,15 +2363,25 @@ function nightfallMarkup() {
 
 function nightPlanCard(id, plan, currentPlanId = currentNightPlanId()) {
   const selected = currentPlanId === id;
-  return `<div class="camp-upgrade night-plan-card ${selected ? "owned selected" : ""}">
-    <div class="camp-upgrade-topline">
-      <strong>${plan.name}</strong>
-      <span>${selected ? "Current Plan" : "Available"}</span>
+  return `<article class="camp-upgrade night-plan-card ${selected ? "owned selected" : ""}" data-night-plan-card="${id}" tabindex="${selected ? "-1" : "0"}" aria-label="${selected ? `${plan.name} selected` : `Select ${plan.name}`}">
+    <div class="night-card-main">
+      <div class="night-card-icon plan-${id}" aria-hidden="true"><i></i></div>
+      <div class="camp-upgrade-topline">
+        <strong>${plan.name}</strong>
+        <span>${selected ? "Selected" : "Tactic"}</span>
+      </div>
     </div>
-    <div class="night-card-tags">${nightPlanEffectTags(id).map((tag) => `<em>${tag}</em>`).join("")}</div>
-    <p>${plan.text}</p>
-    <button type="button" class="night-card-button ${selected ? "selected" : ""}" data-night-plan="${id}"${selected ? " disabled" : ""}>${selected ? "Selected for tonight" : `Use ${plan.name}`}</button>
-  </div>`;
+    <p>${nightTacticShortText(id)}</p>
+    <button type="button" class="night-card-button ${selected ? "selected" : ""}" data-night-plan="${id}"${selected ? " disabled" : ""}>${selected ? "Current" : "Select"}</button>
+  </article>`;
+}
+
+function nightTacticShortText(id) {
+  return {
+    holdfast: "Safer camp: fewer waves and more healing.",
+    nightRaid: "Riskier camp: harder waves, more dawn gold.",
+    scoutLines: "Balanced camp: marks a useful target at dawn.",
+  }[id] || nightPlanDefinitions[id]?.text || "";
 }
 
 function campUpgradeSummary() {
@@ -2087,14 +2414,25 @@ function campUpgradeCard(id, upgrade) {
   const owned = Boolean(state.campUpgrades?.[id]);
   const affordable = state.gold >= upgrade.cost;
   return `<div class="camp-upgrade ${owned ? "owned" : affordable ? "ready" : ""}">
-    <div class="camp-upgrade-topline">
-      <strong>${upgrade.name}</strong>
-      <span>${owned ? "Built" : `${upgrade.cost} gold`}</span>
+    <div class="night-card-main">
+      <div class="night-card-icon upgrade-${id}" aria-hidden="true"><i></i></div>
+      <div class="camp-upgrade-topline">
+        <strong>${upgrade.name}</strong>
+        <span>${owned ? "Built" : `${upgrade.cost} gold`}</span>
+      </div>
     </div>
-    <div class="night-card-tags">${campUpgradeEffectTags(id).map((tag) => `<em>${tag}</em>`).join("")}</div>
-    <p>${upgrade.text}</p>
-    <button type="button" class="night-card-button" data-camp-upgrade="${id}"${owned || !affordable ? " disabled" : ""}>${owned ? "Built" : affordable ? `Build ${upgrade.name}` : `Need ${upgrade.cost} gold`}</button>
+    <small class="night-upgrade-effect">${campUpgradeShortText(id)}</small>
+    <button type="button" class="night-card-button" data-camp-upgrade="${id}"${owned || !affordable ? " disabled" : ""}>${owned ? "Built" : affordable ? "Build" : `Need ${upgrade.cost}`}</button>
   </div>`;
+}
+
+function campUpgradeShortText(id) {
+  return {
+    betterTent: "More recovery at dawn.",
+    watchtower: "Reduces night waves.",
+    traps: "Weakens the first raider.",
+    healerFire: "Heals before each wave.",
+  }[id] || "";
 }
 
 function nightPlanEffectTags(id) {
@@ -2115,6 +2453,22 @@ function campUpgradeEffectTags(id) {
 }
 
 function bindNightfallModal() {
+  modalText.querySelectorAll("[data-night-plan-card]").forEach((card) => {
+    const choose = () => {
+      const { nightPlanCard } = card.dataset;
+      if (!nightPlanCard || card.classList.contains("selected")) return;
+      setNightPlan(nightPlanCard);
+    };
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      choose();
+    });
+    card.addEventListener("keydown", (event) => {
+      if (!["Enter", " "].includes(event.key)) return;
+      event.preventDefault();
+      choose();
+    });
+  });
   modalText.querySelectorAll("[data-night-plan]").forEach((button) => {
     button.addEventListener("click", () => {
       const { nightPlan } = button.dataset;
@@ -2184,18 +2538,19 @@ function finishNight() {
     const target = nearestScoutingTarget();
     if (target) {
       state.scoutMarker = target.key;
-      const label = target.event.type === "town" ? target.event.name : target.event.type === "chest" ? "a relic chest" : "a hostile outpost";
+      const label = scoutingTargetLabel(target);
       report.scoutingTarget = { key: target.key, label, x: target.x, y: target.y };
       report.scoutingText = `Scouts marked ${label} at ${target.x},${target.y}.`;
     } else {
       report.scoutingText = "Scouts reported no urgent targets beyond your current map.";
     }
   }
+  report.todayLead = dawnLeadObjectiveText(report);
   report.postDawnGold = state.gold;
   report.postDawnMissingHp = totalPartyMissingHp();
   setMessage(`Dawn breaks on day ${state.day}. Camp survived night ${completedDay} under the ${nightPlanDefinitions[planId].name} plan.`);
   openModal("Dawn", dawnMarkup(report), [
-    { label: "Continue", action: () => renderAll() },
+    { label: `Enter Day ${state.day}`, action: () => renderAll() },
   ], { html: true, className: "night-modal dawn-modal" });
 }
 
@@ -2204,6 +2559,7 @@ function dawnMarkup(report) {
   const campStatus = campNames.length ? `${campNames.length} structures held through the night.` : "The basic camp held until sunrise.";
   const planPayoff = dawnPlanPayoffMarkup(report);
   const totalRecovery = report.healerFireRecovery + report.holdfastRecovery + report.dawnHealing;
+  const outcomeRows = dawnOutcomeRows(report, totalRecovery, campNames);
   const economyCards = [
     { label: "Raid Spoils", value: `${report.raidBonus} gold`, note: report.raidBonus ? "Night riders returned with extra coin." : "No raid income this dawn." },
     { label: "Town Income", value: `${report.income.total} gold`, note: report.income.total ? `${report.income.mines} mines, ${report.income.towns} towns, ${report.income.routes} trade.` : "No realm income collected this dawn." },
@@ -2213,21 +2569,33 @@ function dawnMarkup(report) {
   return `
     <div class="night-wave dawn-report">
       <div class="dawn-hero">
-        <strong>Dawn on Day ${state.day}</strong>
-        <p>${escapeHtml(dawnLeadLine(report))}</p>
+        <div class="dawn-sunburst" aria-hidden="true"><i></i></div>
+        <div>
+          <strong>Dawn on Day ${state.day}</strong>
+          <p>${escapeHtml(dawnLeadLine(report))}</p>
+        </div>
       </div>
       <div class="night-summary-bar dawn-summary-bar">
         <span><small>Waves Held</small><strong>${report.wavesCleared}/${report.wavesPlanned}</strong></span>
         <span><small>Plan</small><strong>${escapeHtml(report.planName)}</strong></span>
         <span><small>Camp Status</small><strong>${campNames.length ? "Standing" : "Basic"}</strong></span>
       </div>
+      <div class="dawn-outcome-panel">
+        <strong>What changed overnight</strong>
+        <div class="dawn-outcome-list">
+          ${outcomeRows.map((item) => `<article class="${item.kind}"><span aria-hidden="true"></span><div><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.text)}</small></div></article>`).join("")}
+        </div>
+      </div>
       <div class="dawn-payoff-panel">
         <strong>Plan Payoff</strong>
         <span>${planPayoff}</span>
       </div>
-      <div class="dawn-reward-grid">
-        ${economyCards.map((item) => `<article><small>${item.label}</small><strong>${item.value}</strong><p>${item.note}</p></article>`).join("")}
-      </div>
+      <details class="dawn-detail-drawer">
+        <summary>Detailed breakdown</summary>
+        <div class="dawn-reward-grid">
+          ${economyCards.map((item) => `<article><small>${item.label}</small><strong>${item.value}</strong><p>${item.note}</p></article>`).join("")}
+        </div>
+      </details>
       <div class="dawn-camp-state">
         <strong>Camp State</strong>
         <p>${campStatus}</p>
@@ -2236,9 +2604,76 @@ function dawnMarkup(report) {
         </div>
       </div>
       ${report.scoutingText ? `<div class="dawn-scouting"><strong>Scouting</strong><p>${escapeHtml(report.scoutingText)}</p></div>` : ""}
-      <p><strong>Gold at sunrise</strong>: ${report.postDawnGold}. <strong>Missing party HP</strong>: ${report.postDawnMissingHp}.</p>
+      <div class="dawn-scouting dawn-today-lead"><strong>Today's Lead</strong><p>${escapeHtml(report.todayLead)}</p></div>
+      <p class="dawn-footer-state"><strong>Sunrise state</strong>: ${report.postDawnGold} gold, ${report.postDawnMissingHp} missing party HP.</p>
     </div>
   `;
+}
+
+function dawnOutcomeRows(report, totalRecovery, campNames) {
+  const rows = [
+    {
+      kind: "dawn-outcome-waves",
+      title: `${report.wavesCleared}/${report.wavesPlanned} waves held`,
+      text: "The camp survived until sunrise.",
+    },
+  ];
+  const goldDelta = Math.max(0, report.postDawnGold - report.preDawnGold);
+  if (goldDelta) {
+    rows.push({
+      kind: "dawn-outcome-gold",
+      title: `+${goldDelta} gold`,
+      text: `${report.raidBonus} raid spoils, ${report.income.total} realm income.`,
+    });
+  }
+  if (totalRecovery) {
+    rows.push({
+      kind: "dawn-outcome-heal",
+      title: `${totalRecovery} HP restored`,
+      text: `${report.healerFireRecovery} healer fire, ${report.holdfastRecovery} hold fast, ${report.dawnHealing} dawn rest.`,
+    });
+  }
+  if (report.trapDamageTotal) {
+    rows.push({
+      kind: "dawn-outcome-traps",
+      title: `${report.trapDamageTotal} trap damage`,
+      text: "Stake Traps softened raiders before battle.",
+    });
+  }
+  if (report.scoutingText) {
+    rows.push({
+      kind: "dawn-outcome-scout",
+      title: "Scout lead marked",
+      text: report.scoutingTarget ? `${report.scoutingTarget.label} is now marked on the map.` : report.scoutingText,
+    });
+  }
+  if (campNames.length) {
+    rows.push({
+      kind: "dawn-outcome-camp",
+      title: `${campNames.length} camp prep active`,
+      text: campNames.join(", "),
+    });
+  }
+  return rows.slice(0, 5);
+}
+
+function scoutingTargetLabel(target) {
+  if (!target?.event) return "a road target";
+  if (target.event.type === "town") return target.event.name;
+  if (["chest", "cache", "artifact", "supply"].includes(target.event.type)) return target.event.item ? `${target.event.item}` : "a guarded cache";
+  if (target.event.type === "mine") return "an unclaimed mine";
+  if (target.event.type === "battle") return target.event.guardName || "a hostile outpost";
+  return eventLabel(target.event).toLowerCase();
+}
+
+function dawnLeadObjectiveText(report) {
+  if (report.scoutingTarget) return `Follow the scout marker toward ${report.scoutingTarget.label} at ${report.scoutingTarget.x},${report.scoutingTarget.y}.`;
+  const target = nearestScoutingTarget();
+  if (target) {
+    const point = pointFromKeyString(target.key);
+    return `Road gossip points toward ${scoutingTargetLabel(target)} near ${point.x},${point.y}.`;
+  }
+  return campaignMainObjective();
 }
 
 function dawnLeadLine(report) {
@@ -2288,15 +2723,14 @@ function landmarkEvent(key, event) {
   const firstVisit = !state.visited[key];
   state.visited[key] = true;
   const rewardText = firstVisit ? applyLandmarkReward(event) : "";
-  const text = `${landmarkFlavor(event)}${rewardText ? `\n\n${rewardText}` : ""}`;
   setMessage(firstVisit ? `Discovered ${event.title || "a landmark"}.` : `${event.title || "This landmark"} is familiar now.`);
-  openModal(event.title || "Landmark", text, [
+  openModal(event.title || "Landmark", landmarkMarkup(event, rewardText, firstVisit), [
     { label: firstVisit ? "Mark Route" : "Continue", action: () => renderAll() },
-  ]);
+  ], { html: true, className: "landmark-modal" });
 }
 
 function applyLandmarkReward(event) {
-  const reward = event.reward;
+  const reward = event.reward || defaultLandmarkReward(event);
   if (!reward) return "";
   const parts = [];
   if (reward.gold) {
@@ -2319,9 +2753,48 @@ function applyLandmarkReward(event) {
     addInventoryItem(reward.item, reward.qty || 1);
     parts.push(`${reward.qty && reward.qty > 1 ? `${reward.qty}x ` : ""}${itemDefinitions[reward.item]?.name || reward.item}`);
   }
+  if (reward.scout) {
+    const target = nearestScoutingTarget();
+    if (target) {
+      const point = pointFromKeyString(target.key);
+      state.scoutMarker = target.key;
+      parts.push(`scouted ${scoutingTargetLabel(target)} at ${point.x},${point.y}`);
+    } else {
+      parts.push("roads confirmed clear nearby");
+    }
+  }
   if (!parts.length) return "";
   playSfx("coin");
   return `First visit reward: ${parts.join(", ")}.`;
+}
+
+function defaultLandmarkReward(event) {
+  if (event.landmark === "signpost") return { scout: true };
+  if (event.landmark === "camp") return { heal: 10 };
+  if (event.landmark === "ruins") return { gold: 18 };
+  if (event.landmark === "statue") return { morale: 1 };
+  return null;
+}
+
+function landmarkMarkup(event, rewardText, firstVisit) {
+  const typeLabel = {
+    signpost: "Route Intel",
+    ruins: "Old Stores",
+    camp: "Warm Embers",
+    statue: "Banner Memory",
+    shrine: "Daylight Blessing",
+  }[event.landmark] || "Road Moment";
+  const effect = rewardText || (firstVisit ? "No supplies here, but the place is now marked on your route." : "Already marked and searched.");
+  return `
+    <div class="landmark-card">
+      <strong>${escapeHtml(event.title || "Landmark")}</strong>
+      <p>${escapeHtml(landmarkFlavor(event))}</p>
+      <div class="landmark-payoff">
+        <small>${escapeHtml(typeLabel)}</small>
+        <span>${escapeHtml(effect)}</span>
+      </div>
+    </div>
+  `;
 }
 
 function townClaimCost(event) {
@@ -2365,6 +2838,30 @@ function townEvent(key, event) {
       label: "Fight Guard",
       action: () => startBattle(key, { type: "townClaim", encounter: townGuardEncounter(event), townKey: key, townName: event.name }, createEnemyParty(townGuardEncounter(event))),
     });
+  } else if (isMobileTouchLayout()) {
+    actions.push({
+      label: "Rest",
+      action: () => handleTownBodyAction(key, event, "rest"),
+    });
+    actions.push({
+      label: "Notices",
+      secondary: true,
+      action: () => handleTownBodyAction(key, event, "notice"),
+    });
+    if (town.buildings.includes("barracks")) {
+      actions.push({
+        label: "Barracks",
+        secondary: true,
+        action: () => openBarracksModal(key, event),
+      });
+    }
+    const actionId = townFactionActionId(event);
+    if (!isTownActionUsed(town, actionId)) {
+      actions.push({
+        label: townFactionActionLabel(event),
+        action: () => handleTownBodyAction(key, event, "faction"),
+      });
+    }
   }
   actions.push({ label: "Leave", secondary: true, action: () => {
     setMessage(`You leave ${event.name}.`);
@@ -3772,14 +4269,17 @@ function partyMissingHp() {
   return [state.hero, ...state.party].reduce((sum, unit) => sum + Math.max(0, (unit.maxHp || 0) - Math.max(0, unit.hp || 0)), 0);
 }
 
+function totalMissingPartyHealth() {
+  return partyMissingHp();
+}
+
 function useInventoryItem(id) {
   if (modalOpen) return;
   const item = state.inventory.find((entry) => entry.id === id);
   const definition = itemDefinitions[id];
   if (!item || !definition) return;
   if (definition.type === "equipment" && state.equipped[id]) {
-    setMessage(`${definition.name} is already equipped.`);
-    return;
+    return unequipInventoryItem(id);
   }
   const result = definition.use();
   if (definition.type === "consumable") {
@@ -3792,7 +4292,23 @@ function useInventoryItem(id) {
   renderAll();
 }
 
+function unequipInventoryItem(id) {
+  const definition = itemDefinitions[id];
+  if (!definition || definition.type !== "equipment" || !state.equipped[id]) return;
+  const result = definition.unequip ? definition.unequip() : `${definition.name} unequipped.`;
+  delete state.equipped[id];
+  setMessage(result);
+  renderAll();
+}
+
 function battleEvent(key, event) {
+  if (event.gate && !fortressGateRequirements().ready) {
+    setMessage(fortressGateRequirementText());
+    openModal("Black Gate Sealed", `${fortressGateRequirementText()} The fortress guard will not commit while relic banners and hostile outposts still threaten your supply line.`, [
+      { label: "Continue", action: () => renderAll() },
+    ], { className: "boss-preview-modal" });
+    return;
+  }
   const enemies = createBattleEnemyParty(event);
   const leader = enemies[0];
   const tier = { label: leader?.difficultyTier || campaignDifficultyTier().label };
@@ -3863,6 +4379,7 @@ function battlePreviewMarkup(event, enemies, tier, enemyText) {
 }
 
 function passReadinessText(event) {
+  if (event.gate) return fortressGateRequirements().ready ? "Fortress gate requirements met: 4 relics recovered and 8 outposts cleared. This is the threshold boss before the final fortress fight." : fortressGateRequirementText();
   if (!event.passName) return "";
   if (event.passName === "Ashbell Ridge") {
     return "Recommended before crossing: champion level 2, one recruited creature, one Healing Draught, and at least one mine or shrine reward. Dawnhaven and Ashbell notice jobs point you toward those prep steps.";
@@ -4122,14 +4639,15 @@ function startBattle(key, event, enemyInput) {
     floaters: [],
     log: [`${enemyNames} engage your party.${trapLine}`],
     bossState: createBossBattleState(event),
+    usedSpecials: {},
     auto: false,
   };
   clearAutoBattleTimer();
   buildBattleQueue();
+  modal.classList.remove("victory-modal", "town-modal", "trade-modal", "barracks-modal", "notice-modal", "night-modal", "name-modal", "boss-preview-modal", "boss-aftermath-modal");
+  modal.classList.add("battle-modal");
   advanceBattleTurn();
   renderBattle();
-  modal.classList.remove("victory-modal", "town-modal", "night-modal", "name-modal");
-  modal.classList.add("battle-modal");
   if (!modal.open) modal.showModal();
 }
 
@@ -4189,14 +4707,25 @@ function renderBattle() {
   if (activeBattle.turn === "player") {
     const activeUnit = selectedBattleUnit();
     if (activeUnit) {
+      const special = playerSpecialDefinition(activeUnit, activeBattle.selectedIndex);
+      if (special) {
+        const specialButton = document.createElement("button");
+        specialButton.type = "button";
+        specialButton.className = "secondary battle-action battle-action-special";
+        specialButton.disabled = !canUsePlayerSpecial(activeUnit, activeBattle.selectedIndex);
+        specialButton.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>${activeUnit.name}</span><b>${special.name}</b>`;
+        specialButton.setAttribute("aria-label", `${activeUnit.name} uses ${special.name}`);
+        specialButton.addEventListener("click", () => usePlayerSpecial(activeBattle.selectedIndex));
+        modalActions.appendChild(specialButton);
+      }
       const targetIndex = currentBattleTargetIndex();
       const target = activeBattle.enemies[targetIndex];
       const canAttack = Number.isInteger(targetIndex) && targetIndex >= 0 && canActiveUnitAttackEnemy(targetIndex);
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "battle-action";
+      button.className = "battle-action battle-action-attack";
       button.disabled = !canAttack;
-      button.innerHTML = `<span>${activeUnit.name}${target ? ` -> ${target.name}` : ""}</span><b>${battleAttackButtonText(activeUnit, targetIndex)}</b>`;
+      button.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>${activeUnit.name}${target ? ` -> ${target.name}` : ""}</span><b>${battleAttackButtonText(activeUnit, targetIndex)}</b>`;
       button.setAttribute("aria-label", canAttack ? `${activeUnit.name} attacks ${target.name}` : `${activeUnit.name} has no enemy in attack range`);
       button.addEventListener("click", () => selectedBattleAttack());
       modalActions.appendChild(button);
@@ -4206,7 +4735,7 @@ function renderBattle() {
     const potion = document.createElement("button");
     potion.type = "button";
     potion.className = "secondary battle-action battle-action-potion";
-    potion.innerHTML = `<span>Healing Draught x${potionCount}</span><b>Heal Party +${HEALING_DRAUGHT_AMOUNT}</b>`;
+    potion.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>x${potionCount}</span><b>Heal</b>`;
     potion.disabled = potionCount <= 0 || injured <= 0;
     potion.setAttribute("aria-label", `Use Healing Draught to heal the party for ${HEALING_DRAUGHT_AMOUNT}`);
     potion.addEventListener("click", useBattleHealingDraught);
@@ -4214,7 +4743,7 @@ function renderBattle() {
     const guard = document.createElement("button");
     guard.type = "button";
     guard.className = "secondary battle-action battle-action-guard";
-    guard.innerHTML = `<span>${activeUnit?.name || "Unit"}</span><b>Guard</b>`;
+    guard.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>${activeUnit?.name || "Unit"}</span><b>Guard</b>`;
     guard.setAttribute("aria-label", "Current unit guards against the next enemy attack");
     guard.addEventListener("click", guardBattleAction);
     modalActions.appendChild(guard);
@@ -4222,8 +4751,8 @@ function renderBattle() {
     auto.type = "button";
     auto.className = `${activeBattle.auto ? "secondary " : ""}battle-action battle-action-auto`;
     auto.innerHTML = activeBattle.auto
-      ? `<span>Auto Battle</span><b>Stop Auto</b>`
-      : `<span>${battleHasBoss() ? "Boss fight: risky" : "Repeat fight helper"}</span><b>Auto Battle</b>`;
+      ? `<i class="battle-action-icon" aria-hidden="true"></i><span>Auto</span><b>Stop</b>`
+      : `<i class="battle-action-icon" aria-hidden="true"></i><span>${battleHasBoss() ? "Risky" : "Repeat"}</span><b>Auto</b>`;
     auto.setAttribute("aria-label", activeBattle.auto ? "Stop auto battle" : "Enable auto battle");
     auto.addEventListener("click", toggleAutoBattle);
     modalActions.appendChild(auto);
@@ -4236,7 +4765,7 @@ function renderBattle() {
       const stopAuto = document.createElement("button");
       stopAuto.type = "button";
       stopAuto.className = "secondary battle-action battle-action-auto";
-      stopAuto.innerHTML = `<span>Auto Battle</span><b>Stop Auto</b>`;
+      stopAuto.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>Auto Battle</span><b>Stop Auto</b>`;
       stopAuto.setAttribute("aria-label", "Stop auto battle");
       stopAuto.addEventListener("click", toggleAutoBattle);
       modalActions.appendChild(stopAuto);
@@ -4260,6 +4789,7 @@ function battleMarkup() {
   const order = activeBattle.queue.map((actor, index) => `<span class="${index === activeBattle.queueIndex - 1 ? "active" : ""}">${actor.name} ${actor.speed}</span>`).join("");
   return `
     <div class="battle-board">
+      ${mobileBattleDashboardMarkup()}
       <div class="turn-order"><b>Turn order</b>${order}</div>
       <div class="battle-layout">
         <div class="battle-arena" aria-label="Battle arena">
@@ -4269,6 +4799,33 @@ function battleMarkup() {
       </div>
       <ol class="battle-log">${log}</ol>
     </div>
+  `;
+}
+
+function mobileBattleDashboardMarkup() {
+  if (!activeBattle) return "";
+  const activeUnit = selectedBattleUnit();
+  const target = activeBattle.enemies[currentBattleTargetIndex()];
+  const actor = activeBattle.turn === "player" ? activeUnit : activeBattle.activeActor?.name;
+  const playerHp = activeUnit ? `${Math.max(0, activeUnit.hp)}/${activeUnit.maxHp}` : "Enemy turn";
+  const targetHp = target ? `${Math.max(0, target.hp)}/${target.maxHp}` : "No target";
+  const instruction = activeBattle.turn === "player"
+    ? "Tap a unit, tap an enemy or tile, then choose Attack, Special, Heal, Guard, or Auto."
+    : "Enemy is acting. Use Stop Auto only if auto battle is on.";
+  return `
+    <section class="mobile-battle-dashboard" aria-label="Mobile battle controls summary">
+      <div>
+        <small>Acting</small>
+        <strong>${escapeHtml(typeof actor === "string" ? actor : actor?.name || "Waiting")}</strong>
+        <span>${escapeHtml(playerHp)}</span>
+      </div>
+      <div>
+        <small>Target</small>
+        <strong>${escapeHtml(target?.name || "None")}</strong>
+        <span>${escapeHtml(targetHp)}</span>
+      </div>
+      <p>${instruction}</p>
+    </section>
   `;
 }
 
@@ -4421,6 +4978,23 @@ function battleHasBoss() {
   return Boolean(activeBattle?.event?.type === "final" || activeBattle?.event?.gate || activeBattle?.enemies?.some((enemy) => ["gatekeeper", "rival"].includes(enemy.sourceEncounter)));
 }
 
+function battleUnitKey(index) {
+  return index === 0 ? "hero" : `party:${[state.hero, ...state.party][index]?.id || index}`;
+}
+
+function usedSpecialSet() {
+  activeBattle.usedSpecials ??= {};
+  return activeBattle.usedSpecials;
+}
+
+function specialUsed(key) {
+  return Boolean(usedSpecialSet()[key]);
+}
+
+function markSpecialUsed(key) {
+  usedSpecialSet()[key] = true;
+}
+
 function toggleAutoBattle() {
   if (!activeBattle) return;
   activeBattle.auto = !activeBattle.auto;
@@ -4493,6 +5067,101 @@ function chooseAutoBattleTarget(unitIndex) {
 function expectedPlayerDamage(unit, enemy, fromPos, enemyPos) {
   const penalty = rangedDamagePenalty(unit, fromPos, enemyPos);
   return Math.max(1, (unit.atk || 0) + (unit.power || 0) - (enemy.def || 0) - penalty * 2);
+}
+
+function playerSpecialDefinition(unit, unitIndex) {
+  const id = unitIndex === 0 ? "hero" : unit.id;
+  const definitions = {
+    hero: { name: state.hero.attackType === "ranged" ? "Sun Bolt" : "Daylight Cleave", type: "strike" },
+    leafFox: { name: "Vine Snap", type: "strike" },
+    thornArcher: { name: "Briar Shot", type: "pierce" },
+    emberGolem: { name: "Cinder Fist", type: "strike" },
+    ironPikeman: { name: "Shield Wall", type: "guard" },
+    tideWisp: { name: "Foam Guard", type: "heal" },
+    reefGuard: { name: "Tide Spear", type: "pierce" },
+    duskMoth: { name: "Moon Dust", type: "hex" },
+    moonSeer: { name: "Star Bolt", type: "magic" },
+    bloomStag: { name: "Antler Charge", type: "strike" },
+    cinderMage: { name: "Coal Flare", type: "magic" },
+    coralArcher: { name: "Reef Shot", type: "pierce" },
+    nightblade: { name: "Shadow Dive", type: "strike" },
+  };
+  return definitions[id] || null;
+}
+
+function canUsePlayerSpecial(unit, unitIndex) {
+  if (!activeBattle || activeBattle.turn !== "player" || activeBattle.activeActor?.index !== unitIndex) return false;
+  const pos = activeBattle.positions[unitIndex];
+  if (!unit || unit.hp <= 0 || !pos || pos.acted || specialUsed(battleUnitKey(unitIndex))) return false;
+  const special = playerSpecialDefinition(unit, unitIndex);
+  if (!special) return false;
+  if (special.type === "heal" || special.type === "guard") return true;
+  return chooseAutoBattleTarget(unitIndex) >= 0;
+}
+
+function usePlayerSpecial(unitIndex) {
+  const unit = [state.hero, ...state.party][unitIndex];
+  const special = playerSpecialDefinition(unit, unitIndex);
+  if (!canUsePlayerSpecial(unit, unitIndex) || !special) return renderBattle();
+  markSpecialUsed(battleUnitKey(unitIndex));
+  if (special.type === "heal") return useSupportSpecial(unit, unitIndex, special);
+  if (special.type === "guard") return useGuardSpecial(unit, unitIndex, special);
+  const targetIndex = chooseAutoBattleTarget(unitIndex);
+  if (targetIndex < 0) return renderBattle();
+  activeBattle.selectedEnemyIndex = targetIndex;
+  const enemy = activeBattle.enemies[targetIndex];
+  const enemyPos = activeBattle.enemyPositions[targetIndex];
+  const pos = activeBattle.positions[unitIndex];
+  const attackPos = attackPositionForTarget(unit, unitIndex, enemyPos);
+  if (attackPos && (attackPos.x !== pos.x || attackPos.y !== pos.y)) {
+    pos.x = attackPos.x;
+    pos.y = attackPos.y;
+    activeBattle.log.push(`${unit.name} moves into special range.`);
+  }
+  const penalty = rangedDamagePenalty(unit, pos, enemyPos);
+  const bonus = special.type === "magic" ? Math.ceil((unit.power || 0) * 0.9) + 3
+    : special.type === "pierce" ? Math.ceil((unit.power || 0) * 0.5) + 4
+      : Math.ceil((unit.power || 0) * 0.6) + 3;
+  const defense = special.type === "pierce" ? Math.floor((enemy.def || 0) * 0.45) : Math.floor((enemy.def || 0) * 0.75);
+  const damage = Math.max(3, unit.atk + bonus + (unit.level || 1) - defense - penalty);
+  enemy.hp = Math.max(0, enemy.hp - damage);
+  activeBattle.feedback = { type: "hit", unitIndex, enemyIndex: targetIndex, target: "enemy" };
+  addBattleFloater(enemyPos.x, enemyPos.y, `-${damage}`, special.type === "magic" ? "magic" : "damage");
+  playSfx(special.type === "magic" ? "guard" : "hit");
+  activeBattle.log.push(`${unit.name} uses ${special.name} on ${enemy.name} for ${damage}.`);
+  if (enemy.hp <= 0) {
+    enemy.hp = 0;
+    activeBattle.log.push(`${enemy.name} falls.`);
+    normalizeSelectedBattleEnemy();
+  }
+  if (!livingEnemies().length) return finishBattle(true);
+  finishBattleUnitAction();
+}
+
+function useSupportSpecial(unit, unitIndex, special) {
+  const amount = Math.max(8, Math.round((unit.power || 4) * 2.4));
+  [state.hero, ...state.party].forEach((member, index) => {
+    if (member.hp <= 0) return;
+    const before = member.hp;
+    member.hp = Math.min(member.maxHp, member.hp + amount);
+    const healed = member.hp - before;
+    const pos = activeBattle.positions[index];
+    if (healed > 0 && pos) addBattleFloater(pos.x, pos.y, `+${healed}`, "heal");
+  });
+  activeBattle.feedback = { type: "guard", unitIndex };
+  playSfx("coin");
+  activeBattle.log.push(`${unit.name} casts ${special.name}. The party recovers.`);
+  finishBattleUnitAction();
+}
+
+function useGuardSpecial(unit, unitIndex, special) {
+  activeBattle.guarding = true;
+  activeBattle.teamWard = Math.max(activeBattle.teamWard || 0, 2);
+  const pos = activeBattle.positions[unitIndex];
+  if (pos) addBattleFloater(pos.x, pos.y, "Ward", "guard");
+  playSfx("guard");
+  activeBattle.log.push(`${unit.name} uses ${special.name}. The line braces behind a ward.`);
+  finishBattleUnitAction();
 }
 
 function battleAttackButtonText(unit, targetIndex) {
@@ -4925,6 +5594,7 @@ function enemyBattleTurn() {
     activeBattle.bossState.lastBarrageRound = activeBattle.round;
     return performOriusBarrage(enemyIndex);
   }
+  if (shouldUseEnemySpecial(enemy, enemyIndex)) return performEnemySpecial(enemyIndex);
   const targets = livingTeam();
   if (!targets.length) return finishBattle(false);
   const target = nearestEnemyTarget(enemyIndex, targets);
@@ -4966,6 +5636,89 @@ function performOriusBarrage(enemyIndex) {
   renderBattle();
 }
 
+function shouldUseEnemySpecial(enemy, enemyIndex) {
+  if (!enemy || enemy.hp <= 0 || specialUsed(`enemy:${enemyIndex}`)) return false;
+  if (activeBattle.round < 2 && !enemy.passBoss) return false;
+  const encounter = enemy.sourceEncounter;
+  return ["basilisk", "raiders", "wyvern", "warlock", "knight", "tideGuard"].includes(encounter) || enemy.passBoss;
+}
+
+function performEnemySpecial(enemyIndex) {
+  const enemy = activeBattle.enemies[enemyIndex];
+  const encounter = enemy.sourceEncounter;
+  markSpecialUsed(`enemy:${enemyIndex}`);
+  if (enemy.passBoss) return enemyRallySpecial(enemyIndex);
+  if (encounter === "warlock") return enemyAreaSpell(enemyIndex, "Cinder Hex", 0.62);
+  if (encounter === "raiders") return enemyAreaSpell(enemyIndex, "Volley Fire", 0.48);
+  if (encounter === "basilisk") return enemySingleSpecial(enemyIndex, "Venom Bite", 3, "fangs");
+  if (encounter === "wyvern") return enemySingleSpecial(enemyIndex, "Sky Dive", 4, "dive");
+  if (encounter === "knight" || encounter === "tideGuard" || enemy.passBoss) return enemyRallySpecial(enemyIndex);
+  return enemySingleSpecial(enemyIndex, "Power Strike", 2, "strike");
+}
+
+function enemyAreaSpell(enemyIndex, name, powerScale) {
+  const enemy = activeBattle.enemies[enemyIndex];
+  const enemyPos = activeBattle.enemyPositions[enemyIndex];
+  const targets = livingTeam();
+  activeBattle.feedback = { type: "hit", enemyIndex, target: "enemy" };
+  activeBattle.log.push(`${enemy.name} casts ${name} across the line.`);
+  targets.forEach((unit) => {
+    const targetIndex = [state.hero, ...state.party].indexOf(unit);
+    const pos = activeBattle.positions[targetIndex];
+    const ward = consumeTeamWard();
+    const damage = Math.max(2, Math.round((enemy.power || 4) * powerScale + activeBattle.round - (unit.def || 0) * 0.25 - ward));
+    unit.hp = Math.max(0, unit.hp - damage);
+    if (pos) addBattleFloater(pos.x, pos.y, `-${damage}`, "magic");
+    if (unit.hp <= 0) activeBattle.log.push(`${unit.name} falls to ${name}.`);
+  });
+  if (enemyPos) addBattleFloater(enemyPos.x, enemyPos.y, "Spell", "magic");
+  playSfx("hit");
+  activeBattle.guarding = false;
+  if (!livingTeam().length) return finishBattle(false);
+  advanceBattleTurn();
+  renderBattle();
+}
+
+function enemySingleSpecial(enemyIndex, name, bonusDamage, note) {
+  const targets = livingTeam();
+  const target = nearestEnemyTarget(enemyIndex, targets);
+  const targetIndex = [state.hero, ...state.party].indexOf(target);
+  const enemy = activeBattle.enemies[enemyIndex];
+  const moved = moveEnemyTowardTarget(enemyIndex, target);
+  if (moved) activeBattle.log.push(`${enemy.name} dives toward ${target.name}.`);
+  const enemyPos = activeBattle.enemyPositions[enemyIndex];
+  const targetPos = activeBattle.positions[targetIndex];
+  if (!canAttackTarget(enemy, enemyPos, targetPos)) {
+    activeBattle.feedback = { type: "move", enemyIndex, target: "enemy" };
+    activeBattle.log.push(`${enemy.name} prepares ${name} but cannot reach ${target.name} yet.`);
+    advanceBattleTurn();
+    return renderBattle();
+  }
+  activeBattle.enemySpecial = { bonusDamage, note: ` (${note})` };
+  activeBattle.log.push(`${enemy.name} prepares ${name}.`);
+  resolveEnemyAttack(enemyIndex, targetIndex);
+}
+
+function enemyRallySpecial(enemyIndex) {
+  const enemy = activeBattle.enemies[enemyIndex];
+  const pos = activeBattle.enemyPositions[enemyIndex];
+  enemy.def += 1;
+  enemy.atk += 1;
+  enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.max(4, Math.round((enemy.power || 4) * 0.8)));
+  activeBattle.feedback = { type: "guard", enemyIndex, target: "enemy" };
+  if (pos) addBattleFloater(pos.x, pos.y, "Rally", "guard");
+  playSfx("guard");
+  activeBattle.log.push(`${enemy.name} rallies behind a battle ward: +1 attack, +1 defense, and a small heal.`);
+  advanceBattleTurn();
+  renderBattle();
+}
+
+function consumeTeamWard() {
+  const ward = activeBattle.teamWard || 0;
+  if (ward > 0) activeBattle.teamWard = Math.max(0, ward - 1);
+  return ward;
+}
+
 function resolveEnemyAttack(enemyIndex, targetIndex) {
   if (!activeBattle) return;
   const enemy = activeBattle.enemies[enemyIndex];
@@ -4994,13 +5747,16 @@ function resolveEnemyAttack(enemyIndex, targetIndex) {
   const gatekeeperCrush = enemy.sourceEncounter === "gatekeeper" && activeBattle.bossState?.kind === "gatekeeper" && activeBattle.bossState.enraged;
   const passBossCrush = enemy.passBoss && activeBattle.bossState?.kind === "passGuardian" && activeBattle.bossState.rallied;
   const trait = enemyAttackTraitBonus(enemy, targetIndex);
-  const damage = Math.max(1, enemy.atk - (resolvedTarget.def || 1) - guardReduction - partyCourage - penalty * 2 + (gatekeeperCrush ? 3 : 0) + (passBossCrush ? 2 : 0) + trait.damage + Math.floor(Math.random() * 3));
+  const special = activeBattle.enemySpecial || { bonusDamage: 0, note: "" };
+  activeBattle.enemySpecial = null;
+  const ward = consumeTeamWard();
+  const damage = Math.max(1, enemy.atk - (resolvedTarget.def || 1) - guardReduction - partyCourage - ward - penalty * 2 + (gatekeeperCrush ? 3 : 0) + (passBossCrush ? 2 : 0) + trait.damage + special.bonusDamage + Math.floor(Math.random() * 3));
   activeBattle.feedback = { type: "hit", unitIndex: targetIndex, target: "unit" };
   resolvedTarget.hp -= damage;
   if (resolvedTarget.hp <= 0) resolvedTarget.hp = 0;
   addBattleFloater(targetPos.x, targetPos.y, `-${damage}`, "damage");
   playSfx("hit");
-  activeBattle.log.push(`${enemy.name} ${gatekeeperCrush || passBossCrush ? "crushes" : "strikes"} ${resolvedTarget.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}${trait.note}. ${randomBattleQuip("enemyHit")}`);
+  activeBattle.log.push(`${enemy.name} ${gatekeeperCrush || passBossCrush ? "crushes" : "strikes"} ${resolvedTarget.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}${trait.note}${special.note}${ward ? " (warded)" : ""}. ${randomBattleQuip("enemyHit")}`);
   if (resolvedTarget.hp <= 0) activeBattle.log.push(`${resolvedTarget.name} falls.`);
   activeBattle.guarding = false;
   if (!livingTeam().length) return finishBattle(false);
@@ -5165,7 +5921,7 @@ function battleChangeCards(event) {
   if (event.guards?.length) return [["Guard Removed", "Nearby loot is now reachable."], ["Map Progress", "This guarded pocket no longer blocks the cache."]];
   if (event.type === "roamingHero") return [["Rival Removed", "This roaming hero will no longer patrol the map."], ["Safer Travel", "Nearby routes are less contested."]];
   if (event.type === "townClaim") return [["Town Claimed", "Your banner now controls this town."], ["New Services", "Town actions, buildings, and recruitment are unlocked here."]];
-  return [["Outpost Cleared", "This enemy is removed from the map."], ["Progress", "Cleared outposts count toward relic and campaign victories."]];
+  return [["Outpost Cleared", "This enemy is removed from the map."], ["Fortress Progress", "Cleared outposts count toward opening the Black Gate Warden fight."]];
 }
 
 function battleAftermathMarkup(title, log, reward, xp, cards) {
@@ -5186,22 +5942,13 @@ function battleAftermathMarkup(title, log, reward, xp, cards) {
 }
 
 function victoryConditions() {
-  const townCount = ownedTownEntries().length;
-  const mineCount = countVisitedEvents("mine");
-  const relicCount = uniqueRelicCount();
-  const battleCount = countVisitedEvents("battle");
   return [
-    { id: "military", title: "Military Victory", text: "Defeat Rival Mage Orius at the northeast fortress.", done: state.won && state.victoryType === "military" },
-    { id: "kingdom", title: "Kingdom Victory", text: `Own 6 towns, 6 mines, and hold 900 gold (${townCount}/6 towns, ${mineCount}/6 mines, ${state.gold}/900 gold).`, ready: townCount >= 6 && mineCount >= 6 && state.gold >= 900 },
-    { id: "relic", title: "Relic Victory", text: `Find 4 relics and clear 8 outposts (${relicCount}/4 relics, ${battleCount}/8 outposts).`, ready: relicCount >= 4 && battleCount >= 8 },
+    { id: "military", title: "Fortress Victory", text: "Defeat Rival Mage Orius inside the northeast fortress.", done: state.won && state.victoryType === "military" },
   ];
 }
 
 function checkVictoryConditions() {
-  if (state.won || modalOpen || activeBattle || activeNight) return;
-  const condition = victoryConditions().find((item) => item.ready);
-  if (!condition) return;
-  triggerVictory(condition.id, condition.title.toUpperCase(), `${condition.title} achieved. ${condition.text}`);
+  if (state.won) return;
 }
 
 function triggerVictory(type, title, text, options = {}) {
@@ -5314,18 +6061,38 @@ function resolvePostBattleProgression(afterAction = null) {
 
 function openSkillChoice() {
   const choices = heroSkillChoicesForLevel();
-  const available = choices.length ? choices : [{ name: "Veteran", text: "+1 attack and +1 defense.", apply: () => { state.hero.atk += 1; state.hero.def += 1; } }];
-  openModal("Level Up", `${championName()} reached level ${state.hero.level}. Choose a skill.`, available.map((choice) => ({
-    label: choice.name,
-    action: () => {
-      choice.apply();
-      state.hero.skills.push(choice.name);
-      pendingLevelUps -= 1;
-      setMessage(`Learned ${choice.name}.`);
-      resolvePostBattleProgression();
-    },
-  })));
-  modalText.innerHTML = `<p>${escapeHtml(championName())} reached level ${state.hero.level}. ${heroLevelSummary()}</p><div class="skill-choice-list">${available.map((choice) => `<div><strong>${choice.name}</strong><em>${choice.type || "Veteran"}</em><span>${choice.text}</span></div>`).join("")}</div>`;
+  const available = choices.length ? choices : [{ name: "Veteran", type: "Veteran", icon: "veteran", text: "+1 attack and +1 defense.", apply: () => { state.hero.atk += 1; state.hero.def += 1; } }];
+  const cards = available.map((choice, index) => `
+    <article class="skill-choice-card skill-${escapeHtml(choice.icon || skillIconKey(choice.name))}">
+      <div class="skill-choice-icon" aria-hidden="true"><i></i></div>
+      <div>
+        <strong>${escapeHtml(choice.name)}</strong>
+        <em>${escapeHtml(choice.type || "Veteran")}</em>
+        <span>${escapeHtml(choice.text)}</span>
+      </div>
+      <button type="button" data-skill-choice="${index}">Take ${escapeHtml(choice.name)}</button>
+    </article>
+  `).join("");
+  openModal("Level Up", `<p>${escapeHtml(championName())} reached level ${state.hero.level}. ${escapeHtml(heroLevelSummary())}</p><div class="skill-choice-list">${cards}</div>`, [], { html: true, className: "level-up-modal" });
+  modalActions.hidden = true;
+  modalText.querySelectorAll("[data-skill-choice]").forEach((button) => {
+    button.addEventListener("click", () => learnHeroSkill(available[Number(button.dataset.skillChoice)]));
+  });
+}
+
+function skillIconKey(name = "") {
+  return name.replace(/[^a-z0-9]+/gi, " ").trim().replace(/\s+([a-z0-9])/gi, (_, letter) => letter.toUpperCase()).replace(/^./, (letter) => letter.toLowerCase()) || "veteran";
+}
+
+function learnHeroSkill(choice) {
+  if (!choice || pendingLevelUps <= 0) return;
+  if (modal.open) modal.close();
+  modalOpen = false;
+  choice.apply();
+  state.hero.skills.push(choice.name);
+  pendingLevelUps -= 1;
+  setMessage(`Learned ${choice.name}.`);
+  resolvePostBattleProgression();
 }
 
 function heroSkillChoicesForLevel() {
@@ -5393,11 +6160,37 @@ function animationLoop(now) {
 function draw() {
   updateCamera();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const zoom = mobileWorldZoom();
+  ctx.save();
+  ctx.scale(zoom, zoom);
+  ctx.fillStyle = "#1e342b";
+  ctx.fillRect(0, 0, canvas.width / zoom, canvas.height / zoom);
   drawTerrain();
   drawWorldAtmosphere();
   drawWorldReadabilityOverlays();
   drawWorldEntities();
+  ctx.restore();
   drawObjectiveHint();
+}
+
+function mobileWorldZoom() {
+  if (!document.documentElement.classList.contains("mobile-touch")) return 1;
+  if (window.matchMedia?.("(max-width: 640px)")?.matches) return 1.45;
+  if (window.matchMedia?.("(max-width: 900px) and (orientation: landscape)")?.matches) return 1.25;
+  return 1;
+}
+
+function isMobileTouchLayout() {
+  return document.documentElement.classList.contains("mobile-touch")
+    && Boolean(window.matchMedia?.("(max-width: 900px)")?.matches);
+}
+
+function cameraViewWidth() {
+  return VIEW_W / mobileWorldZoom();
+}
+
+function cameraViewHeight() {
+  return VIEW_H / mobileWorldZoom();
 }
 
 function campaignMainObjective() {
@@ -5412,8 +6205,8 @@ function campaignMainObjective() {
   if (townCount < 2) return `Claim a second town (${townCount}/2)`;
   if (state.day === 1 && !state.nightReady) return "Prepare for your first nightfall";
   if (state.nightReady) return "Make camp and survive the night";
-  const relicCount = uniqueRelicCount();
-  if (relicCount < 2) return `Recover more relics (${relicCount}/2)`;
+  const gate = fortressGateRequirements();
+  if (!gate.ready) return `Open Black Gate: ${gate.relicCount}/${gate.relicTarget} relics, ${gate.outpostCount}/${gate.outpostTarget} outposts`;
   if (!finalGateCleared()) return "Push northeast and defeat the Black Gate Warden";
   return "Enter the northeast fortress and defeat Rival Mage Orius";
 }
@@ -5424,10 +6217,9 @@ function campaignSideObjective() {
   if (unclaimedQuest) return `Side objective: meet ${unclaimedQuest[1].name}`;
   const activeNpcQuest = Object.entries(npcQuests).find(([id]) => state.quests?.[id] === "accepted" && !npcQuests[id].complete());
   if (activeNpcQuest) return `Side objective: ${activeNpcQuest[1].title} (${activeNpcQuest[1].objective})`;
-  const relicCount = uniqueRelicCount();
-  if (relicCount < 4) return `Side objective: recover relic chests (${relicCount}/4)`;
-  const battleCount = countVisitedEvents("battle");
-  if (battleCount < 8) return `Side objective: clear outposts (${battleCount}/8)`;
+  const gate = fortressGateRequirements();
+  if (gate.relicCount < gate.relicTarget) return `Side objective: recover relic chests (${gate.relicCount}/${gate.relicTarget})`;
+  if (gate.outpostCount < gate.outpostTarget) return `Side objective: clear outposts (${gate.outpostCount}/${gate.outpostTarget})`;
   return scoutingHintText();
 }
 
@@ -5676,10 +6468,15 @@ function drawWorldAtmosphere() {
 }
 
 function updateCamera() {
-  const maxX = Math.max(0, map[0].length - VIEW_W);
-  const maxY = Math.max(0, map.length - VIEW_H);
-  const targetX = Math.max(0, Math.min(maxX, visual.x - (VIEW_W - 1) / 2));
-  const targetY = Math.max(0, Math.min(maxY, visual.y - (VIEW_H - 1) / 2));
+  const viewW = cameraViewWidth();
+  const viewH = cameraViewHeight();
+  const mobileCentered = mobileWorldZoom() > 1;
+  const minX = mobileCentered ? -(viewW - 1) / 2 : 0;
+  const minY = mobileCentered ? -(viewH - 1) / 2 : 0;
+  const maxX = mobileCentered ? map[0].length - (viewW + 1) / 2 : Math.max(0, map[0].length - viewW);
+  const maxY = mobileCentered ? map.length - (viewH + 1) / 2 : Math.max(0, map.length - viewH);
+  const targetX = Math.max(minX, Math.min(maxX, visual.x - (viewW - 1) / 2));
+  const targetY = Math.max(minY, Math.min(maxY, visual.y - (viewH - 1) / 2));
   if (!Number.isFinite(camera.x) || !Number.isFinite(camera.y)) {
     camera.x = targetX;
     camera.y = targetY;
@@ -5688,8 +6485,8 @@ function updateCamera() {
   camera.y += (targetY - camera.y) * 0.18;
   if (Math.abs(targetX - camera.x) < 0.01) camera.x = targetX;
   if (Math.abs(targetY - camera.y) < 0.01) camera.y = targetY;
-  const originX = Math.max(0, Math.min(maxX, Math.floor(camera.x)));
-  const originY = Math.max(0, Math.min(maxY, Math.floor(camera.y)));
+  const originX = Math.max(0, Math.min(map[0].length - VIEW_W, Math.floor(camera.x)));
+  const originY = Math.max(0, Math.min(map.length - VIEW_H, Math.floor(camera.y)));
   const key = `${originX},${originY}`;
   if (camera.key !== key) {
     terrainCache = null;
@@ -5730,7 +6527,7 @@ function screenTileY(worldY) {
 }
 
 function isOnScreen(worldX, worldY, pad = 1) {
-  return worldX >= camera.x - pad && worldY >= camera.y - pad && worldX < camera.x + VIEW_W + pad && worldY < camera.y + VIEW_H + pad;
+  return worldX >= camera.x - pad && worldY >= camera.y - pad && worldX < camera.x + cameraViewWidth() + pad && worldY < camera.y + cameraViewHeight() + pad;
 }
 
 function drawAtlas(name, dx, dy, dw, dh, options = {}, targetCtx = ctx) {
@@ -7619,15 +8416,20 @@ function renderSidebar() {
     stat("Skills", state.hero.skills?.length ? state.hero.skills.join(", ") : "None");
   partyList.innerHTML = `<div class="unit"><div><div class="unit-name"><span>Warband Readout</span><span>${state.party.length + 1} units</span></div><div class="unit-stats">${formation.strengths}</div><div class="unit-skill">${formation.advice}</div></div></div>` + renderUnit(state.hero, -1) + state.party.map((unit, index) => renderUnit(unit, index)).join("");
   renderInventory();
+  const gate = fortressGateRequirements();
   const storyQuests = [
     { text: `Build a four-unit warband (${state.party.length}/4)`, done: state.party.length >= 4 },
-    { text: `Recover relic treasures (${relicCount}/4)`, done: relicCount >= 4 },
     { text: `Bring ${townTarget} towns under your banner`, done: townCount >= townTarget },
     { text: `Secure ${mineTarget} mines`, done: mineCount >= mineTarget },
-    { text: `Break ${battleTarget} outposts`, done: battleCount >= battleTarget },
+    { text: `Break all known outposts (${battleCount}/${battleTarget})`, done: battleCount >= battleTarget },
   ];
-  const winRows = victoryConditions().map((condition) => ({ text: condition.text, done: condition.done || condition.ready || (state.won && state.victoryType === condition.id) }));
-  questLog.innerHTML = questSection("Immediate Goals", immediateRows) + questSection("Win Conditions", winRows) + questSection("Story Goals", storyQuests) + questSection("NPC Quests", npcQuestRows) + questSection("Town Commissions", townQuestRows);
+  const winRows = victoryConditions().map((condition) => ({ text: condition.text, done: condition.done || (state.won && state.victoryType === condition.id) }));
+  const gateRows = [
+    { text: `Recover 4 relics (${gate.relicCount}/${gate.relicTarget})`, done: gate.relicCount >= gate.relicTarget },
+    { text: `Clear 8 outposts (${gate.outpostCount}/${gate.outpostTarget})`, done: gate.outpostCount >= gate.outpostTarget },
+    { text: gate.ready ? "Challenge the Black Gate Warden" : "Black Gate Warden remains sealed", done: gate.ready },
+  ];
+  questLog.innerHTML = questSection("Immediate Goals", immediateRows) + questSection("Victory Condition", winRows) + questSection("Black Gate Requirements", gateRows) + questSection("Story Goals", storyQuests) + questSection("NPC Quests", npcQuestRows) + questSection("Town Commissions", townQuestRows);
   renderMinimap();
 }
 
@@ -7703,15 +8505,14 @@ function renderInventory() {
 function renderInventoryItem(entry) {
   const definition = itemDefinitions[entry.id];
   const equipped = state.equipped[entry.id];
-  const disabled = equipped ? " disabled" : "";
-  const action = definition.type === "consumable" ? "Use" : equipped ? "Equipped" : "Equip";
+  const action = definition.type === "consumable" ? "Use" : equipped ? "Unequip" : "Equip";
   return `
     <div class="inventory-item">
       <div>
         <div class="item-name"><span>${definition.name}</span><span>x${entry.qty}</span></div>
         <p>${definition.description}</p>
       </div>
-      <button type="button" data-use-item="${entry.id}"${disabled}>${action}</button>
+      <button type="button" data-use-item="${entry.id}">${action}</button>
     </div>
   `;
 }
@@ -7782,6 +8583,14 @@ function renderUnit(unit, partyIndex = -1) {
 function battleModalLocked() {
   return Boolean(activeBattle);
 }
+
+function updateMobileTouchClass() {
+  const hasTouch = navigator.maxTouchPoints > 0;
+  document.documentElement.classList.toggle("mobile-touch", hasTouch);
+}
+
+updateMobileTouchClass();
+window.addEventListener("resize", updateMobileTouchClass);
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape" || !battleModalLocked()) return;
@@ -7875,6 +8684,7 @@ modal.addEventListener("close", () => {
 });
 modal.addEventListener("close", () => {
   if (!battleModalLocked()) modalOpen = false;
+  syncSnackbarHost();
 });
 inventoryList?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-use-item]");
