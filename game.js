@@ -755,6 +755,7 @@ let activeBattle = null;
 let activeNight = null;
 let pendingLevelUps = 0;
 let pendingPostBattleAction = null;
+let caravanTradeFeedback = { text: "", type: "info" };
 let camera = { x: 0, y: 0, originX: 0, originY: 0, key: "" };
 let audioContext = null;
 let musicEnabled = false;
@@ -834,6 +835,8 @@ function normalizeState(saved) {
   });
   saved.tradeLedger = Array.isArray(saved.tradeLedger) ? saved.tradeLedger : [];
   saved.campUpgrades = saved.campUpgrades && typeof saved.campUpgrades === "object" ? saved.campUpgrades : {};
+  if (saved.campUpgrades.stakeTraps && saved.campUpgrades.traps == null) saved.campUpgrades.traps = true;
+  delete saved.campUpgrades.stakeTraps;
   saved.discoveredRegions = saved.discoveredRegions && typeof saved.discoveredRegions === "object" ? saved.discoveredRegions : {};
   saved.scoutMarker = typeof saved.scoutMarker === "string" ? saved.scoutMarker : "";
   saved.nightPlan = nightPlanDefinitions[saved.nightPlan] ? saved.nightPlan : "holdfast";
@@ -1329,10 +1332,22 @@ function getHeldDirection() {
 }
 
 function recoverParty(amount) {
-  state.hero.hp = Math.min(state.hero.maxHp, state.hero.hp + amount);
-  state.party.forEach((unit) => {
+  return recoverPartyDetailed(amount);
+}
+
+function recoverPartyDetailed(amount) {
+  let restored = 0;
+  const team = [state.hero, ...state.party];
+  team.forEach((unit) => {
+    const before = unit.hp;
     unit.hp = Math.min(unit.maxHp, unit.hp + amount);
+    restored += unit.hp - before;
   });
+  return restored;
+}
+
+function totalPartyMissingHp() {
+  return [state.hero, ...state.party].reduce((sum, unit) => sum + Math.max(0, (unit.maxHp || 0) - (unit.hp || 0)), 0);
 }
 
 function triggerEvent() {
@@ -1473,12 +1488,43 @@ function beginNight() {
 }
 
 function createNightState(plan = "holdfast") {
+  const encounters = buildNightEncounters(plan);
   return {
     day: state.day,
     plan,
-    encounters: buildNightEncounters(plan),
+    encounters,
     index: 0,
     awaitingResult: false,
+    report: createNightReport(plan, encounters),
+  };
+}
+
+function createNightReport(planId, encounters) {
+  const plan = nightPlanDefinitions[planId] || nightPlanDefinitions.holdfast;
+  const campBuilt = Object.entries(campUpgradeDefinitions)
+    .filter(([id]) => state.campUpgrades?.[id])
+    .map(([id, upgrade]) => ({ id, name: upgrade.name }));
+  return {
+    day: state.day,
+    planId,
+    planName: plan.name,
+    wavesPlanned: encounters.length,
+    wavesCleared: 0,
+    campBuilt,
+    startingMissingHp: totalPartyMissingHp(),
+    preDawnMissingHp: 0,
+    postDawnMissingHp: 0,
+    preDawnGold: state.gold,
+    postDawnGold: state.gold,
+    holdfastRecovery: 0,
+    healerFireRecovery: 0,
+    dawnRecovery: 0,
+    dawnHealing: 0,
+    raidBonus: 0,
+    trapDamageTotal: 0,
+    income: { total: 0, mines: 0, towns: 0, routes: 0, text: "" },
+    scoutingTarget: null,
+    scoutingText: "",
   };
 }
 
@@ -1573,8 +1619,14 @@ function nightWaveTravelMs(partySize) {
 
 function launchNightBattle(enemy) {
   activeNight.awaitingResult = true;
-  if (state.campUpgrades?.healerFire) recoverParty(Math.max(6, Math.round(state.hero.maxHp * 0.16)));
-  if (activeNight?.plan === "holdfast") recoverParty(Math.max(4, Math.round(state.hero.maxHp * 0.08)));
+  if (state.campUpgrades?.healerFire) {
+    const restored = recoverPartyDetailed(Math.max(6, Math.round(state.hero.maxHp * 0.16)));
+    if (activeNight?.report) activeNight.report.healerFireRecovery += restored;
+  }
+  if (activeNight?.plan === "holdfast") {
+    const restored = recoverPartyDetailed(Math.max(4, Math.round(state.hero.maxHp * 0.08)));
+    if (activeNight?.report) activeNight.report.holdfastRecovery += restored;
+  }
   setMessage(`Night ${activeNight.index + 1}/${activeNight.encounters.length}: ${enemy.name} reaches camp under the ${currentNightPlan().name} plan.`);
   startBattle(`night-${activeNight.day}-${activeNight.index}`, { type: "night", encounter: enemy.sourceEncounter }, enemy);
 }
@@ -1686,7 +1738,7 @@ function nightDefenseEffectPills() {
   if (currentNightPlanId() === "nightRaid") pills.push("Night Raid: bonus dawn gold if camp holds");
   if (currentNightPlanId() === "scoutLines") pills.push("Scout Lines: dawn reveals the next target");
   if (state.campUpgrades?.watchtower) pills.push("Watchtower: one fewer wave when possible");
-  if (state.campUpgrades?.stakeTraps) pills.push("Stake Traps: first raider weakened");
+  if (state.campUpgrades?.traps) pills.push("Stake Traps: first raider weakened");
   if (state.campUpgrades?.healerFire) pills.push("Healer Fire: party restored before each wave");
   if (state.campUpgrades?.betterTent) pills.push("Better Tent: stronger dawn recovery");
   if (!pills.length) pills.push("Basic camp: no extra defenses");
@@ -1719,7 +1771,7 @@ function campUpgradeEffectTags(id) {
   return {
     betterTent: ["More dawn healing", "Safer camp"],
     watchtower: ["One fewer wave", "Early warning"],
-    stakeTraps: ["Weakens first raider", "Every wave"],
+    traps: ["Weakens first raider", "Every wave"],
     healerFire: ["Pre-wave healing", "Party sustain"],
   }[id] || [];
 }
@@ -1760,6 +1812,7 @@ function buildCampUpgrade(id) {
 
 function continueNightAfterBattle() {
   if (!activeNight) return renderAll();
+  if (activeNight.report) activeNight.report.wavesCleared = Math.max(activeNight.report.wavesCleared, activeNight.index + 1);
   activeNight.awaitingResult = false;
   activeNight.index += 1;
   if (activeNight.index >= activeNight.encounters.length) return finishNight();
@@ -1770,34 +1823,98 @@ function continueNightAfterBattle() {
 }
 
 function finishNight() {
-  const completedDay = activeNight?.day || state.day;
-  const planId = activeNight?.plan || state.nightPlan || "holdfast";
+  const nightState = activeNight;
+  const completedDay = nightState?.day || state.day;
+  const planId = nightState?.plan || state.nightPlan || "holdfast";
+  const report = nightState?.report || createNightReport(planId, nightState?.encounters || []);
+  report.preDawnGold = state.gold;
+  report.preDawnMissingHp = totalPartyMissingHp();
   activeNight = null;
   state.day += 1;
   state.dayProgress = 0;
   state.nightReady = false;
   const economy = collectTownIncome();
+  report.income = { total: economy.total || 0, mines: economy.mines || 0, towns: economy.towns || 0, routes: economy.routes || 0, text: economy.text || "" };
   const dawnRecovery = Math.max(8, Math.round(state.hero.maxHp * (planId === "holdfast" ? 0.47 : 0.35)));
-  recoverParty(dawnRecovery);
-  let dawnText = `Your party rests before sunrise. Day ${state.day} begins.`;
+  report.dawnRecovery = dawnRecovery;
+  report.dawnHealing = recoverPartyDetailed(dawnRecovery);
   if (planId === "nightRaid") {
     const raidBonus = 24 + completedDay * 8;
     state.gold += raidBonus;
-    dawnText += ` Night riders return with ${raidBonus} extra gold.`;
+    report.raidBonus = raidBonus;
   } else if (planId === "scoutLines") {
     const target = nearestScoutingTarget();
     if (target) {
       state.scoutMarker = target.key;
-      dawnText += ` Scouts mark ${target.event.type === "town" ? target.event.name : target.event.type === "chest" ? "a relic chest" : "a hostile outpost"} at ${target.x},${target.y}.`;
+      const label = target.event.type === "town" ? target.event.name : target.event.type === "chest" ? "a relic chest" : "a hostile outpost";
+      report.scoutingTarget = { key: target.key, label, x: target.x, y: target.y };
+      report.scoutingText = `Scouts marked ${label} at ${target.x},${target.y}.`;
     } else {
-      dawnText += " Scouts report no urgent targets beyond your current map.";
+      report.scoutingText = "Scouts reported no urgent targets beyond your current map.";
     }
   }
-  if (economy.text) dawnText += ` ${economy.text}`;
+  report.postDawnGold = state.gold;
+  report.postDawnMissingHp = totalPartyMissingHp();
   setMessage(`Dawn breaks on day ${state.day}. Camp survived night ${completedDay} under the ${nightPlanDefinitions[planId].name} plan.`);
-  openModal("Dawn", dawnText, [
+  openModal("Dawn", dawnMarkup(report), [
     { label: "Continue", action: () => renderAll() },
-  ]);
+  ], { html: true, className: "night-modal dawn-modal" });
+}
+
+function dawnMarkup(report) {
+  const campNames = report.campBuilt.map((item) => item.name);
+  const campStatus = campNames.length ? `${campNames.length} structures held through the night.` : "The basic camp held until sunrise.";
+  const planPayoff = dawnPlanPayoffMarkup(report);
+  const totalRecovery = report.healerFireRecovery + report.holdfastRecovery + report.dawnHealing;
+  const economyCards = [
+    { label: "Raid Spoils", value: `${report.raidBonus} gold`, note: report.raidBonus ? "Night riders returned with extra coin." : "No raid income this dawn." },
+    { label: "Town Income", value: `${report.income.total} gold`, note: report.income.total ? `${report.income.mines} mines, ${report.income.towns} towns, ${report.income.routes} trade.` : "No realm income collected this dawn." },
+    { label: "Recovery", value: `${totalRecovery} HP`, note: `${report.healerFireRecovery} pre-wave, ${report.holdfastRecovery} holdfast, ${report.dawnHealing} dawn rest.` },
+    { label: "Camp Damage", value: `${report.trapDamageTotal} HP`, note: report.trapDamageTotal ? "Stake Traps bloodied the first raider in each wave." : "No trap damage contributed overnight." },
+  ];
+  return `
+    <div class="night-wave dawn-report">
+      <div class="dawn-hero">
+        <strong>Dawn on Day ${state.day}</strong>
+        <p>${escapeHtml(dawnLeadLine(report))}</p>
+      </div>
+      <div class="night-summary-bar dawn-summary-bar">
+        <span><small>Waves Held</small><strong>${report.wavesCleared}/${report.wavesPlanned}</strong></span>
+        <span><small>Plan</small><strong>${escapeHtml(report.planName)}</strong></span>
+        <span><small>Camp Status</small><strong>${campNames.length ? "Standing" : "Basic"}</strong></span>
+      </div>
+      <div class="dawn-payoff-panel">
+        <strong>Plan Payoff</strong>
+        <span>${planPayoff}</span>
+      </div>
+      <div class="dawn-reward-grid">
+        ${economyCards.map((item) => `<article><small>${item.label}</small><strong>${item.value}</strong><p>${item.note}</p></article>`).join("")}
+      </div>
+      <div class="dawn-camp-state">
+        <strong>Camp State</strong>
+        <p>${campStatus}</p>
+        <div class="night-defense-strip">
+          ${(campNames.length ? campNames : ["Basic Tent"]).map((name) => `<span>${escapeHtml(name)}</span>`).join("")}
+        </div>
+      </div>
+      ${report.scoutingText ? `<div class="dawn-scouting"><strong>Scouting</strong><p>${escapeHtml(report.scoutingText)}</p></div>` : ""}
+      <p><strong>Gold at sunrise</strong>: ${report.postDawnGold}. <strong>Missing party HP</strong>: ${report.postDawnMissingHp}.</p>
+    </div>
+  `;
+}
+
+function dawnLeadLine(report) {
+  if (report.planId === "nightRaid" && report.raidBonus) return `The warband broke the dark line and came home richer. ${report.raidBonus} gold arrived with the sunrise.`;
+  if (report.planId === "scoutLines") return report.scoutingText || "Outriders kept the roads watched until first light.";
+  if (report.planId === "holdfast") return `The camp held fast. ${report.holdfastRecovery + report.dawnHealing} HP came back through discipline and dawn rest.`;
+  return "The camp held through the night and the army greets a steadier dawn.";
+}
+
+function dawnPlanPayoffMarkup(report) {
+  if (report.planId === "nightRaid") return report.raidBonus ? `Night Raid paid off with <strong>${report.raidBonus} bonus gold</strong> after the camp held.` : "Night Raid drew pressure, but no extra spoils arrived.";
+  if (report.planId === "scoutLines") return escapeHtml(report.scoutingText || "Scout Lines kept the roads watched, but no clear target stood out.");
+  if (report.planId === "holdfast") return `Hold Fast restored <strong>${report.holdfastRecovery}</strong> HP before the waves and <strong>${report.dawnHealing}</strong> more at dawn.`;
+  return "The camp plan carried the warband safely into the next day.";
 }
 
 function abandonNightAfterDefeat() {
@@ -1890,43 +2007,94 @@ function reopenTownModal(key, event) {
   }, 0);
 }
 
+function reopenTownNoticeBoard(key, event) {
+  window.setTimeout(() => {
+    if (!activeBattle && !activeNight) openTownCommissionModal(key, event);
+  }, 0);
+}
+
 function openTownCommissionModal(key, event) {
   state.quests ??= {};
   const entries = Object.entries(townCommissionDefinitions);
-  const actions = entries.map(([id, quest]) => {
-    const status = state.quests[id] || "new";
+  openModal("Town Notice Board", townNoticeBoardMarkup(event, entries), [
+    { label: "Back", secondary: true, action: () => reopenTownModal(key, event) },
+  ], { html: true, className: "notice-modal", onRender: () => bindTownNoticeBoard(key, event) });
+}
+
+function townNoticeBoardMarkup(event, entries) {
+  const cards = entries.map(([id, quest]) => {
+    const status = state.quests?.[id] || "new";
     const ready = status === "accepted" && quest.complete();
     const claimed = status === "claimed";
-    return {
-      label: claimed ? `${quest.title}: Done` : ready ? `Claim ${quest.title}` : status === "accepted" ? `${quest.title}: Active` : `Accept ${quest.title}`,
-      action: () => {
-        if (claimed) {
-          setMessage(`${quest.title} is already complete.`);
-          reopenTownModal(key, event);
-          return;
-        }
-        if (ready) {
-          quest.reward();
-          state.quests[id] = "claimed";
-          setMessage(`${quest.title} complete. Reward: ${quest.rewardText}.`);
-          renderAll();
-          reopenTownModal(key, event);
-          return;
-        }
-        if (status === "accepted") {
-          setMessage(`${quest.title}: ${quest.objective}.`);
-          reopenTownModal(key, event);
-          return;
-        }
-        state.quests[id] = "accepted";
-        setMessage(`${quest.title} accepted: ${quest.objective}.`);
-        renderAll();
-        reopenTownModal(key, event);
-      },
-    };
+    const tone = claimed ? "claimed" : ready ? "ready" : status === "accepted" ? "active" : "new";
+    const label = claimed ? "Complete" : ready ? "Reward ready" : status === "accepted" ? "In progress" : "Available";
+    const action = claimed ? "Already paid." : ready ? "Claim this reward now." : status === "accepted" ? "Keep working, then return here." : "Accept this job now.";
+    const buttonLabel = claimed ? "Done" : ready ? "Claim Reward" : status === "accepted" ? "View Objective" : "Accept Job";
+    const disabled = claimed ? " disabled" : "";
+    return `
+      <article class="notice-job ${tone}">
+        <span class="notice-pin"></span>
+        <strong>${quest.title}</strong>
+        <em>${label}</em>
+        <p>${quest.objective}</p>
+        <small>Reward: ${quest.rewardText}. ${action}</small>
+        <button type="button" data-notice-job="${id}"${disabled}>${buttonLabel}</button>
+      </article>
+    `;
+  }).join("");
+  return `
+    <div class="notice-board-panel">
+      <div class="notice-board-art">
+        <img src="assets/town-notice-board-banner.png" alt="" />
+        <div>
+          <strong>${escapeHtml(event.name)} Notice Board</strong>
+          <span>Local contracts are optional jobs. Accept one, complete its condition during play, then return here to claim the reward.</span>
+        </div>
+      </div>
+      <div class="notice-board-guide">
+        <span><b>Available</b> can be accepted now</span>
+        <span><b>In progress</b> tracks in the quest log</span>
+        <span><b>Reward ready</b> can be claimed below</span>
+      </div>
+      <div class="notice-job-grid">${cards}</div>
+    </div>
+  `;
+}
+
+function bindTownNoticeBoard(key, event) {
+  modalText.querySelectorAll("[data-notice-job]").forEach((button) => {
+    button.addEventListener("click", () => handleTownCommissionAction(key, event, button.dataset.noticeJob));
   });
-  actions.push({ label: "Back", secondary: true, action: () => reopenTownModal(key, event) });
-  openModal("Town Notice Board", `The notice board in ${event.name} lists local work from nearby guilds.`, actions);
+}
+
+function handleTownCommissionAction(key, event, id) {
+  const quest = townCommissionDefinitions[id];
+  if (!quest) return;
+  const status = state.quests?.[id] || "new";
+  const ready = status === "accepted" && quest.complete();
+  const claimed = status === "claimed";
+  if (claimed) {
+    setMessage(`${quest.title} is already complete.`);
+    reopenTownNoticeBoard(key, event);
+    return;
+  }
+  if (ready) {
+    quest.reward();
+    state.quests[id] = "claimed";
+    setMessage(`${quest.title} complete. Reward: ${quest.rewardText}.`);
+    renderAll();
+    reopenTownNoticeBoard(key, event);
+    return;
+  }
+  if (status === "accepted") {
+    setMessage(`${quest.title}: ${quest.objective}.`);
+    reopenTownNoticeBoard(key, event);
+    return;
+  }
+  state.quests[id] = "accepted";
+  setMessage(`${quest.title} accepted: ${quest.objective}.`);
+  renderAll();
+  reopenTownNoticeBoard(key, event);
 }
 
 function getTownState(key) {
@@ -2004,15 +2172,26 @@ function townModalMarkup(key, event, town, creature, cost, ownsCreature) {
   const recruitCount = recruitableUnitsForTown(event).length;
   const builtNames = town.buildings.length ? town.buildings.map((id) => townBuildingDefinitions[id]?.name || id).join(", ") : "No structures built yet";
   const selection = getTownSelection(key, event);
+  const barracksIntro = town.owner !== "player"
+    ? `Claim ${event.name} before recruiting units.`
+    : town.buildings.includes("barracks")
+      ? `${faction.name} roster ready. Recruit local units or train veterans here.`
+      : `${creature.name} can join now. Build Barracks to unlock the full ${faction.name} roster.`;
   return `
     <div class="town-view">
       <div class="town-overview">
-        <div class="town-yard ${town.owner === "player" ? "owned" : "neutral"}" aria-label="${event.name} town yard">
-          <div class="town-yard-hall" aria-hidden="true"><img src="${townSpriteDataUrl("ownedTown", town.owner === "player")}" alt="" /></div>
-          ${townYardSprite("market", "market", town.buildings.includes("market"), town, "market", true, selection === "building:market")}
-          ${townYardSprite("caravanPost", "caravan-post", town.buildings.includes("caravanPost"), town, "caravanPost", true, selection === "building:caravanPost")}
-          ${townYardSprite("barracks", "barracks", town.buildings.includes("barracks"), town, "barracks", true, selection === "building:barracks")}
-          ${townYardSprite("trainingYard", "training-yard", town.buildings.includes("trainingYard"), town, "trainingYard", true, selection === "building:trainingYard")}
+        <div class="town-left">
+          <div class="town-yard ${town.owner === "player" ? "owned" : "neutral"}" aria-label="${event.name} town yard">
+            <div class="town-yard-hall" aria-hidden="true"><img src="${townSpriteDataUrl("ownedTown", town.owner === "player")}" alt="" /></div>
+            ${townYardSprite("market", "market", town.buildings.includes("market"), town, "market", true, selection === "building:market")}
+            ${townYardSprite("caravanPost", "caravan-post", town.buildings.includes("caravanPost"), town, "caravanPost", true, selection === "building:caravanPost")}
+            ${townYardSprite("barracks", "barracks", town.buildings.includes("barracks"), town, "barracks", true, selection === "building:barracks")}
+            ${townYardSprite("trainingYard", "training-yard", town.buildings.includes("trainingYard"), town, "trainingYard", true, selection === "building:trainingYard")}
+          </div>
+          <div class="town-building-list town-panel">
+            <strong>Town Status</strong>
+            ${Object.entries(townBuildingDefinitions).map(([id, building]) => townBuildingCard(id, building, town)).join("")}
+          </div>
         </div>
         <div class="town-info">
           <div class="town-head">
@@ -2029,17 +2208,22 @@ function townModalMarkup(key, event, town, creature, cost, ownsCreature) {
             </div>
           </div>
           <div class="town-desk town-panel">
-            <strong>Town Desk</strong>
+            <strong>Town Command</strong>
+            <span class="town-desk-line"><b>Control</b> ${owner}. ${town.owner === "player" ? "Your banner holds the square." : "The square is still neutral."}</span>
             <span class="town-desk-line"><b>Faction Perk</b> ${faction.perk}</span>
+            <span class="town-desk-line"><b>Barracks</b> ${town.buildings.includes("barracks") ? `${faction.name} roster ready. Enter Barracks to recruit or train units.` : `Build Barracks to unlock the full ${faction.name} roster.`}</span>
+            <span class="town-desk-line"><b>Local Unit</b> ${creature.name}${ownsCreature ? " already marches with you." : ` can join for ${cost} gold.`}</span>
             <span class="town-desk-line"><b>Built</b> ${builtNames}</span>
+            <span class="town-desk-line"><b>Focus</b> Built plots act immediately. Empty owned plots show build-now costs in the square.</span>
+            ${town.owner === "player" ? townCommandRailMarkup(key, event, town) : `<div class="town-claim-note">Claim ${event.name} before issuing town orders, building, or training units.</div>`}
             <div id="townFeedback" class="town-feedback">Select a building plot to inspect it. Built plots act immediately, and empty owned plots can be purchased from the square.</div>
           </div>
-          ${town.owner === "player" ? townCommandRailMarkup(key, event, town) : ""}
+          <div class="town-recruit-list town-panel">
+            <strong>Barracks Roster</strong>
+            <p class="town-panel-note">${barracksIntro}</p>
+            ${recruitableUnitsForTown(event).map((id) => townRecruitCard(key, event, town, id)).join("")}
+          </div>
         </div>
-      </div>
-      <div class="town-recruit-list town-panel">
-        <strong>Recruit ${faction.name}</strong>
-        ${recruitableUnitsForTown(event).map((id) => townRecruitCard(key, event, town, id)).join("")}
       </div>
     </div>
   `;
@@ -2049,8 +2233,7 @@ function townCommandRailMarkup(key, event, town) {
   const actionId = townFactionActionId(event);
   const factionUsed = isTownActionUsed(town, actionId);
   return `
-    <div class="town-command-rail town-panel">
-      <strong>Town Actions</strong>
+    <div class="town-command-rail">
       <button type="button" class="town-command-button" data-town-action="rest">Rest Party</button>
       <button type="button" class="town-command-button secondary" data-town-action="notice">Open Notice Board</button>
       <button type="button" class="town-command-button ${factionUsed ? "used" : ""}" data-town-action="faction"${factionUsed ? " disabled" : ""}>${factionUsed ? `${townFactionActionLabel(event)} Used` : townFactionActionLabel(event)}</button>
@@ -2217,13 +2400,25 @@ function townRecruitCard(key, event, town, id) {
   const used = existing ? isTownActionUsed(town, actionId) : builtBarracks && !primary && isTownActionUsed(town, "barracks");
   const partyFull = !existing && state.party.length >= MAX_PARTY_UNITS;
   const disabled = unclaimed || locked || used ? " disabled" : "";
+  const badge = unclaimed
+    ? "Claim first"
+    : locked
+      ? "Needs Barracks"
+      : used
+        ? "Used today"
+        : partyFull && !existing
+          ? "Replace required"
+          : existing
+            ? "Upgrade ready"
+            : "Recruit ready";
+  const tone = unclaimed || locked ? "warn" : used ? "used" : partyFull && !existing ? "info" : "good";
   const note = unclaimed ? "Claim town first" : locked ? "Needs Barracks" : used ? "Trained today" : existing ? `Upgrade ${townUpgradeCostForUnit(id, event)} gold` : partyFull ? `Replace ${recruitCostForTown(id, event)} gold` : `Recruit ${recruitCostForTown(id, event)} gold`;
   const role = unitRole(unit);
   const selected = getTownSelection(key, event) === `recruit:${id}` ? " selected" : "";
   return `
     <button type="button" class="town-recruit-card${selected}" data-town-recruit="${id}" aria-label="${unit.name}"${disabled}>
       <span class="recruit-dot" style="--unit-color:${unit.color}"></span>
-      <span><b>${unit.name}</b><small>${role} / ${rangeText(unit)}</small></span>
+      <span class="town-recruit-main"><b>${unit.name}</b><small>${role} / ${rangeText(unit)}</small><span class="town-card-tags"><i class="town-state-badge ${tone}">${badge}</i>${existing ? `<i class="town-state-badge neutral">Veteran</i>` : ""}</span></span>
       <em>${note}</em>
     </button>
   `;
@@ -2253,12 +2448,14 @@ function townBuildingPreviewText(event, town, buildingId) {
   const built = town.buildings.includes(buildingId);
   const cost = townBuildingCost(definition);
   const caravanPost = buildingId === "caravanPost";
+  const barracks = buildingId === "barracks";
   if (!built) {
     if (town.owner !== "player") return `${definition.name}: ${definition.text} Claim ${event.name} before building here. Cost: ${cost} gold.`;
     if (state.gold < cost) return `${definition.name}: ${definition.text} Cost: ${cost} gold. Need ${cost - state.gold} more gold.`;
     return `${definition.name}: ${definition.text} Ready to build now for ${cost} gold.`;
   }
   if (caravanPost) return `${definition.name}: ${definition.text} Opens the trade shop and keeps routes moving automatically.`;
+  if (barracks) return `${definition.name}: Enter to recruit the local unit or train ${townFaction(event).name} roster units.`;
   if (isTownActionUsed(town, buildingId)) return `${definition.name}: ${definition.text} Already used today. Ready again tomorrow.`;
   return `${definition.name}: ${definition.text} Ready to use now.`;
 }
@@ -2276,10 +2473,17 @@ function townBuildingCard(id, building, town) {
       ? used ? "Shop open, caravan dispatched" : "Shop open, dispatches automatically"
       : used ? "Used today" : "Ready"
     : town.owner !== "player" ? "Claim town first" : missingGold ? `Need ${missingGold} more gold` : `${cost} gold`;
+  const badge = built
+    ? caravanPost
+      ? "Shop open"
+      : used ? "Used today" : "Ready"
+    : town.owner !== "player" ? "Claim first" : missingGold ? `Need ${missingGold} gold` : "Build now";
+  const tone = built ? caravanPost ? "info" : used ? "used" : "good" : town.owner !== "player" || missingGold ? "warn" : "good";
+  const actionLabel = caravanPost ? "Shop" : id === "barracks" ? "Enter" : actionUsed ? "Used" : "Use";
   const action = built
-    ? `<button type="button" data-town-use="${id}"${actionUsed ? " disabled" : ""}>${caravanPost ? "Shop" : actionUsed ? "Used" : "Use"}</button>`
+    ? `<button type="button" data-town-use="${id}"${actionUsed ? " disabled" : ""}>${actionLabel}</button>`
     : `<button type="button" data-town-build="${id}"${unavailable ? " disabled" : ""}>Build ${cost}</button>`;
-  return `<div class="town-building-card ${built ? "built" : ""} ${actionUsed ? "used" : ""} ${unavailable ? "unavailable" : ""}"><div><strong>${building.name}</strong><span>${status}</span><p>${building.text}</p></div>${action}</div>`;
+  return `<div class="town-building-card ${built ? "built" : ""} ${actionUsed ? "used" : ""} ${unavailable ? "unavailable" : ""}"><div><strong>${building.name}</strong><span class="town-card-tags"><i class="town-state-badge ${tone}">${badge}</i></span><p>${building.text}</p><span>${status}</span></div>${action}</div>`;
 }
 
 function townSpriteDataUrl(name, owned = true) {
@@ -2326,7 +2530,10 @@ function bindTownModal(key, event) {
     button.addEventListener("click", () => buildTownBuilding(key, event, button.dataset.townBuild));
   });
   modalText.querySelectorAll("[data-town-use]").forEach((button) => {
-    button.addEventListener("click", () => handleTownBuildingClick(key, event, button.dataset.townUse));
+    button.addEventListener("click", () => {
+      setTownSelection(key, event, `building:${button.dataset.townUse}`, false);
+      handleTownBuildingClick(key, event, button.dataset.townUse);
+    });
   });
   modalText.querySelectorAll("[data-town-action]").forEach((button) => {
     button.addEventListener("click", () => handleTownBodyAction(key, event, button.dataset.townAction));
@@ -2410,7 +2617,7 @@ function handleTownBuildingClick(key, event, buildingId) {
   } else if (buildingId === "caravanPost") {
     openCaravanTradeModal(key, event);
   } else if (buildingId === "barracks") {
-    setTownFeedback("Choose a unit from the recruitment list. Barracks units can be raised once per day.", "info");
+    setTownFeedback("Barracks roster is open. Local units can be raised here; built Barracks unlocks the wider roster once per day.", "info");
     return;
   } else if (buildingId === "trainingYard") {
     if (isTownActionUsed(town, buildingId)) {
@@ -2442,6 +2649,7 @@ function buildTownBuilding(key, event, buildingId) {
   }
   state.gold -= cost;
   town.buildings.push(buildingId);
+  if (buildingId === "barracks") town.selection = "building:barracks";
   state.visited[key] = true;
   const autoBonus = buildingId === "caravanPost" ? autoDispatchCaravan(town) : 0;
   refreshTownModal(key, event, autoBonus > 0 ? `${event.name} builds a ${building.name}. Its first caravan returns with ${autoBonus} gold.` : `${event.name} builds a ${building.name}.`, "good");
@@ -2452,14 +2660,18 @@ function openCaravanTradeModal(key, event) {
   const autoBonus = autoDispatchCaravan(town);
   const used = isTownActionUsed(town, "caravanPost");
   if (autoBonus > 0) {
-    setMessage(`${event.name}'s caravan dispatches automatically and returns with ${autoBonus} gold.`);
+    const text = `${event.name}'s caravan dispatches automatically and returns with ${autoBonus} gold.`;
+    caravanTradeFeedback = { text, type: "good" };
+    setMessage(text);
     renderAll();
   }
   openModal("Caravan Post", caravanTradeMarkup(key, event), [
     {
       label: used ? "Caravan Dispatched" : "Dispatching...",
       action: () => {
-        setMessage(`${event.name}'s caravan route is automatic. The shop stays open while the cart travels.`);
+        const text = `${event.name}'s caravan route is automatic. The shop stays open while the cart travels.`;
+        caravanTradeFeedback = { text, type: "info" };
+        setMessage(text);
         reopenCaravanTradeModal(key, event);
       },
     },
@@ -2470,23 +2682,30 @@ function openCaravanTradeModal(key, event) {
 function buyCaravanItem(good, key, event) {
   const definition = itemDefinitions[good.id];
   if (!definition) {
+    caravanTradeFeedback = { text: "That caravan item is no longer available.", type: "warn" };
     reopenCaravanTradeModal(key, event);
     return;
   }
   if (definition.type === "equipment" && (inventoryCount(good.id) > 0 || state.equipped[good.id])) {
-    setMessage(`${definition.name} is already in your collection.`);
+    const text = `${definition.name} is already in your collection.`;
+    caravanTradeFeedback = { text, type: "warn" };
+    setMessage(text);
     reopenCaravanTradeModal(key, event);
     return;
   }
   if (state.gold < good.buyPrice) {
-    setMessage(`${definition.name} costs ${good.buyPrice} gold.`);
+    const text = `${definition.name} costs ${good.buyPrice} gold. You have ${state.gold}.`;
+    caravanTradeFeedback = { text, type: "warn" };
+    setMessage(text);
     reopenCaravanTradeModal(key, event);
     return;
   }
   state.gold -= good.buyPrice;
   addInventoryItem(good.id, 1);
   rememberRelicItem(good.id);
-  setMessage(`Bought ${definition.name} for ${good.buyPrice} gold.`);
+  const text = `Bought ${definition.name} for ${good.buyPrice} gold. It is now in your bag.`;
+  caravanTradeFeedback = { text, type: "good" };
+  setMessage(text);
   renderAll();
   reopenCaravanTradeModal(key, event);
 }
@@ -2494,19 +2713,25 @@ function buyCaravanItem(good, key, event) {
 function sellCaravanItem(good, key, event) {
   const definition = itemDefinitions[good.id];
   if (!definition || inventoryCount(good.id) <= 0) {
-    setMessage(`You have no ${definition?.name || "item"} to sell.`);
+    const text = `You have no ${definition?.name || "item"} to sell.`;
+    caravanTradeFeedback = { text, type: "warn" };
+    setMessage(text);
     reopenCaravanTradeModal(key, event);
     return;
   }
   if (state.equipped[good.id]) {
-    setMessage(`${definition.name} is equipped and cannot be sold.`);
+    const text = `${definition.name} is equipped and cannot be sold.`;
+    caravanTradeFeedback = { text, type: "warn" };
+    setMessage(text);
     reopenCaravanTradeModal(key, event);
     return;
   }
   removeInventoryItem(good.id, 1);
   forgetRelicItem(good.id);
   state.gold += good.sellPrice;
-  setMessage(`Sold ${definition.name} for ${good.sellPrice} gold.`);
+  const text = `Sold ${definition.name} for ${good.sellPrice} gold.`;
+  caravanTradeFeedback = { text, type: "good" };
+  setMessage(text);
   renderAll();
   reopenCaravanTradeModal(key, event);
 }
@@ -2536,6 +2761,9 @@ function forgetRelicItem(id) {
 function caravanTradeMarkup(key, event) {
   const town = getTownState(key);
   const caravanStatus = isTownActionUsed(town, "caravanPost") ? "Route dispatched" : "Route dispatches now";
+  const feedback = caravanTradeFeedback.text
+    ? `<div class="trade-feedback ${caravanTradeFeedback.type}">${escapeHtml(caravanTradeFeedback.text)}</div>`
+    : `<div class="trade-feedback info">Select an item to buy from caravan stock, or sell carried goods from your inventory.</div>`;
   const stock = caravanTradeGoods.map((good) => {
     const definition = itemDefinitions[good.id];
     const owned = inventoryCount(good.id);
@@ -2545,7 +2773,7 @@ function caravanTradeMarkup(key, event) {
     const buyDisabled = state.gold < good.buyPrice || cantBuy ? " disabled" : "";
     return `
       <li class="trade-row ${definition.type === "equipment" ? "artifact" : "supply"}">
-        <span class="trade-icon">${tradeItemGlyph(good.id)}</span>
+        ${tradeItemIconMarkup(good.id)}
         <span class="trade-item"><strong>${escapeHtml(definition.name)}</strong><em>${status}</em></span>
         <span class="trade-price"><small>Cost</small><strong>${good.buyPrice}g</strong></span>
         <button type="button" data-caravan-buy="${good.id}"${buyDisabled}>Buy</button>
@@ -2560,7 +2788,7 @@ function caravanTradeMarkup(key, event) {
         const sellDisabled = !tradeGood || state.equipped[item.id] ? " disabled" : "";
         return `
           <li class="trade-row ${definition?.type === "equipment" ? "artifact" : "supply"}">
-            <span class="trade-icon">${tradeItemGlyph(item.id)}</span>
+            ${tradeItemIconMarkup(item.id)}
             <span class="trade-item"><strong>${escapeHtml(definition?.name || item.id)}</strong><em>x${item.qty}${state.equipped[item.id] ? " Equipped" : ""}</em></span>
             <span class="trade-price"><small>${tradeGood ? "Receive" : "Buyer"}</small><strong>${tradeGood ? `${tradeGood.sellPrice}g` : "None"}</strong></span>
             <button type="button" data-caravan-sell="${item.id}"${sellDisabled}>Sell</button>
@@ -2575,6 +2803,7 @@ function caravanTradeMarkup(key, event) {
         <div><strong>${escapeHtml(event.name)} Caravan</strong><span>Trade without closing the automatic route.</span></div>
       </div>
       <div class="trade-summary"><span>Gold: ${state.gold}</span><span>${caravanStatus}</span></div>
+      ${feedback}
       <div class="trade-columns">
         <section class="trade-section">
           <h3><span>Buy</span><small>Caravan stock</small></h3>
@@ -2587,6 +2816,21 @@ function caravanTradeMarkup(key, event) {
       </div>
     </div>
   `;
+}
+
+function tradeItemIconMarkup(id) {
+  return `<span class="trade-icon trade-item-icon ${tradeItemIconClass(id)}" aria-hidden="true"></span>`;
+}
+
+function tradeItemIconClass(id) {
+  return {
+    healingDraught: "icon-healing-draught",
+    bannerOfLuck: "icon-banner-of-luck",
+    dawnwoodBow: "icon-dawnwood-bow",
+    silverBridle: "icon-silver-bridle",
+    starlitCompass: "icon-starlit-compass",
+    forgeCharm: "icon-forge-charm",
+  }[id] || "icon-supply-crate";
 }
 
 function caravanMarketArtUrl() {
@@ -2620,16 +2864,6 @@ function bindCaravanTradeModal(key, event) {
     const good = caravanTradeGoods.find((entry) => entry.id === button.dataset.caravanSell);
     button.addEventListener("click", () => good && sellCaravanItem(good, key, event));
   });
-}
-
-function tradeItemGlyph(id) {
-  return {
-    healingDraught: "P",
-    bannerOfLuck: "B",
-    silverBridle: "S",
-    starlitCompass: "C",
-    forgeCharm: "F",
-  }[id] || "I";
 }
 
 function isTownActionUsed(town, id) {
@@ -2804,7 +3038,7 @@ function collectTownIncome() {
     { day: state.day, gold: total, mines: mineGold, towns: townGold, routes: routeGold },
     ...(state.tradeLedger || []),
   ].slice(0, 5);
-  return { total, text: total ? `Income: ${total} gold (${mineGold} mines, ${townGold} towns, ${routeGold} trade).` : "" };
+  return { total, mines: mineGold, towns: townGold, routes: routeGold, text: total ? `Income: ${total} gold (${mineGold} mines, ${townGold} towns, ${routeGold} trade).` : "" };
 }
 
 function claimedMineIncome() {
@@ -2896,23 +3130,19 @@ function battleEvent(key, event) {
   openModal("Battle", battlePreviewMarkup(event, enemies, tier, enemyText), [
     { label: "Fight", action: () => startBattle(key, event, enemies) },
     { label: "Retreat", secondary: true, action: () => setMessage("You hold position and prepare.") },
-  ], { html: true });
+  ], { html: true, className: event.gate || event.type === "final" ? "boss-preview-modal" : "" });
 }
 
 function battlePreviewMarkup(event, enemies, tier, enemyText) {
   const reward = enemies.reduce((sum, enemy) => sum + (enemy.reward || 0), 0);
   const icons = enemies.map((enemy) => `<span class="enemy-icon ${enemyArchetype(enemy)}" title="${escapeHtml(enemy.name)}">${enemyArchetypeIcon(enemy)}</span>`).join("");
-  const gateText = event.gate ? "<p><strong>Mountain Gap</strong>: defeat this guardian creature to clear the pass to Orius.</p>" : "";
-  const bossText = event.encounter === "gatekeeper"
-    ? "<p><strong>Boss Trait</strong>: the Warden begins behind an iron bulwark, then enrages and crushes harder below half health.</p>"
-    : event.encounter === "rival"
-      ? "<p><strong>Boss Trait</strong>: Orius blinks away with a moon ward and can unleash an arcane barrage across your whole party.</p>"
-      : "";
+  const leadText = bossLeadText(event);
+  const bossText = bossTraitText(event);
   return `
-    <div class="battle-preview">
+    <div class="battle-preview ${event.gate || event.type === "final" ? "boss-preview" : ""}">
+      ${leadText ? `<div class="boss-preview-hero"><strong>${event.gate ? "Fortress Approach" : event.type === "final" ? "Fortress Heart" : "Battle Readiness"}</strong><p>${leadText}</p></div>` : ""}
       <p>${escapeHtml(enemyText)} Threat: <strong>${tier.label}</strong>.</p>
-      ${gateText}
-      ${bossText}
+      ${bossText ? `<div class="boss-preview-panel"><strong>Boss Trait</strong><p>${bossText}</p></div>` : ""}
       <div class="enemy-icon-row">${icons}</div>
       <div class="battle-reward-preview">
         <span>Reward ${reward} gold</span>
@@ -2920,6 +3150,19 @@ function battlePreviewMarkup(event, enemies, tier, enemyText) {
       </div>
     </div>
   `;
+}
+
+function bossLeadText(event) {
+  if (event.encounter === "gatekeeper") return "The mountain road narrows into a killing gap. Break the Black Gate Warden here and the fortress road finally opens.";
+  if (event.encounter === "rival") return "Orius waits inside the fortress with the war already gathered around him. This is the fight that decides whether the campaign was a march or a claim.";
+  return "";
+}
+
+function bossTraitText(event) {
+  if (event.encounter === "gatekeeper") return "The Warden begins behind an iron bulwark, then enrages and crushes harder below half health.";
+  if (event.encounter === "rival") return "Orius blinks away behind a moon ward and can unleash an arcane barrage across your whole party.";
+  if (event.gate) return "Defeat this guardian creature to clear the pass to Orius.";
+  return "";
 }
 
 function enemyArchetype(enemy) {
@@ -3034,6 +3277,7 @@ function startBattle(key, event, enemyInput) {
     const damage = Math.max(4, Math.round(enemies[0].maxHp * 0.18));
     enemies[0].hp = Math.max(1, enemies[0].hp - damage);
     enemies[0].trapDamage = damage;
+    if (activeNight?.report) activeNight.report.trapDamageTotal += damage;
   }
   const enemyPositions = enemies.map((_, index) => ({ x: index >= BATTLE_ROWS ? BATTLE_COLS - 1 : BATTLE_COLS - 2, y: index % BATTLE_ROWS }));
   const enemyNames = enemies.map((enemy) => enemy.name).join(", ");
@@ -4001,7 +4245,12 @@ function finishBattle(wonBattle) {
       if (roamingHero) roamingHero.defeated = true;
     }
     if (event.type === "final") {
-      return triggerVictory("military", "DAYLIGHT VICTORY", `You defeated ${enemyLabel}, claimed ${reward} gold, and earned ${xpReport.amount} XP. Your army wins by conquest.`);
+      return triggerVictory("military", "DAYLIGHT VICTORY", finalVictoryMarkup(enemyLabel, reward, xpReport.amount), { html: true, className: "victory-modal boss-aftermath-modal" });
+    } else if (event.gate) {
+      setMessage("The Black Gate Warden falls. The fortress pass is finally open.");
+      openModal("Pass Cleared", gateAftermathMarkup(reward, xpReport.amount), [
+        { label: "March to Fortress", action: () => resolvePostBattleProgression() },
+      ], { html: true, className: "boss-aftermath-modal" });
     } else if (event.type === "night") {
       setMessage(`${enemyLabel} defeated before dawn.`);
       openModal("Camp Defended", `${log.slice(-3).join(" ")} Reward: ${reward} gold and ${xpReport.amount} XP.`, [{ label: "Continue Watch", action: () => resolvePostBattleProgression() }]);
@@ -4045,15 +4294,47 @@ function checkVictoryConditions() {
   triggerVictory(condition.id, condition.title.toUpperCase(), `${condition.title} achieved. ${condition.text}`);
 }
 
-function triggerVictory(type, title, text) {
+function triggerVictory(type, title, text, options = {}) {
   state.won = true;
   state.victoryType = type;
   setMessage(`${title}!`);
   openModal(title, text, [
     { label: "Continue Realm", action: () => resolvePostBattleProgression() },
     { label: "New Campaign", secondary: true, action: () => resetGame() },
-  ]);
+  ], { html: Boolean(options.html), className: options.className || "" });
   renderAll();
+}
+
+function gateAftermathMarkup(reward, xp) {
+  return `
+    <div class="boss-aftermath">
+      <div class="boss-aftermath-hero">
+        <strong>Black Gate Broken</strong>
+        <p>The Warden collapses in the pass and the road into the fortress finally clears. The campaign state changes here: the march is over, and the siege begins.</p>
+      </div>
+      <div class="boss-aftermath-grid">
+        <article><small>Reward</small><strong>${reward} gold</strong><p>The pass guardian's stores and escort coin fall into your hands.</p></article>
+        <article><small>Experience</small><strong>${xp} XP</strong><p>Your warband has survived the fortress threshold and hardens for the last push.</p></article>
+        <article><small>Campaign State</small><strong>Fortress Open</strong><p>Orius is no longer behind rumor or roadblocks. You can enter the northeast fortress now.</p></article>
+      </div>
+    </div>
+  `;
+}
+
+function finalVictoryMarkup(enemyLabel, reward, xp) {
+  return `
+    <div class="boss-aftermath">
+      <div class="boss-aftermath-hero">
+        <strong>Orius Defeated</strong>
+        <p>${escapeHtml(enemyLabel)} falls inside the fortress and the whole northeast line breaks with him. The campaign resolves as a conquest, not just another cleared encounter.</p>
+      </div>
+      <div class="boss-aftermath-grid">
+        <article><small>Reward</small><strong>${reward} gold</strong><p>The fortress treasury and war stores are seized at first light.</p></article>
+        <article><small>Experience</small><strong>${xp} XP</strong><p>Your army earns the final lessons of the campaign in the fortress heart.</p></article>
+        <article><small>Outcome</small><strong>Daylight Victory</strong><p>The road network, towns, and marches now answer to your banner.</p></article>
+      </div>
+    </div>
+  `;
 }
 
 function gainXp(amount) {
@@ -4149,7 +4430,7 @@ function openModal(title, text, actions, options = {}) {
   modalOpen = true;
   modal.className = "";
   modal.classList.toggle("victory-modal", title.includes("VICTORY"));
-  if (options.className) modal.classList.add(options.className);
+  if (options.className) modal.classList.add(...String(options.className).split(/\s+/).filter(Boolean));
   modalTitle.textContent = title;
   if (options.html) modalText.innerHTML = text;
   else modalText.textContent = text;

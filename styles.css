@@ -694,8 +694,24 @@ dialog.victory-modal h2 {
   letter-spacing: 0;
 }
 
+dialog.boss-preview-modal,
+dialog.boss-aftermath-modal {
+  width: min(960px, calc(100% - 24px));
+}
+
+dialog.boss-preview-modal .modal-card,
+dialog.boss-aftermath-modal .modal-card {
+  border: 2px solid rgba(240, 193, 91, 0.6);
+  background:
+    linear-gradient(180deg, rgba(122, 75, 181, 0.14), rgba(31, 36, 48, 0) 28%),
+    linear-gradient(180deg, rgba(240, 193, 91, 0.14), rgba(31, 36, 48, 0) 62%),
+    var(--panel);
+}
+
 dialog.town-modal {
   width: min(1540px, calc(100% - 12px));
+  height: fit-content;
+  max-height: min(920px, calc(100dvh - 16px));
   overflow: hidden;
 }
 
@@ -723,18 +739,23 @@ dialog.battle-modal {
   }
 
   dialog.town-modal {
-    height: min(920px, calc(100dvh - 16px));
+    height: fit-content;
   }
 
   dialog.town-modal .modal-card {
-    height: min(920px, calc(100dvh - 16px));
+    height: auto;
     max-height: min(920px, calc(100dvh - 16px));
-    min-height: min(920px, calc(100dvh - 16px));
+    min-height: 0;
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
     box-sizing: border-box;
-    padding: 12px;
+    padding: 14px;
     overflow: hidden;
+    background:
+      radial-gradient(circle at 24% 22%, rgba(104, 179, 107, 0.12), transparent 31%),
+      radial-gradient(circle at 76% 34%, rgba(102, 167, 216, 0.1), transparent 28%),
+      linear-gradient(180deg, rgba(240, 193, 91, 0.08), rgba(31, 36, 48, 0) 38%),
+      var(--panel);
   }
 
   dialog.town-modal h2 {
@@ -752,7 +773,7 @@ dialog.battle-modal {
 
   dialog.town-modal .modal-actions {
     gap: 8px;
-    margin-top: 10px;
+    margin-top: 12px;
     padding-top: 8px;
   }
 
@@ -782,62 +803,76 @@ dialog.battle-modal {
 
   .town-view .town-overview {
     grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
-    align-items: stretch;
+    align-items: start;
     gap: 10px;
   }
 
-  .town-yard {
-    width: 100%;
-    min-height: 236px;
-    justify-self: stretch;
+  .town-view .town-left {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    min-width: 0;
   }
 
-  .town-yard.owned::before {
+  .town-view .town-yard {
+    width: 100%;
+    height: 236px;
+    min-height: 236px;
+    max-height: 236px;
+    justify-self: stretch;
+    overflow: hidden;
+  }
+
+  .town-view .town-yard.owned::before {
     top: 6px;
     left: 6px;
     padding: 3px 6px;
     font-size: 0.62rem;
   }
 
-  .town-yard::after {
+  .town-view .town-yard::after {
     inset: auto 20px 18px;
     height: 32px;
   }
 
-  .town-yard-hall {
+  .town-view .town-yard-hall {
     bottom: 56px;
     width: 84px;
     height: 72px;
   }
 
-  .town-yard-slot.empty {
+  .town-view .town-yard-slot.empty {
     width: 72px;
     height: 50px;
   }
 
-  .town-yard-slot img {
+  .town-view .town-yard-slot img {
     max-width: 72px;
     max-height: 58px;
   }
 
-  .town-yard-slot.market {
+  .town-view .town-yard-slot.market {
     left: 24px;
+    top: auto;
     bottom: 22px;
   }
 
-  .town-yard-slot.caravan-post {
+  .town-view .town-yard-slot.caravan-post {
     right: 24px;
+    top: auto;
     bottom: 22px;
   }
 
-  .town-yard-slot.barracks {
+  .town-view .town-yard-slot.barracks {
     left: 24px;
     top: 28px;
+    bottom: auto;
   }
 
-  .town-yard-slot.training-yard {
+  .town-view .town-yard-slot.training-yard {
     right: 24px;
     top: 28px;
+    bottom: auto;
   }
 
   .building-ready {
@@ -851,20 +886,40 @@ dialog.battle-modal {
   }
 
   .town-view .town-info {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     max-height: none;
     padding-right: 0;
     overflow: visible;
     gap: 8px;
   }
 
-  .town-view .town-command-rail {
-    align-self: start;
+  .town-view .town-desk {
+    grid-column: 1;
   }
 
   .town-view .town-recruit-list {
+    grid-column: 2;
+    align-self: start;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px 6px;
+  }
+
+  .town-view .town-left .town-building-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .town-view .town-left .town-building-list > strong {
+    grid-column: 1 / -1;
+  }
+
+  .town-view .town-building-card {
+    align-items: start;
+  }
+
+  .town-view .town-command-rail {
+    align-self: start;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .town-building-list,
@@ -973,13 +1028,21 @@ dialog.name-modal {
   gap: 12px;
 }
 
+.town-left {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+
 .town-yard {
   position: relative;
   min-height: 340px;
   overflow: hidden;
   border: 2px solid #0f1219;
-  border-radius: 4px;
+  border-radius: 6px;
   background:
+    radial-gradient(circle at 50% 54%, rgba(255, 224, 139, 0.13), transparent 18%),
     radial-gradient(ellipse at 50% 64%, rgba(182, 137, 85, 0.58), transparent 45%),
     radial-gradient(ellipse at 50% 28%, rgba(102, 167, 216, 0.12), transparent 36%),
     linear-gradient(90deg, transparent 0 19%, rgba(182, 137, 85, 0.34) 19% 26%, transparent 26% 74%, rgba(182, 137, 85, 0.34) 74% 81%, transparent 81%),
@@ -987,11 +1050,19 @@ dialog.name-modal {
     repeating-linear-gradient(90deg, rgba(244, 234, 215, 0.04) 0 1px, transparent 1px 46px),
     repeating-linear-gradient(0deg, rgba(244, 234, 215, 0.035) 0 1px, transparent 1px 46px),
     #283f2d;
+  box-shadow:
+    inset 0 0 0 1px rgba(244, 234, 215, 0.08),
+    inset 0 -34px 42px rgba(15, 18, 25, 0.16),
+    0 8px 0 rgba(0, 0, 0, 0.14);
 }
 
 .town-yard.owned {
   border-color: var(--gold);
-  box-shadow: inset 0 0 0 2px rgba(47, 125, 225, 0.62), 0 0 0 2px #0f1219;
+  box-shadow:
+    inset 0 0 0 2px rgba(47, 125, 225, 0.62),
+    inset 0 -34px 42px rgba(15, 18, 25, 0.16),
+    0 0 0 2px #0f1219,
+    0 10px 0 rgba(0, 0, 0, 0.14);
 }
 
 .town-yard.owned .town-yard-hall img {
@@ -1191,13 +1262,15 @@ dialog.name-modal {
 .town-head {
   display: grid;
   grid-template-columns: 1fr;
+  grid-column: 1 / -1;
   gap: 8px;
   align-items: start;
   padding: 8px 9px;
   border: 2px solid rgba(87, 96, 113, 0.6);
   border-radius: 6px;
   background:
-    linear-gradient(135deg, rgba(240, 193, 91, 0.12), rgba(15, 18, 25, 0) 55%),
+    radial-gradient(circle at 14% 0%, rgba(240, 193, 91, 0.18), transparent 36%),
+    linear-gradient(135deg, rgba(240, 193, 91, 0.14), rgba(15, 18, 25, 0) 55%),
     rgba(15, 18, 25, 0.3);
 }
 
@@ -1236,7 +1309,9 @@ dialog.name-modal {
   padding: 6px 7px;
   border: 2px solid #0f1219;
   border-radius: 4px;
-  background: #151a24;
+  background:
+    linear-gradient(180deg, rgba(102, 167, 216, 0.08), rgba(21, 26, 36, 0) 58%),
+    #151a24;
 }
 
 .town-summary small {
@@ -1282,11 +1357,13 @@ dialog.name-modal {
 .town-desk {
   grid-column: 1 / -1;
   display: grid;
-  gap: 3px;
+  gap: 6px;
   padding: 7px 8px;
   border: 2px solid rgba(102, 167, 216, 0.38);
   border-radius: 6px;
-  background: rgba(21, 26, 36, 0.74);
+  background:
+    linear-gradient(180deg, rgba(102, 167, 216, 0.09), rgba(21, 26, 36, 0) 42%),
+    rgba(21, 26, 36, 0.78);
 }
 
 .town-desk strong,
@@ -1309,21 +1386,28 @@ dialog.name-modal {
   margin-right: 5px;
 }
 
+.town-claim-note {
+  padding: 7px 8px;
+  border: 2px solid rgba(240, 193, 91, 0.56);
+  border-radius: 4px;
+  color: #fff2b6;
+  background: rgba(79, 61, 18, 0.3);
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
 .town-command-rail {
   display: grid;
   align-content: start;
-  gap: 5px;
-  padding: 7px;
-  border: 2px solid rgba(87, 96, 113, 0.72);
-  border-radius: 4px;
-  background: rgba(15, 18, 25, 0.28);
+  grid-template-columns: 1fr;
+  gap: 6px;
 }
 
 .town-command-button {
   width: 100%;
-  min-height: 32px;
-  padding: 5px 7px;
-  font-size: 0.7rem;
+  min-height: 34px;
+  padding: 6px 8px;
+  font-size: 0.72rem;
 }
 
 .town-command-button.used:disabled {
@@ -1399,6 +1483,33 @@ dialog.name-modal {
   font-weight: 800;
 }
 
+.trade-feedback {
+  padding: 8px 10px;
+  border: 2px solid rgba(102, 167, 216, 0.56);
+  border-radius: 4px;
+  color: var(--ink);
+  background:
+    linear-gradient(90deg, rgba(102, 167, 216, 0.12), rgba(15, 18, 25, 0.1) 58%),
+    #10151f;
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.trade-feedback.good {
+  border-color: rgba(104, 179, 107, 0.72);
+  background:
+    linear-gradient(90deg, rgba(104, 179, 107, 0.14), rgba(15, 18, 25, 0.1) 58%),
+    #10151f;
+}
+
+.trade-feedback.warn {
+  border-color: rgba(240, 193, 91, 0.72);
+  color: #fff2b6;
+  background:
+    linear-gradient(90deg, rgba(240, 193, 91, 0.14), rgba(15, 18, 25, 0.1) 58%),
+    #10151f;
+}
+
 .trade-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1437,7 +1548,7 @@ dialog.name-modal {
 
 .trade-row {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 58px 54px;
+  grid-template-columns: 34px minmax(0, 1fr) 58px 54px;
   align-items: center;
   gap: 6px;
   min-height: 42px;
@@ -1450,18 +1561,69 @@ dialog.name-modal {
 .trade-icon {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border: 2px solid #0f1219;
   border-radius: 4px;
   color: #17120a;
   background: linear-gradient(180deg, #fff0ae, var(--gold));
   font-size: 0.76rem;
   font-weight: 900;
+  box-shadow: inset 0 0 0 1px rgba(244, 234, 215, 0.1);
 }
 
 .trade-row.artifact .trade-icon {
   background: linear-gradient(180deg, #d7c6ff, #a477d7);
+}
+
+.trade-row .trade-item-icon,
+.trade-row.artifact .trade-item-icon {
+  background-color: rgba(15, 18, 25, 0.45);
+  background-image: url("assets/caravan-item-icons.png");
+  background-repeat: no-repeat;
+  background-size: 400% 200%;
+  color: transparent;
+  image-rendering: auto;
+}
+
+.trade-row .icon-healing-draught,
+.trade-row.artifact .icon-healing-draught {
+  background-position: 0% 0%;
+}
+
+.trade-row .icon-banner-of-luck,
+.trade-row.artifact .icon-banner-of-luck {
+  background-position: 33.333% 0%;
+}
+
+.trade-row .icon-dawnwood-bow,
+.trade-row.artifact .icon-dawnwood-bow {
+  background-position: 66.667% 0%;
+}
+
+.trade-row .icon-silver-bridle,
+.trade-row.artifact .icon-silver-bridle {
+  background-position: 100% 0%;
+}
+
+.trade-row .icon-starlit-compass,
+.trade-row.artifact .icon-starlit-compass {
+  background-position: 0% 100%;
+}
+
+.trade-row .icon-forge-charm,
+.trade-row.artifact .icon-forge-charm {
+  background-position: 33.333% 100%;
+}
+
+.trade-row .icon-supply-crate,
+.trade-row.artifact .icon-supply-crate {
+  background-position: 66.667% 100%;
+}
+
+.trade-row .icon-coin-pouch,
+.trade-row.artifact .icon-coin-pouch {
+  background-position: 100% 100%;
 }
 
 .trade-item {
@@ -1515,6 +1677,191 @@ dialog.name-modal {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+dialog.notice-modal {
+  width: min(1120px, calc(100% - 20px));
+}
+
+dialog.notice-modal .modal-card {
+  border: 2px solid rgba(240, 193, 91, 0.42);
+  background:
+    radial-gradient(circle at 22% 10%, rgba(240, 193, 91, 0.13), transparent 32%),
+    linear-gradient(180deg, rgba(102, 167, 216, 0.08), rgba(31, 36, 48, 0) 34%),
+    var(--panel);
+}
+
+.notice-board-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.notice-board-art {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  overflow: hidden;
+  border: 2px solid rgba(79, 61, 18, 0.7);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 18% 50%, rgba(240, 193, 91, 0.16), transparent 32%),
+    linear-gradient(135deg, rgba(79, 61, 18, 0.32), rgba(21, 26, 36, 0.92) 58%),
+    #151a24;
+}
+
+.notice-board-art img {
+  width: 100%;
+  max-height: 145px;
+  object-fit: contain;
+  filter: drop-shadow(0 7px 0 rgba(0, 0, 0, 0.24));
+}
+
+.notice-board-art strong,
+.notice-board-art span {
+  display: block;
+}
+
+.notice-board-art strong {
+  color: #fff2b6;
+  font-size: 1.05rem;
+}
+
+.notice-board-art span {
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.notice-board-guide {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.notice-board-guide span {
+  padding: 7px 8px;
+  border: 2px solid #0f1219;
+  border-radius: 4px;
+  color: var(--muted);
+  background: #151a24;
+  font-size: 0.74rem;
+  line-height: 1.25;
+}
+
+.notice-board-guide b {
+  color: var(--gold);
+}
+
+.notice-job-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.notice-job {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  grid-template-rows: auto auto auto 1fr auto;
+  min-height: 128px;
+  padding: 12px 10px 10px;
+  border: 2px solid #0f1219;
+  border-radius: 5px;
+  color: #17120a;
+  background:
+    linear-gradient(180deg, rgba(255, 246, 200, 0.8), rgba(221, 186, 123, 0.92)),
+    #e6c984;
+  box-shadow: inset 0 0 0 1px rgba(255, 251, 222, 0.42);
+}
+
+.notice-job.ready {
+  border-color: rgba(104, 179, 107, 0.88);
+}
+
+.notice-job.active {
+  border-color: rgba(102, 167, 216, 0.78);
+}
+
+.notice-job.claimed {
+  filter: saturate(0.78) brightness(0.86);
+}
+
+.notice-pin {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #4f3d12;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #fff2b6, var(--gold) 58%, #8e5a18 60%);
+}
+
+.notice-job strong,
+.notice-job em,
+.notice-job p,
+.notice-job small {
+  display: block;
+}
+
+.notice-job strong {
+  color: #3b2a15;
+  font-size: 0.9rem;
+}
+
+.notice-job em {
+  color: #79511d;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.notice-job p {
+  margin: 0;
+  color: #24180d;
+  font-size: 0.77rem;
+  line-height: 1.25;
+}
+
+.notice-job small {
+  color: #4f3d12;
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.notice-job button {
+  align-self: end;
+  justify-self: start;
+  min-height: 30px;
+  margin-top: 4px;
+  padding: 5px 9px;
+  border-color: #4f3d12;
+  color: #17120a;
+  background: linear-gradient(180deg, #ffe49a, #d49d36);
+  font-size: 0.7rem;
+}
+
+.notice-job.ready button {
+  background: linear-gradient(180deg, #d8f0bf, #86c765);
+}
+
+.notice-job.active button {
+  color: #102033;
+  background: linear-gradient(180deg, #b8d8f2, #79aadb);
+}
+
+.notice-job button:disabled {
+  cursor: default;
+  color: rgba(23, 18, 10, 0.58);
+  background: linear-gradient(180deg, #d1bd8a, #a9884b);
+  box-shadow: none;
+  filter: none;
 }
 
 .night-wave {
@@ -1653,6 +2000,151 @@ dialog.name-modal {
 
 .night-section-note {
   font-size: 0.84rem;
+}
+
+.dawn-report {
+  gap: 14px;
+}
+
+.dawn-hero,
+.dawn-payoff-panel,
+.dawn-camp-state,
+.dawn-scouting {
+  display: grid;
+  gap: 4px;
+  padding: 11px 13px;
+  border: 2px solid rgba(79, 61, 18, 0.55);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(240, 193, 91, 0.18), rgba(255, 232, 163, 0.08) 42%, rgba(21, 26, 36, 0.94)),
+    #151a24;
+}
+
+.dawn-hero {
+  border-color: rgba(240, 193, 91, 0.62);
+  background:
+    linear-gradient(180deg, rgba(255, 226, 143, 0.28), rgba(245, 169, 64, 0.1) 35%, rgba(21, 26, 36, 0.96) 100%),
+    #151a24;
+}
+
+.dawn-hero strong,
+.dawn-payoff-panel strong,
+.dawn-camp-state strong,
+.dawn-scouting strong {
+  color: #fff2b6;
+  font-size: 0.96rem;
+}
+
+.dawn-summary-bar span {
+  border-color: rgba(79, 61, 18, 0.9);
+  background:
+    linear-gradient(180deg, rgba(255, 223, 131, 0.12), rgba(21, 26, 36, 0.96)),
+    #151a24;
+}
+
+.dawn-reward-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.dawn-reward-grid article {
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  border: 2px solid rgba(79, 61, 18, 0.5);
+  border-radius: 6px;
+  background:
+    linear-gradient(160deg, rgba(255, 221, 130, 0.12), rgba(21, 26, 36, 0.95) 72%),
+    #151a24;
+}
+
+.dawn-reward-grid small {
+  color: #bcae94;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dawn-reward-grid strong {
+  color: #fff2b6;
+  font-size: 1.05rem;
+}
+
+.dawn-reward-grid p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.79rem;
+  line-height: 1.35;
+}
+
+.boss-preview,
+.boss-aftermath {
+  display: grid;
+  gap: 12px;
+}
+
+.boss-preview-hero,
+.boss-preview-panel,
+.boss-aftermath-hero {
+  display: grid;
+  gap: 4px;
+  padding: 11px 13px;
+  border: 2px solid rgba(240, 193, 91, 0.45);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(122, 75, 181, 0.18), rgba(240, 193, 91, 0.08) 44%, rgba(21, 26, 36, 0.94)),
+    #151a24;
+}
+
+.boss-preview-hero strong,
+.boss-preview-panel strong,
+.boss-aftermath-hero strong {
+  color: #fff2b6;
+  font-size: 0.96rem;
+}
+
+.boss-preview-panel p,
+.boss-aftermath-hero p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.boss-aftermath-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.boss-aftermath-grid article {
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  border: 2px solid rgba(79, 61, 18, 0.45);
+  border-radius: 6px;
+  background:
+    linear-gradient(160deg, rgba(255, 221, 130, 0.1), rgba(21, 26, 36, 0.95) 72%),
+    #151a24;
+}
+
+.boss-aftermath-grid small {
+  color: #bcae94;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.boss-aftermath-grid strong {
+  color: #fff2b6;
+  font-size: 1.05rem;
+}
+
+.boss-aftermath-grid p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.79rem;
+  line-height: 1.35;
 }
 
 .camp-scene {
@@ -1865,8 +2357,10 @@ dialog.name-modal {
   min-width: 0;
   padding: 8px;
   border: 2px solid rgba(87, 96, 113, 0.72);
-  border-radius: 4px;
-  background: rgba(15, 18, 25, 0.28);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgba(240, 193, 91, 0.08), rgba(15, 18, 25, 0.12) 34%),
+    rgba(15, 18, 25, 0.32);
 }
 
 .town-recruit-list {
@@ -1874,10 +2368,13 @@ dialog.name-modal {
   align-content: start;
   gap: 5px;
   min-width: 0;
+  min-height: 0;
   padding: 7px;
   border: 2px solid rgba(87, 96, 113, 0.72);
-  border-radius: 4px;
-  background: rgba(15, 18, 25, 0.28);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgba(104, 179, 107, 0.08), rgba(15, 18, 25, 0.12) 38%),
+    rgba(15, 18, 25, 0.32);
 }
 
 .town-building-list > strong,
@@ -1897,16 +2394,26 @@ dialog.name-modal {
   letter-spacing: 0.02em;
 }
 
+.town-panel-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
 .town-recruit-card {
   position: relative;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
   gap: 8px;
-  align-items: center;
-  min-height: 40px;
+  align-items: start;
+  min-height: 52px;
   padding: 6px 7px;
   color: var(--ink);
-  background: #151a24;
+  background:
+    linear-gradient(135deg, rgba(244, 234, 215, 0.04), rgba(21, 26, 36, 0) 44%),
+    #151a24;
   box-shadow: none;
   text-align: left;
 }
@@ -1948,7 +2455,9 @@ dialog.name-modal {
 .town-recruit-card:disabled {
   cursor: default;
   color: rgba(244, 234, 215, 0.68);
-  background: #4a382d;
+  background:
+    linear-gradient(135deg, rgba(240, 193, 91, 0.08), rgba(21, 26, 36, 0) 42%),
+    #4a382d;
   filter: none;
 }
 
@@ -1960,6 +2469,11 @@ dialog.name-modal {
 .town-recruit-card small,
 .town-recruit-card em {
   min-width: 0;
+}
+
+.town-recruit-main {
+  display: grid;
+  gap: 3px;
 }
 
 .town-recruit-card b,
@@ -1985,6 +2499,59 @@ dialog.name-modal {
   text-align: left;
 }
 
+.town-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 1px;
+}
+
+.town-state-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 1px 6px;
+  border: 1px solid rgba(244, 234, 215, 0.2);
+  border-radius: 999px;
+  color: #f4ead7;
+  background: rgba(87, 96, 113, 0.34);
+  font-size: 0.6rem;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.town-state-badge.good {
+  border-color: rgba(104, 179, 107, 0.52);
+  color: #dff4df;
+  background: rgba(41, 88, 50, 0.72);
+}
+
+.town-state-badge.warn {
+  border-color: rgba(240, 193, 91, 0.5);
+  color: #fff2b6;
+  background: rgba(79, 61, 18, 0.72);
+}
+
+.town-state-badge.used {
+  border-color: rgba(188, 174, 148, 0.34);
+  color: rgba(244, 234, 215, 0.74);
+  background: rgba(73, 64, 51, 0.84);
+}
+
+.town-state-badge.info {
+  border-color: rgba(102, 167, 216, 0.5);
+  color: #d7ecff;
+  background: rgba(33, 63, 85, 0.76);
+}
+
+.town-state-badge.neutral {
+  border-color: rgba(244, 234, 215, 0.18);
+  color: var(--muted);
+  background: rgba(15, 18, 25, 0.56);
+}
+
 .recruit-dot {
   width: 16px;
   height: 16px;
@@ -2001,11 +2568,16 @@ dialog.name-modal {
   padding: 7px 8px;
   border: 2px solid #0f1219;
   border-radius: 4px;
-  background: #151a24;
+  background:
+    linear-gradient(135deg, rgba(244, 234, 215, 0.04), rgba(21, 26, 36, 0) 44%),
+    #151a24;
 }
 
 .town-building-card.built {
   border-color: rgba(104, 179, 107, 0.75);
+  background:
+    linear-gradient(135deg, rgba(104, 179, 107, 0.1), rgba(21, 26, 36, 0) 46%),
+    #151a24;
 }
 
 .town-building-card.used {
@@ -2015,7 +2587,9 @@ dialog.name-modal {
 
 .town-building-card.unavailable {
   border-color: rgba(240, 193, 91, 0.45);
-  background: #181d27;
+  background:
+    linear-gradient(135deg, rgba(240, 193, 91, 0.08), rgba(21, 26, 36, 0) 46%),
+    #181d27;
 }
 
 .town-building-card strong,
@@ -2024,7 +2598,7 @@ dialog.name-modal {
   display: block;
 }
 
-.town-building-card span {
+.town-building-card > div > span:last-child {
   color: var(--gold);
   font-size: 0.74rem;
   line-height: 1.12;
@@ -2032,6 +2606,7 @@ dialog.name-modal {
 
 .town-building-card p {
   margin-top: 3px;
+  margin-bottom: 3px;
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.2;
@@ -2779,7 +3354,10 @@ dialog.name-modal {
 
   .town-view,
   .town-overview,
-  .town-info {
+  .town-info,
+  .notice-board-art,
+  .notice-board-guide,
+  .notice-job-grid {
     grid-template-columns: 1fr;
   }
 }

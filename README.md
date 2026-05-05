@@ -6,8 +6,8 @@ A self-contained retro browser RPG inspired by strategic overworld exploration a
 
 Open `index.html` in a browser, or run a local static server:
 
-```powershell
-python -m http.server 4173
+```bash
+node dev-server.js
 ```
 
 Then visit `http://localhost:4173`.
