@@ -64,10 +64,18 @@
         </section>
         <section class="menu-panel" data-panel="map">
           <h2>Minimap</h2>
+          <div class="map-compass" aria-label="Map compass">
+            <span>N</span>
+            <b>Coordinates</b>
+            <em>X east, Y south</em>
+          </div>
           <canvas id="minimap" width="220" height="132" aria-label="Realm minimap"></canvas>
+          <div id="mapCoordinates" class="map-coordinates">You: 2,2</div>
           <div class="map-legend">
             <span><i class="legend-player"></i>You</span>
-            <span><i class="legend-event"></i>Event</span>
+            <span><i class="legend-target"></i>Lead</span>
+            <span><i class="legend-danger"></i>Enemy</span>
+            <span><i class="legend-event"></i>Town / loot</span>
             <span><i class="legend-done"></i>Claimed</span>
           </div>
         </section>

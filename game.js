@@ -14,6 +14,7 @@ const inventoryList = document.getElementById("inventoryList");
 const questLog = document.getElementById("questLog");
 const minimap = document.getElementById("minimap");
 const minimapCtx = minimap?.getContext("2d");
+const mapCoordinates = document.getElementById("mapCoordinates");
 const modal = document.getElementById("modal");
 const modalTitle = document.getElementById("modalTitle");
 const modalText = document.getElementById("modalText");
@@ -329,7 +330,7 @@ const nightEncounterPool = ["goblin", "basilisk", "raiders", "wyvern", "knight",
 const enemySpriteVisuals = {
   goblin: { source: "enemy", id: "goblin" },
   basilisk: { source: "enemy", id: "basilisk" },
-  raiders: { source: "enemy", id: "goblin" },
+  raiders: { source: "enemy", id: "goblin", flipInBattle: true },
   wyvern: { source: "enemy", id: "wyvern" },
   knight: { source: "enemy", id: "knight" },
   tideGuard: { source: "unit", id: "reefGuard" },
@@ -409,9 +410,10 @@ const townCommissionDefinitions = {
   dawnhavenPatrol: {
     title: "Dawnhaven Patrol",
     towns: ["Dawnhaven"],
-    objective: "Clear the Hill Bandit camp at 7,7",
+    targetKeys: ["7,7"],
+    objective: "After accepting: clear the Hill Bandit camp at 7,7",
     rewardText: "55 gold and a Healing Draught",
-    complete: () => Boolean(state.visited?.["7,7"]),
+    complete: () => questVisitedSince("dawnhavenPatrol", ["7,7"]),
     reward: () => {
       state.gold += 55;
       addInventoryItem("healingDraught", 1);
@@ -420,9 +422,11 @@ const townCommissionDefinitions = {
   dawnRoadSurvey: {
     title: "Dawn Road Survey",
     towns: ["Dawnhaven"],
-    objective: "Visit Dawnhaven Crossing and Broken Watch",
+    targetKeys: ["8,5", "18,11"],
+    requiredTargets: 2,
+    objective: "After accepting: visit Dawnhaven Crossing and Broken Watch",
     rewardText: "35 gold and 24 XP",
-    complete: () => countVisitedKeys(["8,5", "18,11"]) >= 2,
+    complete: () => questVisitedSince("dawnRoadSurvey", ["8,5", "18,11"], 2),
     reward: () => {
       state.gold += 35;
       gainXp(24);
@@ -431,30 +435,270 @@ const townCommissionDefinitions = {
   ashbellOreRun: {
     title: "Ore for the Ridge",
     towns: ["Ashbell"],
-    objective: "Claim either nearby mine before forcing Ashbell Ridge",
+    targetKeys: ["20,2", "21,9"],
+    objective: "After accepting: claim either nearby Ashbell mine",
     rewardText: "45 gold and +1 defense",
-    complete: () => countVisitedKeys(["20,2", "21,9"]) >= 1,
+    complete: () => questVisitedSince("ashbellOreRun", ["20,2", "21,9"]),
     reward: () => {
       state.gold += 45;
       state.hero.def += 1;
     },
   },
+  ashbellRidgeWarden: {
+    title: "Ridge Warden Writ",
+    towns: ["Ashbell"],
+    targetKeys: ["22,6"],
+    objective: "After accepting: defeat the Ashbell Ridge Warden at 22,6",
+    rewardText: "75 gold and 30 XP",
+    complete: () => questVisitedSince("ashbellRidgeWarden", ["22,6"]),
+    reward: () => {
+      state.gold += 75;
+      gainXp(30);
+    },
+  },
   mistfenRemedy: {
     title: "Mistfen Remedy",
     towns: ["Mistfen"],
-    objective: "Open one first-biome supply cache or shrine",
+    targetKeys: ["6,4", "12,6", "14,4"],
+    objective: "After accepting: recover one remedy from shrine or supply cache",
     rewardText: "1 Healing Draught and 20 XP",
-    complete: () => countVisitedKeys(["6,4", "12,6", "14,4"]) >= 1,
+    complete: () => questVisitedSince("mistfenRemedy", ["6,4", "12,6", "14,4"]),
     reward: () => {
       addInventoryItem("healingDraught", 1);
       gainXp(20);
     },
   },
+  mistfenFangProof: {
+    title: "Fang Proof",
+    towns: ["Mistfen"],
+    targetKeys: ["13,9"],
+    objective: "After accepting: clear the Mire Basilisk at 13,9",
+    rewardText: "65 gold and +1 morale",
+    complete: () => questVisitedSince("mistfenFangProof", ["13,9"]),
+    reward: () => {
+      state.gold += 65;
+      state.hero.morale += 1;
+    },
+  },
+  moonbarrowCompass: {
+    title: "Moonlit Compass",
+    towns: ["Moonbarrow"],
+    targetKeys: ["35,13"],
+    objective: "After accepting: recover the Starlit Compass cache at 35,13",
+    rewardText: "80 gold and 32 XP",
+    complete: () => questVisitedSince("moonbarrowCompass", ["35,13"]),
+    reward: () => {
+      state.gold += 80;
+      gainXp(32);
+    },
+  },
+  moonbarrowWingWatch: {
+    title: "Wing Watch",
+    towns: ["Moonbarrow"],
+    targetKeys: ["31,11"],
+    objective: "After accepting: drive off the Glasswing Wyvern at 31,11",
+    rewardText: "95 gold",
+    complete: () => questVisitedSince("moonbarrowWingWatch", ["31,11"]),
+    reward: () => {
+      state.gold += 95;
+    },
+  },
+  southwatchMonument: {
+    title: "Sunfall Memorial",
+    towns: ["Southwatch"],
+    targetKeys: ["41,21"],
+    objective: "After accepting: visit Sunfall Monument at 41,21",
+    rewardText: "55 gold and +1 speed",
+    complete: () => questVisitedSince("southwatchMonument", ["41,21"]),
+    reward: () => {
+      state.gold += 55;
+      state.hero.speed += 1;
+    },
+  },
+  southwatchGap: {
+    title: "Hold Sunfall Gap",
+    towns: ["Southwatch"],
+    targetKeys: ["38,24"],
+    objective: "After accepting: defeat the Sunfall Gap Raiders at 38,24",
+    rewardText: "110 gold and 28 XP",
+    complete: () => questVisitedSince("southwatchGap", ["38,24"]),
+    reward: () => {
+      state.gold += 110;
+      gainXp(28);
+    },
+  },
+  eastmereBowCache: {
+    title: "Bow Cache Escort",
+    towns: ["Eastmere"],
+    targetKeys: ["41,10"],
+    objective: "After accepting: open the guarded bow cache at 41,10",
+    rewardText: "85 gold and a Healing Draught",
+    complete: () => questVisitedSince("eastmereBowCache", ["41,10"]),
+    reward: () => {
+      state.gold += 85;
+      addInventoryItem("healingDraught", 1);
+    },
+  },
+  eastmereGlassroad: {
+    title: "Glass Road Marker",
+    towns: ["Eastmere"],
+    targetKeys: ["57,12"],
+    objective: "After accepting: visit the High March Road signpost at 57,12",
+    rewardText: "70 gold and 22 XP",
+    complete: () => questVisitedSince("eastmereGlassroad", ["57,12"]),
+    reward: () => {
+      state.gold += 70;
+      gainXp(22);
+    },
+  },
+  sunforgeRelicRun: {
+    title: "Twin Relic Run",
+    towns: ["Sunforge"],
+    targetKeys: ["48,26", "49,26"],
+    objective: "After accepting: recover either Sunforge relic at 48,26 or 49,26",
+    rewardText: "100 gold and +1 attack",
+    complete: () => questVisitedSince("sunforgeRelicRun", ["48,26", "49,26"]),
+    reward: () => {
+      state.gold += 100;
+      state.hero.atk += 1;
+    },
+  },
+  sunforgeMineQuota: {
+    title: "Forge Quota",
+    towns: ["Sunforge"],
+    targetKeys: ["42,14", "46,20", "47,27"],
+    objective: "After accepting: claim one Sunforge ore site",
+    rewardText: "75 gold and 25 XP",
+    complete: () => questVisitedSince("sunforgeMineQuota", ["42,14", "46,20", "47,27"]),
+    reward: () => {
+      state.gold += 75;
+      gainXp(25);
+    },
+  },
+  amberwatchSupply: {
+    title: "Amber Supply Vault",
+    towns: ["Amberwatch"],
+    targetKeys: ["27,23", "28,23"],
+    objective: "After accepting: open the guarded supply at 27,23 or 28,23",
+    rewardText: "90 gold and a Healing Draught",
+    complete: () => questVisitedSince("amberwatchSupply", ["27,23", "28,23"]),
+    reward: () => {
+      state.gold += 90;
+      addInventoryItem("healingDraught", 1);
+    },
+  },
+  amberwatchWarlock: {
+    title: "Ashen Road Ban",
+    towns: ["Amberwatch"],
+    targetKeys: ["51,25"],
+    objective: "After accepting: defeat the Ashen Warlock at 51,25",
+    rewardText: "125 gold",
+    complete: () => questVisitedSince("amberwatchWarlock", ["51,25"]),
+    reward: () => {
+      state.gold += 125;
+    },
+  },
+  highglassTollGuard: {
+    title: "Glassroad Toll Guard",
+    towns: ["Highglass"],
+    targetKeys: ["61,6"],
+    objective: "After accepting: break the Glassroad Toll Guard at 61,6",
+    rewardText: "130 gold and 35 XP",
+    complete: () => questVisitedSince("highglassTollGuard", ["61,6"]),
+    reward: () => {
+      state.gold += 130;
+      gainXp(35);
+    },
+  },
+  highglassWyvern: {
+    title: "Highglass Sky Hunt",
+    towns: ["Highglass"],
+    targetKeys: ["70,9"],
+    objective: "After accepting: defeat the wyvern at 70,9",
+    rewardText: "120 gold and +1 defense",
+    complete: () => questVisitedSince("highglassWyvern", ["70,9"]),
+    reward: () => {
+      state.gold += 120;
+      state.hero.def += 1;
+    },
+  },
+  greenmarchTollhouse: {
+    title: "Sunken Tollhouse",
+    towns: ["Greenmarch"],
+    targetKeys: ["67,17"],
+    objective: "After accepting: inspect the Sunken Tollhouse at 67,17",
+    rewardText: "85 gold and 30 XP",
+    complete: () => questVisitedSince("greenmarchTollhouse", ["67,17"]),
+    reward: () => {
+      state.gold += 85;
+      gainXp(30);
+    },
+  },
+  greenmarchHunt: {
+    title: "Greenmarch Hunt",
+    towns: ["Greenmarch"],
+    targetKeys: ["70,9", "59,20"],
+    objective: "After accepting: clear either nearby eastern threat",
+    rewardText: "115 gold and a Healing Draught",
+    complete: () => questVisitedSince("greenmarchHunt", ["70,9", "59,20"]),
+    reward: () => {
+      state.gold += 115;
+      addInventoryItem("healingDraught", 1);
+    },
+  },
+  starfenRelics: {
+    title: "Starfen Relic Pair",
+    towns: ["Starfen"],
+    targetKeys: ["57,36", "58,36"],
+    objective: "After accepting: recover one relic from the Starfen guarded cache",
+    rewardText: "130 gold and +1 morale",
+    complete: () => questVisitedSince("starfenRelics", ["57,36", "58,36"]),
+    reward: () => {
+      state.gold += 130;
+      state.hero.morale += 1;
+    },
+  },
+  starfenSouthRoad: {
+    title: "South Road Watch",
+    towns: ["Starfen"],
+    targetKeys: ["60,30"],
+    objective: "After accepting: visit South Road Camp at 60,30",
+    rewardText: "80 gold and 28 XP",
+    complete: () => questVisitedSince("starfenSouthRoad", ["60,30"]),
+    reward: () => {
+      state.gold += 80;
+      gainXp(28);
+    },
+  },
+  lowmarketCauseway: {
+    title: "Causeway Breaker",
+    towns: ["Lowmarket"],
+    targetKeys: ["13,36"],
+    objective: "After accepting: defeat the Lowmarket Causeway Raiders at 13,36",
+    rewardText: "125 gold and a Healing Draught",
+    complete: () => questVisitedSince("lowmarketCauseway", ["13,36"]),
+    reward: () => {
+      state.gold += 125;
+      addInventoryItem("healingDraught", 1);
+    },
+  },
+  lowmarketCairn: {
+    title: "Wayfinder Cairn",
+    towns: ["Lowmarket"],
+    targetKeys: ["33,34"],
+    objective: "After accepting: visit Wayfinder Cairn at 33,34",
+    rewardText: "90 gold and 30 XP",
+    complete: () => questVisitedSince("lowmarketCairn", ["33,34"]),
+    reward: () => {
+      state.gold += 90;
+      gainXp(30);
+    },
+  },
   groveAid: {
     title: "Grove Aid",
-    objective: "Recruit 3 creature units",
+    objective: "After accepting: recruit one new creature unit",
     rewardText: "70 gold and +1 morale",
-    complete: () => state.party.length >= 3,
+    complete: () => questPartyGainedSince("groveAid", 1),
     reward: () => {
       state.gold += 70;
       state.hero.morale += 1;
@@ -462,18 +706,18 @@ const townCommissionDefinitions = {
   },
   roadTithe: {
     title: "Road Tithe",
-    objective: "Build a Caravan Post in any town",
+    objective: "After accepting: build one new Caravan Post",
     rewardText: "90 gold",
-    complete: () => ownedTownEntries().some(([, town]) => town.buildings.includes("caravanPost")),
+    complete: () => questCaravanPostsBuiltSince("roadTithe", 1),
     reward: () => {
       state.gold += 90;
     },
   },
   musterCall: {
     title: "Muster Call",
-    objective: "Own 3 towns",
+    objective: "After accepting: bring one new town under your banner",
     rewardText: "120 gold and a Healing Draught",
-    complete: () => ownedTownEntries().length >= 3,
+    complete: () => questTownsClaimedSince("musterCall", 1),
     reward: () => {
       state.gold += 120;
       addInventoryItem("healingDraught", 1);
@@ -483,6 +727,46 @@ const townCommissionDefinitions = {
 
 function countVisitedKeys(keys) {
   return keys.filter((key) => state.visited?.[key]).length;
+}
+
+function startTownCommission(id) {
+  state.questStarts ??= {};
+  state.questStarts[id] = {
+    visited: Object.keys(state.visited || {}).filter((key) => state.visited[key]),
+    partyLength: state.party.length,
+    townCount: ownedTownEntries().length,
+    caravanPostCount: caravanPostCount(),
+  };
+}
+
+function questStart(id) {
+  return state.questStarts?.[id] || null;
+}
+
+function questVisitedSince(id, keys, required = 1) {
+  const start = questStart(id);
+  if (!start) return false;
+  const alreadyVisited = new Set(start.visited || []);
+  return keys.filter((key) => state.visited?.[key] && !alreadyVisited.has(key)).length >= required;
+}
+
+function questPartyGainedSince(id, required = 1) {
+  const start = questStart(id);
+  return Boolean(start && state.party.length - (start.partyLength || 0) >= required);
+}
+
+function questTownsClaimedSince(id, required = 1) {
+  const start = questStart(id);
+  return Boolean(start && ownedTownEntries().length - (start.townCount || 0) >= required);
+}
+
+function questCaravanPostsBuiltSince(id, required = 1) {
+  const start = questStart(id);
+  return Boolean(start && caravanPostCount() - (start.caravanPostCount || 0) >= required);
+}
+
+function caravanPostCount() {
+  return ownedTownEntries().filter(([, town]) => town.buildings.includes("caravanPost")).length;
 }
 
 const campUpgradeDefinitions = {
@@ -992,14 +1276,18 @@ const defaultState = () => ({
   },
   enemyHeroes: createDefaultEnemyHeroes(),
   quests: {},
+  questStarts: {},
   tradeLedger: [],
   campUpgrades: {},
   won: false,
   visited: {},
+  revealed: {},
   discoveredRegions: {},
   chestRolls: {},
   lastTravelPosition: null,
   scoutMarker: "",
+  activeQuest: "",
+  tutorial: {},
   nightPlan: "holdfast",
   hero: { ...heroBaseStats, nameChosen: false, skills: [] },
   startingBonus: "",
@@ -1009,6 +1297,7 @@ const defaultState = () => ({
 
 const loadedState = loadGame();
 let state = loadedState || defaultState();
+revealAroundPlayer();
 let message = "Explore the realm and build your party.";
 let modalOpen = false;
 let visual = { x: state.x, y: state.y, fromX: state.x, fromY: state.y, toX: state.x, toY: state.y, moving: false, startedAt: 0, progress: 0 };
@@ -1113,11 +1402,15 @@ function normalizeState(saved) {
   saved.campUpgrades = saved.campUpgrades && typeof saved.campUpgrades === "object" ? saved.campUpgrades : {};
   if (saved.campUpgrades.stakeTraps && saved.campUpgrades.traps == null) saved.campUpgrades.traps = true;
   delete saved.campUpgrades.stakeTraps;
+  saved.revealed = saved.revealed && typeof saved.revealed === "object" ? saved.revealed : {};
   saved.discoveredRegions = saved.discoveredRegions && typeof saved.discoveredRegions === "object" ? saved.discoveredRegions : {};
   saved.scoutMarker = typeof saved.scoutMarker === "string" ? saved.scoutMarker : "";
+  saved.activeQuest = typeof saved.activeQuest === "string" ? saved.activeQuest : "";
+  saved.tutorial = saved.tutorial && typeof saved.tutorial === "object" ? saved.tutorial : {};
   saved.nightPlan = nightPlanDefinitions[saved.nightPlan] ? saved.nightPlan : "holdfast";
   saved.enemyHeroes = normalizeEnemyHeroes(saved.enemyHeroes);
   saved.quests = saved.quests && typeof saved.quests === "object" ? saved.quests : {};
+  saved.questStarts = saved.questStarts && typeof saved.questStarts === "object" ? saved.questStarts : {};
   saved.startingBonus ??= saved.hero?.nameChosen ? "legacy" : "";
   saved.hero = { ...heroBaseStats, ...saved.hero, nameChosen: saved.hero.nameChosen ?? Boolean(saved.hero.name && saved.hero.name !== heroBaseStats.name), skills: saved.hero.skills || [] };
   saved.party = Array.isArray(saved.party) ? saved.party.filter((unit, index, party) => unit?.id && creatureBook[unit.id] && party.findIndex((candidate) => candidate?.id === unit.id) === index).slice(0, MAX_PARTY_UNITS) : [makeCreature("leafFox")];
@@ -1176,6 +1469,7 @@ function saveGame() {
 
 function resetGame() {
   state = defaultState();
+  revealAroundPlayer();
   visual = { x: state.x, y: state.y, fromX: state.x, fromY: state.y, toX: state.x, toY: state.y, moving: false, startedAt: 0, progress: 0 };
   terrainCache = null;
   camera = { x: 0, y: 0, originX: 0, originY: 0, key: "" };
@@ -1204,10 +1498,10 @@ function showSnackbar(text, type = snackbarTypeForMessage(text)) {
   if (!snackbarStack || !text || !type) return;
   syncSnackbarHost();
   const now = performance.now();
-  if (text === lastSnackbarText && now - lastSnackbarAt < 900) return;
+  if (text === lastSnackbarText && now - lastSnackbarAt < 2000) return;
   lastSnackbarText = text;
   lastSnackbarAt = now;
-  while (snackbarStack.children.length >= 3) snackbarStack.firstElementChild?.remove();
+  while (snackbarStack.children.length >= 2) snackbarStack.firstElementChild?.remove();
   const toast = document.createElement("div");
   toast.className = `snackbar ${type}`;
   toast.innerHTML = `<i aria-hidden="true"></i><span>${escapeHtml(text)}</span>`;
@@ -1228,9 +1522,10 @@ function syncSnackbarHost() {
 
 function snackbarTypeForMessage(text) {
   const value = String(text).toLowerCase();
-  if (/(defeat|cannot|blocked|requires|costs|need |not enough|still guards|still holds|impassable|sealed)/.test(value)) return "warn";
-  if (/(victory|learned|found|gained|reward|restores|built|claimed|accepted|completed|complete\.|recruits|upgrades|equips|unequipped|defeated|falls|clear|open|yields|joins|leaves the party|game saved|fresh campaign)/.test(value)) return "good";
-  if (/(dusk falls|night plan set|dawn breaks|marked on the overworld|scout marker|challenge the black gate)/.test(value)) return "info";
+  if (/(victory|learned|gained \d|reward:|built|claimed|completed|complete\.|recruits|upgrades|equips|unequipped|defeated|falls|cleared|is clear|is open|joins the party|leaves the party)/.test(value)) return "good";
+  if (/found .*(gold|draught|relic|banner|bow|charm|bridle|compass)/.test(value)) return "good";
+  if (/(defeat|cannot|blocked|requires|costs|not enough|still guards|still holds|impassable|sealed)/.test(value)) return "warn";
+  if (/(dusk falls|dawn breaks)/.test(value)) return "info";
   return "";
 }
 
@@ -1363,6 +1658,110 @@ function scheduleMusicBeat() {
       tempo: 0.27,
       delay: 300,
       sectionLength: 32,
+    },
+    victory: {
+      variations: [
+        [330, 392, 494, 659, 587, 523, 494, 392, 440, 523, 659, 784, 740, 659, 587, 523, 494, 587, 659, 880, 784, 740, 659, 587, 523, 494, 440, 523, 587, 659, 587, 523],
+        [392, 494, 587, 784, 740, 659, 587, 494, 523, 659, 784, 988, 880, 784, 740, 659, 587, 659, 784, 1047, 988, 880, 784, 740, 659, 587, 523, 659, 740, 784, 740, 659],
+      ],
+      bass: [98, 98, 147, 147, 123, 123, 196, 147, 110, 110, 165, 165, 147, 196, 165, 123, 98, 98, 147, 147, 165, 165, 196, 165, 123, 123, 165, 165, 147, 196, 165, 147],
+      tempo: 0.24,
+      delay: 255,
+      sectionLength: 32,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "victory",
+    },
+    "modal:town": {
+      variations: [
+        [330, 392, 440, 523, 494, 440, 392, 330, 349, 440, 494, 587, 523, 494, 440, 392, 330, 392, 523, 659, 587, 523, 494, 440],
+        [392, 440, 523, 587, 659, 587, 523, 440, 392, 494, 587, 659, 740, 659, 587, 494, 440, 523, 659, 784, 740, 659, 587, 523],
+      ],
+      bass: [82, 82, 123, 123, 110, 110, 147, 123, 98, 98, 147, 147, 123, 165, 147, 123, 82, 82, 123, 123, 147, 147, 165, 147],
+      tempo: 0.26,
+      delay: 280,
+      sectionLength: 24,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "town",
+    },
+    "modal:shop": {
+      variations: [
+        [392, 494, 587, 494, 659, 587, 494, 392, 440, 523, 659, 523, 740, 659, 523, 440],
+        [330, 392, 494, 392, 587, 494, 392, 330, 349, 440, 523, 440, 659, 587, 523, 440],
+      ],
+      bass: [98, 147, 98, 165, 110, 165, 110, 196, 98, 147, 98, 165, 123, 185, 123, 196],
+      tempo: 0.18,
+      delay: 190,
+      sectionLength: 16,
+      wave: "square",
+      accentWave: "triangle",
+      drumStyle: "shop",
+    },
+    "modal:notice": {
+      variations: [
+        [247, 294, 349, 440, 392, 349, 294, 247, 262, 330, 392, 494, 440, 392, 330, 262],
+        [220, 277, 330, 415, 392, 330, 277, 220, 247, 294, 370, 440, 415, 370, 294, 247],
+      ],
+      bass: [55, 55, 82, 82, 73, 73, 110, 82, 62, 62, 92, 92, 82, 123, 92, 73],
+      tempo: 0.24,
+      delay: 255,
+      sectionLength: 16,
+      wave: "sine",
+      accentWave: "triangle",
+      drumStyle: "notice",
+    },
+    "modal:barracks": {
+      variations: [
+        [196, 247, 294, 349, 330, 294, 247, 220, 196, 247, 294, 392, 349, 330, 294, 247],
+        [220, 262, 330, 392, 370, 330, 294, 262, 247, 294, 349, 440, 392, 349, 330, 294],
+      ],
+      bass: [49, 49, 73, 73, 65, 65, 98, 73, 55, 55, 82, 82, 73, 98, 82, 65],
+      tempo: 0.24,
+      delay: 255,
+      sectionLength: 16,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "barracks",
+    },
+    "modal:night": {
+      variations: [
+        [165, 220, 247, 330, 294, 247, 220, 165, 196, 247, 294, 392, 330, 294, 247, 196],
+        [147, 196, 247, 294, 330, 294, 247, 196, 165, 220, 277, 330, 392, 330, 277, 220],
+      ],
+      bass: [41, 41, 62, 62, 55, 55, 82, 62, 46, 46, 69, 69, 62, 92, 69, 55],
+      tempo: 0.3,
+      delay: 320,
+      sectionLength: 16,
+      wave: "sine",
+      accentWave: "triangle",
+      drumStyle: "modalNight",
+    },
+    "modal:level": {
+      variations: [
+        [523, 659, 784, 1047, 988, 880, 784, 659, 587, 740, 880, 1175, 1047, 988, 880, 784],
+        [392, 523, 659, 784, 880, 784, 659, 523, 440, 587, 740, 880, 988, 880, 740, 587],
+      ],
+      bass: [98, 98, 147, 147, 123, 123, 196, 147, 110, 110, 165, 165, 147, 196, 165, 123],
+      tempo: 0.2,
+      delay: 210,
+      sectionLength: 16,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "level",
+    },
+    "modal:story": {
+      variations: [
+        [294, 349, 392, 494, 440, 392, 349, 294, 330, 392, 440, 523, 494, 440, 392, 330],
+        [262, 330, 392, 440, 523, 494, 440, 392, 294, 349, 440, 494, 587, 523, 494, 440],
+      ],
+      bass: [65, 65, 98, 98, 82, 82, 123, 98, 73, 73, 110, 110, 98, 147, 110, 82],
+      tempo: 0.28,
+      delay: 300,
+      sectionLength: 16,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "story",
     },
     battle: {
       variations: [
@@ -1531,27 +1930,87 @@ function scheduleMusicBeat() {
   const root = pattern.bass[Math.floor(musicStep / 2) % pattern.bass.length];
   const field = mode.startsWith("field");
   const battle = mode.startsWith("battle");
+  const modalMusic = mode.startsWith("modal:");
   const night = mode === "night";
+  const victory = mode === "victory";
   const leadWave = pattern.wave || (battle ? "square" : field ? "sawtooth" : "triangle");
   const accentWave = pattern.accentWave || (battle ? "sawtooth" : "triangle");
-  playTone(note, pattern.tempo, leadWave, battle ? 0.075 : field ? 0.047 : 0.052, musicGain);
+  playTone(note, pattern.tempo, leadWave, battle ? 0.075 : modalMusic ? 0.044 : field ? 0.047 : 0.052, musicGain);
   if (field && musicStep % 4 === 0) playTone(note * 2, 0.09, accentWave, 0.026, musicGain);
   if (field && [7, 15, 23, 31].includes(stepInSection)) playTone(note * (pattern.drumStyle === "low" ? 1.25 : 1.5), 0.11, accentWave, 0.024, musicGain);
   if (field && [12, 28].includes(stepInSection)) playTone(note * 0.75, 0.16, pattern.drumStyle === "gate" ? "sine" : "triangle", 0.022, musicGain);
+  if (modalMusic && musicStep % 4 === 0) playTone(note * (pattern.drumStyle === "shop" ? 2 : 1.5), 0.08, accentWave, 0.022, musicGain);
+  if (modalMusic && [6, 14].includes(stepInSection)) playTone(note * 0.75, 0.12, pattern.drumStyle === "notice" ? "sine" : "triangle", 0.018, musicGain);
   if (battle && musicStep % 4 === 1) playTone(note * 2, 0.055, accentWave, 0.036, musicGain);
   if (battle && [6, 14].includes(stepInSection)) playTone(note * 1.5, 0.075, pattern.drumStyle === "arcane" ? "sine" : "sawtooth", 0.032, musicGain);
   if (night && musicStep % 8 === 5) playTone(note * 1.5, 0.12, "sine", 0.028, musicGain);
   if (night && [10, 26].includes(stepInSection)) playTone(note * 2, 0.16, "triangle", 0.02, musicGain);
-  if (musicStep % 2 === 0) playTone(root, pattern.tempo + 0.08, pattern.drumStyle === "high" ? "square" : "sine", battle ? 0.135 : field ? 0.105 : 0.095, musicGain);
+  if (musicStep % 2 === 0) playTone(root, pattern.tempo + 0.08, pattern.drumStyle === "high" ? "square" : "sine", battle ? 0.135 : modalMusic ? 0.072 : field ? 0.105 : 0.095, musicGain);
   if (field && musicStep % 4 === 2) playTone(root / 2, 0.12, pattern.drumStyle === "gate" ? "sine" : "triangle", pattern.drumStyle === "light" ? 0.045 : 0.07, musicGain);
   if (battle && musicStep % 4 === 2) playTone(pattern.drumStyle === "boss" ? 37 : 55, 0.09, "sawtooth", pattern.drumStyle === "arcane" ? 0.075 : 0.11, musicGain);
-  if (mode !== "battle" && !field && musicStep % 8 === 6) playTone(note * 1.5, 0.14, "sine", 0.035, musicGain);
+  if (mode !== "battle" && !field && !modalMusic && musicStep % 8 === 6) playTone(note * 1.5, 0.14, "sine", 0.035, musicGain);
   if (sectionLength > 16 && [15, 31].includes(stepInSection)) playTone(root * 2, 0.18, battle ? "square" : "triangle", battle ? 0.03 : 0.024, musicGain);
+  playMusicArrangement(mode, pattern, { note, root, step: musicStep, beat: stepInSection, field, battle, modalMusic, night, victory });
   if (field) playFieldDrums(musicStep, pattern.drumStyle || "road");
+  if (modalMusic) playModalDrums(musicStep, pattern.drumStyle || "story");
   if (mode === "night") playNightDrums(musicStep);
+  if (victory) playVictoryDrums(musicStep);
   if (battle) playBattleDrums(musicStep, pattern.drumStyle || "march");
   musicStep += 1;
   musicTimer = window.setTimeout(scheduleMusicBeat, pattern.delay);
+}
+
+function playChord(root, ratios, duration, wave, volume) {
+  ratios.forEach((ratio, index) => {
+    window.setTimeout(() => playTone(root * ratio, duration, wave, volume, musicGain), index * 18);
+  });
+}
+
+function chordRatiosForStyle(style = "road") {
+  if (["low", "gate", "nightBattle", "boss"].includes(style)) return [1, 1.189, 1.498];
+  if (style === "arcane") return [1, 1.26, 1.414, 1.782];
+  if (style === "victory" || style === "light" || style === "high") return [1, 1.26, 1.5, 2];
+  return [1, 1.25, 1.5];
+}
+
+function playMusicArrangement(mode, pattern, context) {
+  const { note, root, step, beat, field, battle, modalMusic, night, victory } = context;
+  const style = pattern.drumStyle || "road";
+  if (field) {
+    if (beat % 8 === 0) playChord(root * 2, chordRatiosForStyle(style), 0.44, style === "gate" ? "sine" : "triangle", style === "light" ? 0.012 : 0.015);
+    if ([2, 6, 10, 14].includes(beat)) playTone(note * (style === "low" || style === "gate" ? 0.5 : 1.5), 0.08, style === "high" ? "square" : "sine", 0.018, musicGain);
+    if (style === "wild" && [5, 13].includes(beat)) playTone(note * 0.75, 0.11, "sawtooth", 0.023, musicGain);
+    if (style === "gate" && beat === 0) playTone(root / 2, 0.62, "sine", 0.055, musicGain);
+    return;
+  }
+  if (night) {
+    if ([0, 16].includes(beat)) playChord(root * 2, chordRatiosForStyle("gate"), 0.62, "sine", 0.014);
+    if ([3, 11, 19, 27].includes(beat)) playTone(note * 2, 0.12, "sine", 0.021, musicGain);
+    if (step % 16 === 8) playTone(root / 2, 0.8, "triangle", 0.045, musicGain);
+    return;
+  }
+  if (modalMusic) {
+    if (beat % 8 === 0) playChord(root * (style === "shop" ? 2 : 1.5), chordRatiosForStyle(style), style === "notice" ? 0.54 : 0.34, style === "shop" ? "square" : "triangle", style === "barracks" ? 0.018 : 0.014);
+    if (["town", "story"].includes(style) && [3, 11].includes(beat)) playTone(note * 2, 0.1, "sine", 0.018, musicGain);
+    if (style === "shop" && [1, 5, 9, 13].includes(beat)) playTone(note * 1.25, 0.045, "square", 0.018, musicGain);
+    if (style === "notice" && [4, 12].includes(beat)) playTone(root * 3, 0.16, "triangle", 0.017, musicGain);
+    if (style === "barracks" && [2, 6, 10, 14].includes(beat)) playTone(root, 0.055, "square", 0.038, musicGain);
+    if (style === "level" && [0, 4, 8, 12].includes(beat)) playChord(root * 2, [1, 1.26, 1.5, 2], 0.2, "triangle", 0.018);
+    if (style === "modalNight" && step % 16 === 8) playTone(root / 2, 0.72, "sine", 0.045, musicGain);
+    return;
+  }
+  if (victory) {
+    if (beat % 8 === 0) playChord(root * 2, chordRatiosForStyle("victory"), 0.52, "triangle", 0.019);
+    if ([4, 12, 20, 28].includes(beat)) playTone(note * 2, 0.1, "sine", 0.03, musicGain);
+    if ([15, 31].includes(beat)) playChord(root * 4, [1, 1.26, 1.5], 0.22, "square", 0.012);
+    return;
+  }
+  if (battle) {
+    if (beat % 8 === 0) playChord(root, chordRatiosForStyle(style), style === "boss" ? 0.34 : 0.24, style === "arcane" ? "sine" : "sawtooth", style === "boss" ? 0.025 : 0.017);
+    if ([1, 5, 9, 13].includes(beat)) playTone(note * 0.5, 0.06, "square", 0.026, musicGain);
+    if (style === "arcane" && [3, 7, 11, 15].includes(beat)) playTone(note * 2.5, 0.08, "sine", 0.025, musicGain);
+    if (style === "boss" && beat === 0) playTone(root / 2, 0.5, "sawtooth", 0.07, musicGain);
+  }
 }
 
 function playFieldDrums(step, style = "road") {
@@ -1609,6 +2068,48 @@ function playNightDrums(step) {
   if (step % 2 === 1) playNoise(0.02, 0.01, musicGain, 3400, "highpass");
 }
 
+function playModalDrums(step, style = "story") {
+  const beat = step % 16;
+  if (style === "shop") {
+    if ([0, 4, 8, 12].includes(beat)) playTone(156, 0.035, "triangle", 0.045, musicGain);
+    if ([2, 6, 10, 14].includes(beat)) playTone(2349, 0.014, "sine", 0.012, musicGain);
+    if ([7, 15].includes(beat)) playNoise(0.018, 0.012, musicGain, 5200, "highpass");
+    return;
+  }
+  if (style === "notice") {
+    if ([0, 8].includes(beat)) playTone(62, 0.09, "sine", 0.058, musicGain);
+    if ([5, 13].includes(beat)) playNoise(0.045, 0.022, musicGain, 760, "bandpass");
+    if ([3, 11].includes(beat)) playTone(988, 0.04, "triangle", 0.013, musicGain);
+    return;
+  }
+  if (style === "barracks") {
+    if ([0, 8].includes(beat)) playTone(49, 0.09, "triangle", 0.062, musicGain);
+    if ([4, 12].includes(beat)) playNoise(0.022, 0.012, musicGain, 3200, "highpass");
+    if ([7, 15].includes(beat)) playTone(587, 0.045, "sine", 0.012, musicGain);
+    return;
+  }
+  if (style === "town") {
+    if ([0, 8].includes(beat)) playTone(82, 0.07, "triangle", 0.06, musicGain);
+    if ([4, 12].includes(beat)) playNoise(0.032, 0.018, musicGain, 3200, "highpass");
+    if ([3, 7, 11, 15].includes(beat)) playTone(1568, 0.022, "sine", 0.012, musicGain);
+    return;
+  }
+  if (style === "level") {
+    if ([0, 8].includes(beat)) playTone(98, 0.06, "triangle", 0.072, musicGain);
+    if ([4, 12].includes(beat)) playNoise(0.032, 0.018, musicGain, 5200, "highpass");
+    if ([2, 6, 10, 14].includes(beat)) playTone(1976, 0.02, "sine", 0.018, musicGain);
+    return;
+  }
+  if (style === "modalNight") {
+    if ([0, 8].includes(beat)) playTone(41, 0.12, "sine", 0.08, musicGain);
+    if ([5, 12].includes(beat)) playNoise(0.058, 0.024, musicGain, 420, "bandpass");
+    if ([3, 11].includes(beat)) playTone(130, 0.035, "triangle", 0.014, musicGain);
+    return;
+  }
+  if ([0, 8].includes(beat)) playTone(65, 0.07, "triangle", 0.055, musicGain);
+  if ([4, 12].includes(beat)) playNoise(0.028, 0.014, musicGain, 3600, "highpass");
+}
+
 function playBattleDrums(step, style = "march") {
   const beat = step % 16;
   if (style === "stomp") {
@@ -1656,10 +2157,43 @@ function playBattleDrums(step, style = "march") {
   if ([2, 6, 10, 14].includes(beat)) playTone(2200, 0.018, "square", 0.013, musicGain);
 }
 
+function playVictoryDrums(step) {
+  const beat = step % 16;
+  if ([0, 8].includes(beat)) {
+    playTone(65, 0.08, "triangle", 0.085, musicGain);
+    playTone(131, 0.04, "sine", 0.04, musicGain);
+  }
+  if ([4, 12].includes(beat)) playNoise(0.045, 0.025, musicGain, 4200, "highpass");
+  if ([3, 7, 11, 15].includes(beat)) playTone(1976, 0.03, "sine", 0.018, musicGain);
+}
+
 function currentMusicMode() {
   if (activeBattle) return currentBattleMusicMode();
+  if (state.won) return "victory";
+  const modalMode = currentModalMusicMode();
+  if (modalMode) return modalMode;
   if (activeNight || state.nightReady) return "night";
   return `field:${currentRegionId()}`;
+}
+
+function currentModalMusicMode() {
+  if (!modal?.open) return "";
+  if (modal.classList.contains("trade-modal")) return "modal:shop";
+  if (modal.classList.contains("notice-modal")) return "modal:notice";
+  if (modal.classList.contains("barracks-modal")) return "modal:barracks";
+  if (modal.classList.contains("town-modal")) return "modal:town";
+  if (modal.classList.contains("night-modal")) return "modal:night";
+  if (modal.classList.contains("level-up-modal")) return "modal:level";
+  if (modal.classList.contains("name-modal") || modal.classList.contains("boss-preview-modal") || modal.classList.contains("boss-aftermath-modal")) return "modal:story";
+  return modalOpen ? "modal:story" : "";
+}
+
+function refreshMusicMode() {
+  if (!musicEnabled || !musicGain || !audioContext) return;
+  const mode = currentMusicMode();
+  if (mode === musicMode) return;
+  musicMode = mode;
+  musicStep = 0;
 }
 
 function currentBattleMusicMode() {
@@ -1827,28 +2361,67 @@ function move(dx, dy) {
   const oy = state.y;
   const nx = state.x + dx;
   const ny = state.y + dy;
+  facing = dx < 0 ? "left" : dx > 0 ? "right" : dy < 0 ? "up" : "down";
   if (isBlocked(nx, ny)) {
     setMessage("Impassable terrain blocks the route.");
+    renderMinimap();
     return;
   }
   if (blocksBiomePassageMove(ox, oy, nx, ny)) {
     setMessage(`${blockingBiomePassageName(ox, oy, nx, ny)} is guarded. Defeat the pass guardian before crossing this biome boundary.`);
+    renderMinimap();
     return;
   }
   if (nx === finalFortressAnchor.x && ny === finalFortressAnchor.y && !finalGateCleared()) {
     setMessage("The mountain pass is still guarded. Defeat the warden in the gap before entering the fortress.");
+    renderMinimap();
     return;
   }
-  facing = dx < 0 ? "left" : dx > 0 ? "right" : dy < 0 ? "up" : "down";
   state.lastTravelPosition = { x: ox, y: oy };
   state.x = nx;
   state.y = ny;
+  revealAroundPlayer();
   state.steps = (state.steps || 0) + 1;
   advanceDayProgress();
   recoverParty(1);
   playSfx("step");
   startMoveAnimation(ox, oy, nx, ny);
   renderAll();
+}
+
+function tileKey(x, y) {
+  return `${x},${y}`;
+}
+
+function revealAroundPlayer(radius = 4) {
+  state.revealed ??= {};
+  revealAround(state.x, state.y, radius);
+  revealAround(state.x, state.y, radius + 2, { roadsOnly: true });
+  state.revealed[tileKey(state.x, state.y)] = true;
+}
+
+function revealAround(cx, cy, radius, options = {}) {
+  for (let y = cy - radius; y <= cy + radius; y += 1) {
+    for (let x = cx - radius; x <= cx + radius; x += 1) {
+      if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
+      const dx = Math.abs(x - cx);
+      const dy = Math.abs(y - cy);
+      if (Math.max(dx, dy) > radius) continue;
+      if (dx + dy > radius + 2) continue;
+      if (options.roadsOnly && map[y]?.[x] !== "R") continue;
+      state.revealed[tileKey(x, y)] = true;
+    }
+  }
+}
+
+function isTileRevealed(x, y) {
+  return Boolean(state.revealed?.[tileKey(x, y)]);
+}
+
+function isTileCurrentlyVisible(x, y, radius = 4) {
+  const dx = Math.abs(x - state.x);
+  const dy = Math.abs(y - state.y);
+  return Math.max(dx, dy) <= radius && dx + dy <= radius + 2;
 }
 
 function advanceDayProgress() {
@@ -2785,16 +3358,37 @@ function landmarkMarkup(event, rewardText, firstVisit) {
     shrine: "Daylight Blessing",
   }[event.landmark] || "Road Moment";
   const effect = rewardText || (firstVisit ? "No supplies here, but the place is now marked on your route." : "Already marked and searched.");
+  const lead = landmarkLeadText(event, firstVisit);
   return `
     <div class="landmark-card">
-      <strong>${escapeHtml(event.title || "Landmark")}</strong>
-      <p>${escapeHtml(landmarkFlavor(event))}</p>
-      <div class="landmark-payoff">
-        <small>${escapeHtml(typeLabel)}</small>
-        <span>${escapeHtml(effect)}</span>
+      <div class="landmark-hero ${event.landmark || "road"}">
+        <span aria-hidden="true"></span>
+        <div>
+          <strong>${escapeHtml(event.title || "Landmark")}</strong>
+          <p>${escapeHtml(landmarkFlavor(event))}</p>
+        </div>
+      </div>
+      <div class="landmark-payoff-grid">
+        <div class="landmark-payoff">
+          <small>${escapeHtml(typeLabel)}</small>
+          <span>${escapeHtml(effect)}</span>
+        </div>
+        <div class="landmark-payoff lead">
+          <small>Route Lead</small>
+          <span>${escapeHtml(lead)}</span>
+        </div>
       </div>
     </div>
   `;
+}
+
+function landmarkLeadText(event, firstVisit) {
+  if (event.landmark === "shrine" && event.hint) return event.hint;
+  if (event.landmark === "signpost") return scoutingHintText();
+  if (event.landmark === "camp") return firstVisit ? "The recovered warmth makes the next nearby fight safer." : "The camp is mapped; nearby travel stays familiar.";
+  if (event.landmark === "ruins") return "Old stores usually sit near contested roads. Check nearby guarded caches.";
+  if (event.landmark === "statue") return "The monument marks a route worth holding for the final fortress march.";
+  return campaignMainObjective();
 }
 
 function townClaimCost(event) {
@@ -2895,9 +3489,19 @@ function townNoticeEntries(key, event) {
   const general = [];
   Object.entries(townCommissionDefinitions).forEach(([id, quest]) => {
     if (quest.towns && !quest.towns.includes(event.name) && !quest.towns.includes(key) && !quest.towns.includes(event.faction)) return;
+    if (!townCommissionAvailable(id, quest)) return;
     (quest.towns ? local : general).push([id, quest]);
   });
   return [...local, ...general].slice(0, 5);
+}
+
+function townCommissionAvailable(id, quest) {
+  const status = state.quests?.[id] || "new";
+  if (status !== "new") return true;
+  const targets = quest.targetKeys || [];
+  if (!targets.length) return true;
+  const required = quest.requiredTargets || 1;
+  return countVisitedKeys(targets) <= targets.length - required;
 }
 
 function townNoticeBoardMarkup(event, entries) {
@@ -2908,7 +3512,7 @@ function townNoticeBoardMarkup(event, entries) {
     const tone = claimed ? "claimed" : ready ? "ready" : status === "accepted" ? "active" : "new";
     const label = claimed ? "Complete" : ready ? "Reward ready" : status === "accepted" ? "In progress" : "Available";
     const action = claimed ? "Already paid." : ready ? "Claim this reward now." : status === "accepted" ? "Tracked in your quest log." : "Accept this job now.";
-    const buttonLabel = claimed ? "Done" : ready ? "Claim Reward" : status === "accepted" ? "View Objective" : "Accept Job";
+    const buttonLabel = claimed ? "Done" : ready ? "Claim Reward" : "Accept Job";
     const actionControl = status === "accepted" && !ready
       ? `<span class="notice-job-pill">Tracked in Quest Log</span>`
       : `<button type="button" data-notice-job="${id}"${claimed ? " disabled" : ""}>${buttonLabel}</button>`;
@@ -2952,6 +3556,7 @@ function handleTownCommissionAction(key, event, id) {
   const quest = townCommissionDefinitions[id];
   if (!quest) return;
   const status = state.quests?.[id] || "new";
+  if (status === "accepted" && !questStart(id)) startTownCommission(id);
   const ready = status === "accepted" && quest.complete();
   const claimed = status === "claimed";
   if (claimed) {
@@ -2973,6 +3578,7 @@ function handleTownCommissionAction(key, event, id) {
     return;
   }
   state.quests[id] = "accepted";
+  startTownCommission(id);
   setMessage(`${quest.title} accepted: ${quest.objective}.`);
   renderAll();
   reopenTownNoticeBoard(key, event);
@@ -3093,12 +3699,14 @@ function townModalMarkup(key, event, town, creature, cost, ownsCreature) {
           </div>
           <div class="town-desk town-panel">
             <strong>Town Command</strong>
-            <span class="town-desk-line"><b>Control</b> ${owner}. ${town.owner === "player" ? "Your banner holds the square." : "The square is still neutral."}</span>
-            <span class="town-desk-line"><b>Faction Perk</b> ${faction.perk}</span>
-            <span class="town-desk-line"><b>Barracks</b> ${town.buildings.includes("barracks") ? `${faction.name} roster ready. Enter Barracks to recruit or train units.` : `Build Barracks to unlock the full ${faction.name} roster.`}</span>
-            <span class="town-desk-line"><b>Local Unit</b> ${creature.name}${ownsCreature ? " already marches with you." : ` can join for ${cost} gold.`}</span>
-            <span class="town-desk-line"><b>Built</b> ${builtNames}</span>
-            <span class="town-desk-line"><b>Focus</b> Built plots act immediately. Empty owned plots show build-now costs in the square.</span>
+            ${townNowMarkup(key, event, town, creature, cost, ownsCreature)}
+            <details class="town-detail-drawer">
+              <summary>Town details</summary>
+              <span class="town-desk-line"><b>Control</b> ${owner}. ${town.owner === "player" ? "Your banner holds the square." : "The square is still neutral."}</span>
+              <span class="town-desk-line"><b>Faction Perk</b> ${faction.perk}</span>
+              <span class="town-desk-line"><b>Barracks</b> ${town.buildings.includes("barracks") ? `${faction.name} roster ready.` : `Build Barracks to unlock the full ${faction.name} roster.`}</span>
+              <span class="town-desk-line"><b>Built</b> ${builtNames}</span>
+            </details>
             ${town.owner === "player" ? townCommandRailMarkup(key, event, town) : `<div class="town-claim-note">Claim ${event.name} before issuing town orders, building, or training units.</div>`}
             <div id="townFeedback" class="town-feedback">Select a building plot to inspect it. Built plots act immediately, and empty owned plots can be purchased from the square.</div>
           </div>
@@ -3111,6 +3719,44 @@ function townModalMarkup(key, event, town, creature, cost, ownsCreature) {
       </div>
     </div>
   `;
+}
+
+function townNowMarkup(key, event, town, creature, cost, ownsCreature) {
+  const rows = townNowRows(key, event, town, creature, cost, ownsCreature).slice(0, 5);
+  return `
+    <div class="town-now-panel">
+      <span class="town-now-title">Available now</span>
+      <div class="town-now-list">
+        ${rows.map((row) => townNowChipMarkup(row)).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function townNowChipMarkup(row) {
+  const content = `<b>${escapeHtml(row.label)}</b><small>${escapeHtml(row.text)}</small>`;
+  if (!row.action) return `<span class="town-now-chip ${row.tone} passive">${content}</span>`;
+  return `<button type="button" class="town-now-chip ${row.tone}" data-town-now="${escapeHtml(row.action)}"${row.target ? ` data-town-now-target="${escapeHtml(row.target)}"` : ""}>${content}</button>`;
+}
+
+function townNowRows(key, event, town, creature, cost, ownsCreature) {
+  if (town.owner !== "player") return [{ label: "Claim town", text: `${townClaimCost(event)} gold or fight the guard`, tone: "warn", action: "claim" }];
+  const rows = [];
+  Object.entries(townBuildingDefinitions).forEach(([id, building]) => {
+    const built = town.buildings.includes(id);
+    const used = isTownActionUsed(town, id) && id !== "caravanPost";
+    const price = townBuildingCost(building);
+    if (built && !used) rows.push({ label: id === "caravanPost" ? "Shop open" : `${building.name} ready`, text: id === "barracks" ? "Enter roster modal" : building.text, tone: "good", action: "building", target: id });
+    if (!built && state.gold >= price) rows.push({ label: `Build ${building.name}`, text: `${price} gold`, tone: "good", action: "building", target: id });
+  });
+  const actionId = townFactionActionId(event);
+  rows.push(isTownActionUsed(town, actionId)
+    ? { label: "Faction order used", text: "Ready again tomorrow", tone: "used" }
+    : { label: townFactionActionLabel(event), text: townFactionActionDescription(event), tone: "info", action: "faction" });
+  if (!ownsCreature && state.gold >= cost) rows.push({ label: `Recruit ${creature.name}`, text: `${cost} gold`, tone: "good", action: "recruit", target: creature.id });
+  if (!town.buildings.includes("barracks")) rows.push({ label: "Roster locked", text: "Build Barracks for full recruits", tone: "warn" });
+  if (!rows.length) rows.push({ label: "Town stable", text: "Check details or come back tomorrow", tone: "used" });
+  return rows.sort((a, b) => ({ good: 0, info: 1, warn: 2, used: 3 }[a.tone] - { good: 0, info: 1, warn: 2, used: 3 }[b.tone]));
 }
 
 function townCommandRailMarkup(key, event, town) {
@@ -3163,6 +3809,107 @@ function scoutingHintText() {
       ? `${target.event.name}, an unclaimed town`
       : "an active outpost";
   return `Scouts mark ${label} at ${target.x},${target.y}.`;
+}
+
+const npcQuestTargets = {
+  elder: { new: "5,3", accepted: "5,6" },
+  ranger: { new: "18,7", accepted: "7,7" },
+  archivist: { new: "39,14", accepted: "11,2" },
+  wayfinder: { new: "28,38", accepted: "9,31" },
+};
+
+const townQuestTargets = {
+  dawnhavenPatrol: "7,7",
+  dawnRoadSurvey: "8,5",
+  ashbellOreRun: "20,2",
+  ashbellRidgeWarden: "22,6",
+  mistfenRemedy: "6,4",
+  mistfenFangProof: "13,9",
+  moonbarrowCompass: "35,13",
+  moonbarrowWingWatch: "31,11",
+  southwatchMonument: "41,21",
+  southwatchGap: "38,24",
+  eastmereBowCache: "41,10",
+  eastmereGlassroad: "57,12",
+  sunforgeRelicRun: "48,26",
+  sunforgeMineQuota: "42,14",
+  amberwatchSupply: "27,23",
+  amberwatchWarlock: "51,25",
+  highglassTollGuard: "61,6",
+  highglassWyvern: "70,9",
+  greenmarchTollhouse: "67,17",
+  greenmarchHunt: "70,9",
+  starfenRelics: "57,36",
+  starfenSouthRoad: "60,30",
+  lowmarketCauseway: "13,36",
+  lowmarketCairn: "33,34",
+  groveAid: "3,2",
+  roadTithe: "3,2",
+  musterCall: "16,5",
+};
+
+function questTrackTarget(type, id) {
+  if (type === "npc") {
+    const status = state.quests?.[id] || "new";
+    const target = npcQuestTargets[id];
+    if (!target) return null;
+    return target[status] || target.accepted || target.new || null;
+  }
+  if (type === "town") return townQuestTargets[id] || null;
+  if (type === "story") {
+    return {
+      warband: "3,2",
+      towns: "16,5",
+      mines: "5,6",
+      outposts: "7,7",
+      relics: "11,2",
+      blackGate: "71,5",
+      fortress: "71,4",
+    }[id] || null;
+  }
+  return null;
+}
+
+function questTrackLabel(type, id) {
+  const targetKey = questTrackTarget(type, id);
+  if (!targetKey) return "";
+  const point = pointFromKeyString(targetKey);
+  const event = events.get(targetKey);
+  const label = type === "npc"
+    ? npcQuests[id]?.title || eventLabel(event || {})
+    : type === "town"
+      ? townCommissionDefinitions[id]?.title || eventLabel(event || {})
+      : eventLabel(event || {});
+  return `${label} at ${coordText(point.x, point.y)}`;
+}
+
+function activeQuestTarget() {
+  if (!state.activeQuest) return null;
+  const [type, id] = state.activeQuest.split(":");
+  const key = questTrackTarget(type, id);
+  if (!key || state.visited?.[key] && type !== "npc") {
+    state.activeQuest = "";
+    return null;
+  }
+  const point = pointFromKeyString(key);
+  return {
+    key,
+    type,
+    id,
+    x: point.x,
+    y: point.y,
+    event: events.get(key),
+    label: questTrackLabel(type, id),
+  };
+}
+
+function setActiveQuest(type, id) {
+  const target = questTrackTarget(type, id);
+  if (!target) return;
+  state.activeQuest = `${type}:${id}`;
+  state.scoutMarker = target;
+  setMessage(`Tracking ${questTrackLabel(type, id)}.`);
+  renderAll();
 }
 
 function townFactionActionId(event) {
@@ -3434,8 +4181,29 @@ function bindTownModal(key, event) {
   modalText.querySelectorAll("[data-town-action]").forEach((button) => {
     button.addEventListener("click", () => handleTownBodyAction(key, event, button.dataset.townAction));
   });
+  modalText.querySelectorAll("[data-town-now]").forEach((button) => {
+    button.addEventListener("click", () => handleTownNowAction(key, event, button.dataset.townNow, button.dataset.townNowTarget));
+  });
   syncTownSelectionUi(getTownSelection(key, event));
   setTownSelection(key, event, getTownSelection(key, event));
+}
+
+function handleTownNowAction(key, event, action, target) {
+  if (action === "claim") {
+    setTownFeedback(`Claim ${event.name} with the footer claim button, or fight the town guard for control.`, "info");
+    return;
+  }
+  if (action === "building" && target) {
+    setTownSelection(key, event, `building:${target}`, false);
+    handleTownBuildingClick(key, event, target);
+    return;
+  }
+  if (action === "recruit" && target) {
+    setTownSelection(key, event, `recruit:${target}`, false);
+    recruitTownUnit(key, event, target);
+    return;
+  }
+  if (action === "faction") handleTownBodyAction(key, event, "faction");
 }
 
 function handleTownBodyAction(key, event, action) {
@@ -3694,15 +4462,9 @@ function buyCaravanItem(good, key, event) {
 
 function sellCaravanItem(good, key, event) {
   const definition = itemDefinitions[good.id];
-  if (!definition || inventoryCount(good.id) <= 0) {
+  const sellableQty = sellableInventoryCount(good.id);
+  if (!definition || sellableQty <= 0) {
     const text = `You have no ${definition?.name || "item"} to sell.`;
-    caravanTradeFeedback = { text, type: "warn" };
-    setMessage(text);
-    reopenCaravanTradeModal(key, event);
-    return;
-  }
-  if (state.equipped[good.id]) {
-    const text = `${definition.name} is equipped and cannot be sold.`;
     caravanTradeFeedback = { text, type: "warn" };
     setMessage(text);
     reopenCaravanTradeModal(key, event);
@@ -3762,22 +4524,23 @@ function caravanTradeMarkup(key, event) {
       </li>
     `;
   }).join("");
-  const inventory = state.inventory.length
-    ? state.inventory.map((item) => {
+  const sellRows = state.inventory.map((item) => {
         const definition = itemDefinitions[item.id];
         const tradeGood = caravanTradeGoods.find((good) => good.id === item.id);
-        const sellText = tradeGood ? `Sell ${tradeGood.sellPrice}` : "Not traded";
-        const sellDisabled = !tradeGood || state.equipped[item.id] ? " disabled" : "";
+        const sellableQty = sellableInventoryCount(item.id);
+        if (sellableQty <= 0) return "";
+        const equippedCopy = state.equipped[item.id] ? " + equipped" : "";
+        const sellDisabled = !tradeGood ? " disabled" : "";
         return `
           <li class="trade-row ${definition?.type === "equipment" ? "artifact" : "supply"}">
             ${tradeItemIconMarkup(item.id)}
-            <span class="trade-item"><strong>${escapeHtml(definition?.name || item.id)}</strong><em>x${item.qty}${state.equipped[item.id] ? " Equipped" : ""}</em></span>
+            <span class="trade-item"><strong>${escapeHtml(definition?.name || item.id)}</strong><em>x${sellableQty}${equippedCopy}</em></span>
             <span class="trade-price"><small>${tradeGood ? "Receive" : "Buyer"}</small><strong>${tradeGood ? `${tradeGood.sellPrice}g` : "None"}</strong></span>
             <button type="button" data-caravan-sell="${item.id}"${sellDisabled}>Sell</button>
           </li>
         `;
-      }).join("")
-    : `<li class="trade-row empty"><span class="trade-icon">-</span><span class="trade-item"><strong>No items carried</strong><em>Sell list empty</em></span><span class="trade-price"><small>Receive</small><strong>-</strong></span><button type="button" disabled>Sell</button></li>`;
+      }).join("");
+  const inventory = sellRows || `<li class="trade-row empty"><span class="trade-icon">-</span><span class="trade-item"><strong>No spare items</strong><em>Equipped gear is kept safe</em></span><span class="trade-price"><small>Receive</small><strong>-</strong></span><button type="button" disabled>Sell</button></li>`;
   return `
     <div class="trade-panel">
       <div class="trade-hero">
@@ -4265,6 +5028,10 @@ function inventoryCount(id) {
   return state.inventory.find((entry) => entry.id === id)?.qty || 0;
 }
 
+function sellableInventoryCount(id) {
+  return Math.max(0, inventoryCount(id) - (state.equipped[id] ? 1 : 0));
+}
+
 function partyMissingHp() {
   return [state.hero, ...state.party].reduce((sum, unit) => sum + Math.max(0, (unit.maxHp || 0) - Math.max(0, unit.hp || 0)), 0);
 }
@@ -4304,9 +5071,9 @@ function unequipInventoryItem(id) {
 function battleEvent(key, event) {
   if (event.gate && !fortressGateRequirements().ready) {
     setMessage(fortressGateRequirementText());
-    openModal("Black Gate Sealed", `${fortressGateRequirementText()} The fortress guard will not commit while relic banners and hostile outposts still threaten your supply line.`, [
+    openModal("Black Gate Sealed", gateSealedMarkup(), [
       { label: "Continue", action: () => renderAll() },
-    ], { className: "boss-preview-modal" });
+    ], { html: true, className: "boss-preview-modal boss-aftermath-modal" });
     return;
   }
   const enemies = createBattleEnemyParty(event);
@@ -4351,7 +5118,7 @@ function retreatFromBattlePreview(key, event) {
 
 function battlePreviewMarkup(event, enemies, tier, enemyText) {
   const reward = battleGoldReward(event, enemies);
-  const icons = enemies.map((enemy) => `<span class="enemy-icon ${enemyArchetype(enemy)}" title="${escapeHtml(enemy.name)}">${enemyArchetypeIcon(enemy)}</span>`).join("");
+  const icons = enemies.map((enemy) => enemyPreviewIconMarkup(enemy)).join("");
   const leadText = bossLeadText(event);
   const bossText = bossTraitText(event);
   const readinessText = passReadinessText(event);
@@ -4376,6 +5143,14 @@ function battlePreviewMarkup(event, enemies, tier, enemyText) {
       </div>
     </div>
   `;
+}
+
+function enemyPreviewIconMarkup(enemy) {
+  const portrait = battleEnemyPortrait(enemy);
+  if (portrait) {
+    return `<span class="enemy-icon portrait ${enemyArchetype(enemy)}" title="${escapeHtml(enemy.name)}"><img src="${portrait}" alt="" /></span>`;
+  }
+  return `<span class="enemy-icon ${enemyArchetype(enemy)}" title="${escapeHtml(enemy.name)}">${enemyArchetypeIcon(enemy)}</span>`;
 }
 
 function passReadinessText(event) {
@@ -4436,6 +5211,32 @@ function bossTraitText(event) {
   if (event.encounter === "rival") return "Orius blinks away behind a moon ward and can unleash an arcane barrage across your whole party.";
   if (event.gate) return "Defeat this guardian creature to clear the pass to Orius.";
   return "";
+}
+
+function gateSealedMarkup() {
+  const gate = fortressGateRequirements();
+  const relicMissing = Math.max(0, gate.relicTarget - gate.relicCount);
+  const outpostMissing = Math.max(0, gate.outpostTarget - gate.outpostCount);
+  return `
+    <div class="boss-aftermath gate-aftermath sealed-gate">
+      <div class="boss-aftermath-hero">
+        <div class="boss-aftermath-emblem gate" aria-hidden="true"><i></i></div>
+        <div>
+          <strong>Black Gate Sealed</strong>
+          <p>The Warden refuses open battle while your supply line is still weak. Recover relic banners and break hostile outposts before forcing the fortress approach.</p>
+        </div>
+      </div>
+      <ol class="boss-aftermath-progress" aria-label="Black Gate requirements">
+        <li class="${gate.relicCount >= gate.relicTarget ? "done" : "current"}"><strong>${gate.relicCount}/${gate.relicTarget} relics</strong><span>${relicMissing ? `${relicMissing} more relic banner${relicMissing === 1 ? "" : "s"} needed.` : "Relic banners are ready."}</span></li>
+        <li class="${gate.outpostCount >= gate.outpostTarget ? "done" : "current"}"><strong>${gate.outpostCount}/${gate.outpostTarget} outposts</strong><span>${outpostMissing ? `${outpostMissing} more outpost${outpostMissing === 1 ? "" : "s"} must fall.` : "Outpost pressure is broken."}</span></li>
+        <li><strong>Gate boss locked</strong><span>Return when both requirements are complete.</span></li>
+      </ol>
+      <div class="boss-aftermath-grid">
+        <article><small>Best Next Step</small><strong>${relicMissing ? "Find relic caches" : "Clear outposts"}</strong><p>${relicMissing ? "Relics are usually guarded or hidden in cache pockets." : "Look for red enemy markers and guarded road pockets."}</p></article>
+        <article><small>Why It Matters</small><strong>Supply Line</strong><p>The final fortress fight only opens once your army has enough banners and safe routes to hold the siege.</p></article>
+      </div>
+    </div>
+  `;
 }
 
 function enemyArchetype(enemy) {
@@ -4622,6 +5423,9 @@ function startBattle(key, event, enemyInput) {
   const enemyPositions = enemies.map((_, index) => ({ x: index >= BATTLE_ROWS ? BATTLE_COLS - 1 : BATTLE_COLS - 2, y: index % BATTLE_ROWS }));
   const enemyNames = enemies.map((enemy) => enemy.name).join(", ");
   const trapLine = enemies[0]?.trapDamage ? ` Stake traps hit ${enemies[0].name} for ${enemies[0].trapDamage}.` : "";
+  const showBattleHint = !state.tutorial?.battleBasics && event.type !== "night";
+  state.tutorial ??= {};
+  if (showBattleHint) state.tutorial.battleBasics = true;
   activeBattle = {
     key,
     event,
@@ -4641,6 +5445,7 @@ function startBattle(key, event, enemyInput) {
     bossState: createBossBattleState(event),
     usedSpecials: {},
     auto: false,
+    showBattleHint,
   };
   clearAutoBattleTimer();
   buildBattleQueue();
@@ -4789,7 +5594,8 @@ function battleMarkup() {
   const order = activeBattle.queue.map((actor, index) => `<span class="${index === activeBattle.queueIndex - 1 ? "active" : ""}">${actor.name} ${actor.speed}</span>`).join("");
   return `
     <div class="battle-board">
-      ${mobileBattleDashboardMarkup()}
+      ${battleIntroHintMarkup()}
+      ${battleFocusMarkup()}
       <div class="turn-order"><b>Turn order</b>${order}</div>
       <div class="battle-layout">
         <div class="battle-arena" aria-label="Battle arena">
@@ -4802,31 +5608,100 @@ function battleMarkup() {
   `;
 }
 
-function mobileBattleDashboardMarkup() {
-  if (!activeBattle) return "";
-  const activeUnit = selectedBattleUnit();
-  const target = activeBattle.enemies[currentBattleTargetIndex()];
-  const actor = activeBattle.turn === "player" ? activeUnit : activeBattle.activeActor?.name;
-  const playerHp = activeUnit ? `${Math.max(0, activeUnit.hp)}/${activeUnit.maxHp}` : "Enemy turn";
-  const targetHp = target ? `${Math.max(0, target.hp)}/${target.maxHp}` : "No target";
-  const instruction = activeBattle.turn === "player"
-    ? "Tap a unit, tap an enemy or tile, then choose Attack, Special, Heal, Guard, or Auto."
-    : "Enemy is acting. Use Stop Auto only if auto battle is on.";
+function battleIntroHintMarkup() {
+  if (!activeBattle?.showBattleHint) return "";
   return `
-    <section class="mobile-battle-dashboard" aria-label="Mobile battle controls summary">
-      <div>
-        <small>Acting</small>
-        <strong>${escapeHtml(typeof actor === "string" ? actor : actor?.name || "Waiting")}</strong>
-        <span>${escapeHtml(playerHp)}</span>
-      </div>
-      <div>
-        <small>Target</small>
-        <strong>${escapeHtml(target?.name || "None")}</strong>
-        <span>${escapeHtml(targetHp)}</span>
-      </div>
-      <p>${instruction}</p>
+    <section class="battle-tutorial-hint" aria-label="Battle basics">
+      <strong>First Battle</strong>
+      <span>1. Select a unit. 2. Tap a red enemy or a highlighted lane. 3. Use Attack, Special, Heal, or Guard. Yellow enemy chips show what is coming next.</span>
     </section>
   `;
+}
+
+function battleFocusMarkup() {
+  if (!activeBattle) return "";
+  const activeUnit = selectedBattleUnit();
+  const targetIndex = currentBattleTargetIndex();
+  const target = activeBattle.enemies[targetIndex];
+  const activeEnemy = activeBattle.turn === "enemy" ? activeBattle.enemies[activeBattle.activeActor?.index] : null;
+  const actorName = activeBattle.turn === "player" ? activeUnit?.name || "Choose unit" : activeEnemy?.name || "Enemy";
+  const actorState = activeBattle.turn === "player"
+    ? activeUnit ? `HP ${Math.max(0, activeUnit.hp)}/${activeUnit.maxHp} | ${rangeText(activeUnit)}` : "No active unit"
+    : activeEnemy ? `HP ${Math.max(0, activeEnemy.hp)}/${activeEnemy.maxHp} | ${enemyIntentLabel(activeEnemy, activeBattle.activeActor?.index)}` : "Enemy turn";
+  const targetName = activeBattle.turn === "player" ? target?.name || "No target" : enemyTargetPreview(activeBattle.activeActor?.index)?.name || "Nearest unit";
+  const targetState = activeBattle.turn === "player"
+    ? target ? `HP ${Math.max(0, target.hp)}/${target.maxHp}` : "Tap an enemy"
+    : enemyTargetPreview(activeBattle.activeActor?.index)?.summary || "Enemy is choosing a target";
+  const guidance = activeBattle.turn === "player"
+    ? playerBattleGuidance(activeUnit, targetIndex)
+    : enemyBattleGuidance(activeBattle.activeActor?.index);
+  return `
+    <section class="battle-focus" aria-label="Battle focus">
+      <article><small>Acting</small><strong>${escapeHtml(actorName)}</strong><span>${escapeHtml(actorState)}</span></article>
+      <article><small>Target</small><strong>${escapeHtml(targetName)}</strong><span>${escapeHtml(targetState)}</span></article>
+      <article class="battle-focus-guidance"><small>${activeBattle.turn === "player" ? "Your Call" : "Enemy Intent"}</small><strong>${escapeHtml(guidance.title)}</strong><span>${escapeHtml(guidance.text)}</span></article>
+    </section>
+  `;
+}
+
+function playerBattleGuidance(unit, targetIndex) {
+  if (!unit) return { title: "Waiting", text: "Select a living unit to continue." };
+  const target = activeBattle.enemies[targetIndex];
+  if (!target) return { title: "Pick a target", text: "Tap an enemy to preview attack range." };
+  if (canActiveUnitAttackEnemy(targetIndex)) return { title: "Attack ready", text: `${unit.name} can hit ${target.name} now.` };
+  const pos = activeBattle.positions[activeBattle.selectedIndex];
+  const enemyPos = activeBattle.enemyPositions[targetIndex];
+  const distance = pos && enemyPos ? attackDistance(pos, enemyPos) : 0;
+  return { title: "Reposition", text: `${target.name} is out of range${distance ? ` at distance ${distance}` : ""}. Move onto a blue/red lane first.` };
+}
+
+function enemyTargetPreview(enemyIndex) {
+  const enemy = activeBattle?.enemies?.[enemyIndex];
+  if (!enemy) return null;
+  const target = nearestEnemyTarget(enemyIndex, livingTeam());
+  if (!target) return null;
+  return { name: target.name, summary: `HP ${Math.max(0, target.hp)}/${target.maxHp}` };
+}
+
+function enemyBattleGuidance(enemyIndex) {
+  const enemy = activeBattle?.enemies?.[enemyIndex];
+  if (!enemy) return { title: "Enemy turn", text: "The enemy is choosing an action." };
+  if (enemy.sourceEncounter === "rival" && activeBattle.bossState?.kind === "rival" && activeBattle.round >= 2 && activeBattle.bossState.lastBarrageRound !== activeBattle.round) {
+    return { title: "Arcane Barrage", text: "Orius is about to hit the whole party." };
+  }
+  if (shouldUseEnemySpecial(enemy, enemyIndex)) return { title: enemySpecialName(enemy), text: enemySpecialIntentText(enemy) };
+  const target = nearestEnemyTarget(enemyIndex, livingTeam());
+  const enemyPos = activeBattle.enemyPositions[enemyIndex];
+  const targetIndex = [state.hero, ...state.party].indexOf(target);
+  const targetPos = activeBattle.positions[targetIndex];
+  if (target && enemyPos && targetPos && canAttackTarget(enemy, enemyPos, targetPos)) return { title: "Incoming attack", text: `${enemy.name} can strike ${target.name}. Guard can reduce the hit.` };
+  return { title: "Advancing", text: `${enemy.name} is moving toward the nearest target.` };
+}
+
+function enemyIntentLabel(enemy, enemyIndex) {
+  if (!enemy || enemy.hp <= 0) return "Defeated";
+  if (activeBattle?.turn === "enemy" && activeBattle.activeActor?.index === enemyIndex) return enemyBattleGuidance(enemyIndex).title;
+  if (enemy.attackType === "ranged") return `Ranged ${enemy.attackRange || 3}`;
+  if ((enemy.def || 0) >= 7) return "Armored";
+  return "Melee";
+}
+
+function enemySpecialName(enemy) {
+  if (enemy.passBoss) return "Battle Ward";
+  return {
+    warlock: "Cinder Hex",
+    raiders: "Volley Fire",
+    basilisk: "Venom Bite",
+    wyvern: "Sky Dive",
+    knight: "Battle Ward",
+    tideGuard: "Battle Ward",
+  }[enemy.sourceEncounter] || "Power Strike";
+}
+
+function enemySpecialIntentText(enemy) {
+  if (enemy.passBoss || ["knight", "tideGuard"].includes(enemy.sourceEncounter)) return "The enemy will rally, gaining stats and healing.";
+  if (["warlock", "raiders"].includes(enemy.sourceEncounter)) return "The enemy will pressure multiple party members.";
+  return "The enemy will use a stronger single-target attack.";
 }
 
 function battleFloatersMarkup() {
@@ -4943,18 +5818,29 @@ function battleEnemyMarkup(enemy, index) {
   const defeated = enemy.hp <= 0;
   const attackable = !defeated && canActiveUnitAttackEnemy(index);
   const visual = enemyVisualForEnemy(enemy);
+  const sourceFacingClass = visual?.source === "enemy" && !visual.flipInBattle ? " enemy-source-left" : "";
   const sprite = portrait
-    ? `<img class="battle-sprite-img enemy" src="${portrait}" alt="" />`
+    ? `<img class="battle-sprite-img enemy${sourceFacingClass}" src="${portrait}" alt="" />`
     : `<div class="battle-token enemy sprite-${visual?.id || "enemy"}" style="--unit-color:${enemy.color || "#d95d5d"}"></div>`;
   const pos = activeBattle.enemyPositions[index];
   const selected = !defeated && activeBattle.selectedEnemyIndex === index;
+  const intentChip = battleEnemyIntentChip(enemy, index, selected);
   return `
     <button type="button" class="battle-combatant battle-enemy battle-facing-left ${defeated ? "down" : ""} ${selected ? "selected" : ""} ${attackable ? "attackable" : ""} ${feedbackClass}" data-battle-enemy="${index}" style="grid-column:${pos.x + 1};grid-row:${pos.y + 1};--battle-layer:${pos.y + 2}" aria-label="${defeated ? `${enemy.name} defeated` : `Target ${enemy.name}`}" ${defeated ? "disabled" : ""}>
       <div class="battle-base">${sprite}</div>
+      ${intentChip}
       ${attackable ? `<span class="battle-attack-icon" aria-hidden="true">&#9876;</span>` : ""}
       <div class="battle-mini-hp danger" style="--fill:${fill}%"><span></span></div>
     </button>
   `;
+}
+
+function battleEnemyIntentChip(enemy, index, selected) {
+  if (!enemy || enemy.hp <= 0) return "";
+  const active = activeBattle.turn === "enemy" && activeBattle.activeActor?.index === index;
+  if (!active && !selected) return "";
+  const label = active ? enemyIntentLabel(enemy, index) : "Target";
+  return `<span class="battle-intent-chip ${active ? "active" : ""}">${escapeHtml(label)}</span>`;
 }
 
 function currentBattleTargetIndex() {
@@ -5022,8 +5908,18 @@ function runAutoBattleAction() {
   const emergencyHeal = inventoryCount("healingDraught") > 0
     && partyMissingHp() >= HEALING_DRAUGHT_AMOUNT
     && [state.hero, ...state.party].some((unit) => unit.hp > 0 && unit.hp / unit.maxHp <= 0.35);
+  const special = playerSpecialDefinition(activeUnit, activeIndex);
+  const autoSpecial = shouldAutoUsePlayerSpecial(activeUnit, activeIndex);
+  if (autoSpecial && special?.type === "heal") {
+    usePlayerSpecial(activeIndex);
+    return;
+  }
   if (emergencyHeal) {
     useBattleHealingDraught();
+    return;
+  }
+  if (autoSpecial) {
+    usePlayerSpecial(activeIndex);
     return;
   }
   const targetIndex = chooseAutoBattleTarget(activeIndex);
@@ -5067,6 +5963,46 @@ function chooseAutoBattleTarget(unitIndex) {
 function expectedPlayerDamage(unit, enemy, fromPos, enemyPos) {
   const penalty = rangedDamagePenalty(unit, fromPos, enemyPos);
   return Math.max(1, (unit.atk || 0) + (unit.power || 0) - (enemy.def || 0) - penalty * 2);
+}
+
+function expectedPlayerSpecialDamage(unit, enemy, fromPos, enemyPos, special) {
+  if (!unit || !enemy || !fromPos || !enemyPos || !special || ["heal", "guard"].includes(special.type)) return 0;
+  const penalty = rangedDamagePenalty(unit, fromPos, enemyPos);
+  const bonus = special.type === "magic" ? Math.ceil((unit.power || 0) * 0.9) + 3
+    : special.type === "pierce" ? Math.ceil((unit.power || 0) * 0.5) + 4
+      : Math.ceil((unit.power || 0) * 0.6) + 3;
+  const defense = special.type === "pierce" ? Math.floor((enemy.def || 0) * 0.45) : Math.floor((enemy.def || 0) * 0.75);
+  return Math.max(3, unit.atk + bonus + (unit.level || 1) - defense - penalty);
+}
+
+function shouldAutoUsePlayerSpecial(unit, unitIndex) {
+  const special = playerSpecialDefinition(unit, unitIndex);
+  if (!special || !canUsePlayerSpecial(unit, unitIndex)) return false;
+  if (special.type === "heal") {
+    const missing = partyMissingHp();
+    return missing >= Math.max(10, Math.round(totalPartyMaxHp() * 0.22))
+      || [state.hero, ...state.party].some((member) => member.hp > 0 && member.hp / member.maxHp <= 0.42);
+  }
+  if (special.type === "guard") {
+    return battleHasBoss()
+      || activeBattle.round >= 2 && livingEnemies().length >= 3
+      || [state.hero, ...state.party].some((member) => member.hp > 0 && member.hp / member.maxHp <= 0.38);
+  }
+  const targetIndex = chooseAutoBattleTarget(unitIndex);
+  if (targetIndex < 0) return false;
+  const enemy = activeBattle.enemies[targetIndex];
+  const enemyPos = activeBattle.enemyPositions[targetIndex];
+  const fromPos = attackPositionForTarget(unit, unitIndex, enemyPos) || activeBattle.positions[unitIndex];
+  const normalDamage = expectedPlayerDamage(unit, enemy, fromPos, enemyPos);
+  const specialDamage = expectedPlayerSpecialDamage(unit, enemy, fromPos, enemyPos, special);
+  if (specialDamage >= enemy.hp) return true;
+  if (battleHasBoss() && specialDamage >= Math.max(5, normalDamage + 2)) return true;
+  if (["magic", "pierce"].includes(special.type) && (enemy.def || 0) >= 4 && specialDamage >= normalDamage + 3) return true;
+  return activeBattle.round >= 2 && livingEnemies().length >= 2 && specialDamage >= normalDamage + 5;
+}
+
+function totalPartyMaxHp() {
+  return [state.hero, ...state.party].reduce((sum, unit) => sum + Math.max(0, unit.maxHp || 0), 0);
 }
 
 function playerSpecialDefinition(unit, unitIndex) {
@@ -5880,7 +6816,7 @@ function finishBattle(wonBattle) {
     } else if (event.gate) {
       setMessage("The Black Gate Warden falls. The fortress pass is finally open.");
       openModal("Pass Cleared", gateAftermathMarkup(reward, xpReport.amount), [
-        { label: "March to Fortress", action: () => resolvePostBattleProgression() },
+        { label: "Stand Before Fortress", action: () => resolvePostBattleProgression() },
       ], { html: true, className: "boss-aftermath-modal" });
     } else if (event.passName) {
       setMessage(`${event.passName} is clear. The road through this biome is open.`);
@@ -5905,6 +6841,7 @@ function finishBattle(wonBattle) {
     state.gold = Math.max(0, state.gold - 30);
     state.x = 2;
     state.y = 2;
+    revealAroundPlayer();
     visual = { x: state.x, y: state.y, fromX: state.x, fromY: state.y, toX: state.x, toY: state.y, moving: false, startedAt: 0, progress: 0 };
     terrainCache = null;
     camera = { x: 0, y: 0, originX: 0, originY: 0, key: "" };
@@ -5964,15 +6901,24 @@ function triggerVictory(type, title, text, options = {}) {
 
 function gateAftermathMarkup(reward, xp) {
   return `
-    <div class="boss-aftermath">
+    <div class="boss-aftermath gate-aftermath">
       <div class="boss-aftermath-hero">
-        <strong>Black Gate Broken</strong>
-        <p>The Warden collapses in the pass and the road into the fortress finally clears. The campaign state changes here: the march is over, and the siege begins.</p>
+        <div class="boss-aftermath-emblem gate" aria-hidden="true"><i></i></div>
+        <div>
+          <strong>Black Gate Broken</strong>
+          <p>The Warden collapses in the pass and the road into the fortress finally clears. The campaign state changes here: the march is over, and the siege begins.</p>
+        </div>
       </div>
+      <ol class="boss-aftermath-progress" aria-label="Fortress campaign progress">
+        <li class="done"><strong>Requirements met</strong><span>Relics recovered and outposts cleared.</span></li>
+        <li class="done"><strong>Gate boss defeated</strong><span>The Black Gate no longer blocks the road.</span></li>
+        <li class="current"><strong>Final fight unlocked</strong><span>Step north into the fortress heart to challenge Orius.</span></li>
+      </ol>
       <div class="boss-aftermath-grid">
         <article><small>Reward</small><strong>${reward} gold</strong><p>The pass guardian's stores and escort coin fall into your hands.</p></article>
         <article><small>Experience</small><strong>${xp} XP</strong><p>Your warband has survived the fortress threshold and hardens for the last push.</p></article>
-        <article><small>Campaign State</small><strong>Fortress Open</strong><p>Orius is no longer behind rumor or roadblocks. You can enter the northeast fortress now.</p></article>
+        <article><small>Campaign State</small><strong>Fortress Open</strong><p>Orius is no longer behind rumor or roadblocks. Move one tile north to enter the fortress heart.</p></article>
+        <article><small>Objective Changed</small><strong>Defeat Orius</strong><p>The victory condition is now direct: break Rival Mage Orius inside the northeast fortress.</p></article>
       </div>
     </div>
   `;
@@ -5980,15 +6926,24 @@ function gateAftermathMarkup(reward, xp) {
 
 function finalVictoryMarkup(enemyLabel, reward, xp) {
   return `
-    <div class="boss-aftermath">
+    <div class="boss-aftermath final-aftermath">
       <div class="boss-aftermath-hero">
-        <strong>Orius Defeated</strong>
-        <p>${escapeHtml(enemyLabel)} falls inside the fortress and the whole northeast line breaks with him. The campaign resolves as a conquest, not just another cleared encounter.</p>
+        <div class="boss-aftermath-emblem final" aria-hidden="true"><i></i></div>
+        <div>
+          <strong>Orius Defeated</strong>
+          <p>${escapeHtml(enemyLabel)} falls inside the fortress and the whole northeast line breaks with him. The campaign resolves as a conquest, not just another cleared encounter.</p>
+        </div>
       </div>
+      <ol class="boss-aftermath-progress" aria-label="Final campaign progress">
+        <li class="done"><strong>Black Gate opened</strong><span>The fortress approach was broken.</span></li>
+        <li class="done"><strong>Orius defeated</strong><span>The fortress heart is yours.</span></li>
+        <li class="current"><strong>Realm secured</strong><span>You may continue exploring, but the campaign victory is complete.</span></li>
+      </ol>
       <div class="boss-aftermath-grid">
         <article><small>Reward</small><strong>${reward} gold</strong><p>The fortress treasury and war stores are seized at first light.</p></article>
         <article><small>Experience</small><strong>${xp} XP</strong><p>Your army earns the final lessons of the campaign in the fortress heart.</p></article>
         <article><small>Outcome</small><strong>Daylight Victory</strong><p>The road network, towns, and marches now answer to your banner.</p></article>
+        <article><small>Campaign State</small><strong>Fortress Claimed</strong><p>Final victory is locked in; remaining exploration is post-campaign cleanup.</p></article>
       </div>
     </div>
   `;
@@ -6088,6 +7043,7 @@ function learnHeroSkill(choice) {
   if (!choice || pendingLevelUps <= 0) return;
   if (modal.open) modal.close();
   modalOpen = false;
+  refreshMusicMode();
   choice.apply();
   state.hero.skills.push(choice.name);
   pendingLevelUps -= 1;
@@ -6122,6 +7078,7 @@ function openModal(title, text, actions, options = {}) {
       if (!item.keepOpen) {
         if (modal.open) modal.close();
         modalOpen = false;
+        refreshMusicMode();
       }
       item.action?.();
       if (state.nightReady && !modalOpen && !activeBattle && !activeNight && !state.won) beginNight();
@@ -6130,6 +7087,7 @@ function openModal(title, text, actions, options = {}) {
   });
   if (!alreadyOpen) modal.showModal();
   options.onRender?.();
+  refreshMusicMode();
 }
 
 function renderAll() {
@@ -6169,6 +7127,7 @@ function draw() {
   drawWorldAtmosphere();
   drawWorldReadabilityOverlays();
   drawWorldEntities();
+  drawFogOfWar();
   ctx.restore();
   drawObjectiveHint();
 }
@@ -6194,13 +7153,13 @@ function cameraViewHeight() {
 }
 
 function campaignMainObjective() {
-  if (state.won) return "Victory secured";
+  if (state.won) return "Realm secured: explore remaining roads or finish cleanup";
   if (!state.hero.nameChosen) return "Choose your champion";
   if (state.party.length < 2) return `Recruit a second creature (${state.party.length}/2)`;
   const mineCount = countVisitedEvents("mine");
   if (mineCount < 1) return `Claim your first mine (${mineCount}/1)`;
   const elderStatus = state.quests?.elder || "new";
-  if (elderStatus === "new") return "Meet Elder Mira at 5,3";
+  if (elderStatus === "new") return `Meet Elder Mira at ${coordText(5, 3)}`;
   const townCount = ownedTownEntries().length;
   if (townCount < 2) return `Claim a second town (${townCount}/2)`;
   if (state.day === 1 && !state.nightReady) return "Prepare for your first nightfall";
@@ -6208,11 +7167,13 @@ function campaignMainObjective() {
   const gate = fortressGateRequirements();
   if (!gate.ready) return `Open Black Gate: ${gate.relicCount}/${gate.relicTarget} relics, ${gate.outpostCount}/${gate.outpostTarget} outposts`;
   if (!finalGateCleared()) return "Push northeast and defeat the Black Gate Warden";
-  return "Enter the northeast fortress and defeat Rival Mage Orius";
+  if (!state.won) return "Fortress open: enter the heart and defeat Orius";
+  return "Realm secured: explore remaining roads or finish cleanup";
 }
 
 function campaignSideObjective() {
-  if (state.won || !state.hero.nameChosen) return "";
+  if (state.won) return postVictoryCleanupObjective();
+  if (!state.hero.nameChosen) return "";
   const unclaimedQuest = Object.entries(npcQuests).find(([id]) => !state.quests?.[id]);
   if (unclaimedQuest) return `Side objective: meet ${unclaimedQuest[1].name}`;
   const activeNpcQuest = Object.entries(npcQuests).find(([id]) => state.quests?.[id] === "accepted" && !npcQuests[id].complete());
@@ -6223,10 +7184,27 @@ function campaignSideObjective() {
   return scoutingHintText();
 }
 
+function postVictoryCleanupObjective() {
+  const mineCount = countVisitedEvents("mine");
+  const mineTarget = countEvents("mine");
+  if (mineCount < mineTarget) return `Cleanup: secure remaining mines (${mineCount}/${mineTarget})`;
+  const townCount = ownedTownEntries().length;
+  const townTarget = countEvents("town");
+  if (townCount < townTarget) return `Cleanup: claim remaining towns (${townCount}/${townTarget})`;
+  const battleCount = countVisitedEvents("battle");
+  const battleTarget = countEvents("battle");
+  if (battleCount < battleTarget) return `Cleanup: clear remaining outposts (${battleCount}/${battleTarget})`;
+  return "Cleanup: the realm is fully secured";
+}
+
 function campaignHint() {
   const main = campaignMainObjective();
   const side = campaignSideObjective();
-  return side ? `Main: ${main}  |  ${side}` : `Main: ${main}`;
+  return side ? `You ${coordText(state.x, state.y)} | Main: ${main} | ${side}` : `You ${coordText(state.x, state.y)} | Main: ${main}`;
+}
+
+function coordText(x, y) {
+  return `${x},${y}`;
 }
 
 function drawObjectiveHint() {
@@ -6243,7 +7221,7 @@ function drawObjectiveHint() {
   ctx.fillStyle = "#fff2b6";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.fillText(hint, x + 14, y + 14);
+  ctx.fillText(hint, x + 14, y + 14, width - 28);
   ctx.restore();
 }
 
@@ -6499,6 +7477,78 @@ function updateCamera() {
 function drawTerrain() {
   if (!terrainCache) terrainCache = buildTerrainCache();
   ctx.drawImage(terrainCache, (camera.originX - camera.x) * TILE, (camera.originY - camera.y) * TILE);
+}
+
+function drawFogOfWar() {
+  const startX = Math.max(0, Math.floor(camera.x) - 1);
+  const startY = Math.max(0, Math.floor(camera.y) - 1);
+  const endX = Math.min(MAP_W - 1, Math.ceil(camera.x + cameraViewWidth()) + 1);
+  const endY = Math.min(MAP_H - 1, Math.ceil(camera.y + cameraViewHeight()) + 1);
+  ctx.save();
+  for (let y = startY; y <= endY; y += 1) {
+    for (let x = startX; x <= endX; x += 1) {
+      const px = screenTileX(x);
+      const py = screenTileY(y);
+      if (!isTileRevealed(x, y)) {
+        ctx.fillStyle = "#06090f";
+        ctx.fillRect(px, py, TILE + 0.8, TILE + 0.8);
+        drawFogTexture(px, py, x, y, 0.42);
+        continue;
+      }
+      if (!isTileCurrentlyVisible(x, y)) {
+        ctx.fillStyle = "rgba(6, 9, 15, 0.38)";
+        ctx.fillRect(px, py, TILE + 0.8, TILE + 0.8);
+      }
+    }
+  }
+  drawFogFrontier(startX, startY, endX, endY);
+  ctx.restore();
+}
+
+function drawFogTexture(px, py, x, y, alpha) {
+  const hash = terrainHash(x, y, 73);
+  ctx.fillStyle = `rgba(49, 58, 76, ${alpha})`;
+  ctx.beginPath();
+  ctx.arc(px + 8 + (hash % 12), py + 9 + ((hash >> 3) % 12), 2 + (hash % 3), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = `rgba(15, 18, 25, ${alpha * 0.7})`;
+  ctx.fillRect(px + ((hash >> 5) % 20), py + 22, 10 + ((hash >> 7) % 8), 2);
+}
+
+function drawFogFrontier(startX, startY, endX, endY) {
+  ctx.strokeStyle = "rgba(102, 167, 216, 0.18)";
+  ctx.lineWidth = 2;
+  for (let y = startY; y <= endY; y += 1) {
+    for (let x = startX; x <= endX; x += 1) {
+      if (!isTileRevealed(x, y)) continue;
+      const px = screenTileX(x);
+      const py = screenTileY(y);
+      if (!isTileRevealed(x - 1, y)) {
+        ctx.beginPath();
+        ctx.moveTo(px + 1, py + 3);
+        ctx.lineTo(px + 1, py + TILE - 3);
+        ctx.stroke();
+      }
+      if (!isTileRevealed(x + 1, y)) {
+        ctx.beginPath();
+        ctx.moveTo(px + TILE - 1, py + 3);
+        ctx.lineTo(px + TILE - 1, py + TILE - 3);
+        ctx.stroke();
+      }
+      if (!isTileRevealed(x, y - 1)) {
+        ctx.beginPath();
+        ctx.moveTo(px + 3, py + 1);
+        ctx.lineTo(px + TILE - 3, py + 1);
+        ctx.stroke();
+      }
+      if (!isTileRevealed(x, y + 1)) {
+        ctx.beginPath();
+        ctx.moveTo(px + 3, py + TILE - 1);
+        ctx.lineTo(px + TILE - 3, py + TILE - 1);
+        ctx.stroke();
+      }
+    }
+  }
 }
 
 function buildTerrainCache() {
@@ -7517,12 +8567,14 @@ function drawWorldEntities() {
   events.forEach((event, key) => {
     const [x, y] = key.split(",").map(Number);
     if (!isOnScreen(x, y)) return;
+    if (!isTileRevealed(x, y)) return;
     if (x === state.x && y === state.y && ["battle", "final"].includes(event.type)) return;
     entities.push({ y: y + 0.82, x, draw: () => drawEventEntity(key, event, x, y) });
   });
-  tradeCartEntities().forEach((cart) => entities.push(cart));
+  tradeCartEntities().filter((cart) => isTileRevealed(Math.round(cart.x), Math.round(cart.y))).forEach((cart) => entities.push(cart));
   (state.enemyHeroes || []).forEach((hero) => {
     if (hero.defeated || !isOnScreen(hero.x, hero.y, 2)) return;
+    if (!isTileRevealed(hero.x, hero.y)) return;
     entities.push({ y: hero.y + 0.88, x: hero.x, draw: () => drawRoamingHero(hero) });
   });
   entities.push({ y: visual.y + 0.9, x: visual.x, draw: () => drawHero(visual.x, visual.y) });
@@ -7543,7 +8595,8 @@ function drawEventEntity(key, event, x, y) {
   if (event.type === "artifact") drawArtifactPickup(px, py, state.visited[key], isCacheGuarded(key, event), event);
   if (event.type === "supply") drawSupplyPickup(px, py, state.visited[key], isCacheGuarded(key, event), event);
   if (event.type === "battle" && event.gate) {
-    drawMonster(encounters[event.encounter].color, x, y, event.encounter);
+    if (state.visited[key]) drawGateClearedMarker(px, py);
+    else drawMonster(encounters[event.encounter].color, x, y, event.encounter);
     if (!state.visited[key]) drawEnemyHeroMarker(px, py - 10);
   }
   if (event.type === "battle" && !state.visited[key] && !event.gate) drawMonster(encounters[event.encounter].color, x, y, event.encounter);
@@ -7733,7 +8786,7 @@ function drawDawnShrine(px, py) {
 }
 
 function shouldFlagEvent(event) {
-  return event.type === "town";
+  return event.type === "town" || event.type === "mine" || event.gate || event.type === "final";
 }
 
 function drawBuilding(px, py, key, event) {
@@ -7783,12 +8836,12 @@ function drawOwnedTownMarker(px, py, town) {
 function drawOwnedTownBanner(px, py, town) {
   const bannerWidth = Math.min(28, 14 + (town.buildings?.length || 0) * 3);
   ctx.save();
-  ctx.fillStyle = palette.playerFlag;
+  ctx.fillStyle = "#f4ead7";
   ctx.strokeStyle = "#0f1219";
   ctx.lineWidth = 2;
   ctx.fillRect(px + 2, py + 1, 3, 26);
   ctx.strokeRect(px + 2, py + 1, 3, 26);
-  ctx.fillStyle = palette.ownedTownRing;
+  ctx.fillStyle = palette.playerFlag;
   ctx.beginPath();
   ctx.moveTo(px + 5, py + 2);
   ctx.lineTo(px + 5 + bannerWidth, py + 2);
@@ -7797,6 +8850,8 @@ function drawOwnedTownBanner(px, py, town) {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+  ctx.fillStyle = palette.ownedTownRing;
+  ctx.fillRect(px + 7, py + 4, Math.max(4, bannerWidth - 11), 2);
   ctx.restore();
 }
 
@@ -8215,6 +9270,12 @@ function drawFortressWallSegment(px, py, x, y) {
 
 function drawCastleGate(px, py) {
   drawShadow(px + 16, py + 30, 44, 10);
+  if (finalGateCleared()) {
+    drawCastleWall(px - 12, py + 1);
+    drawCastleWall(px + 12, py + 1);
+    drawOpenCastleGate(px, py);
+    return;
+  }
   if (drawCastleWallCutout("gate", px + 16, py + 47, { targetHeight: 58 })) return;
   if (drawCastleCutout("gate", px + 16, py + 41, { targetHeight: 52 })) return;
   drawCastleWall(px - 12, py + 1);
@@ -8235,6 +9296,47 @@ function drawCastleGate(px, py) {
   ctx.strokeRect(px + 3.5, py + 4.5, 25, 27);
   ctx.fillStyle = "#d95d5d";
   ctx.fillRect(px + 14, py - 2, 4, 9);
+  ctx.restore();
+}
+
+function drawOpenCastleGate(px, py) {
+  ctx.save();
+  const pulse = 0.5 + Math.sin(animationTime / 420) * 0.16;
+  ctx.fillStyle = `rgba(240,193,91,${0.16 + pulse * 0.16})`;
+  ctx.beginPath();
+  ctx.ellipse(px + 16, py + 24, 18, 22, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#4d5364";
+  ctx.fillRect(px + 4, py + 5, 24, 27);
+  ctx.fillStyle = "#141820";
+  ctx.beginPath();
+  ctx.moveTo(px + 9, py + 32);
+  ctx.lineTo(px + 9, py + 19);
+  ctx.quadraticCurveTo(px + 16, py + 11, px + 23, py + 19);
+  ctx.lineTo(px + 23, py + 32);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#fff2b6";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(px + 3.5, py + 4.5, 25, 27);
+  ctx.fillStyle = palette.playerFlag;
+  ctx.fillRect(px + 14, py - 2, 4, 9);
+  ctx.restore();
+}
+
+function drawGateClearedMarker(px, py) {
+  drawShadow(px + 16, py + 28, 34, 8);
+  ctx.save();
+  ctx.fillStyle = "rgba(240,193,91,0.18)";
+  ctx.beginPath();
+  ctx.arc(px + 16, py + 16, 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#4d5364";
+  ctx.fillRect(px + 7, py + 18, 18, 8);
+  ctx.fillStyle = "#d95d5d";
+  ctx.fillRect(px + 9, py + 23, 16, 4);
+  ctx.fillStyle = palette.playerFlag;
+  ctx.fillRect(px + 14, py + 7, 4, 13);
   ctx.restore();
 }
 
@@ -8375,23 +9477,28 @@ function renderSidebar() {
   const relicCount = uniqueRelicCount();
   const incomePreview = townEconomyPreview().total;
   const formation = partyCompositionSummary();
-  const immediateRows = [
-    { text: `Main objective: ${campaignMainObjective()}`, done: state.won },
-    { text: campaignSideObjective() || "Side objective: none", done: false },
-  ];
+  const immediateRows = state.won
+    ? [
+        { text: "Campaign complete: Orius defeated", done: true },
+        { text: postVictoryCleanupObjective(), done: postVictoryCleanupObjective().includes("fully secured") },
+      ]
+    : [
+        { text: `Main objective: ${campaignMainObjective()}`, done: false },
+        { text: campaignSideObjective() || "Side objective: none", done: false },
+      ];
   const npcQuestRows = Object.entries(npcQuests).map(([id, quest]) => {
     const status = state.quests?.[id] || "new";
     const ready = status === "accepted" && quest.complete();
     const done = status === "claimed";
     const label = done ? "Done" : ready ? "Return for reward" : status === "accepted" ? quest.objective : "Talk to NPC";
-    return { text: `${quest.title}: ${label}`, done };
+    return { text: `${quest.title}: ${label}`, done, trackType: "npc", trackId: id, trackLabel: questTrackLabel("npc", id) };
   });
-  const townQuestRows = Object.entries(townCommissionDefinitions).map(([id, quest]) => {
+  const townQuestRows = Object.entries(townCommissionDefinitions).filter(([id, quest]) => townCommissionAvailable(id, quest)).map(([id, quest]) => {
     const status = state.quests?.[id] || "new";
     const ready = status === "accepted" && quest.complete();
     const done = status === "claimed";
     const label = done ? "Done" : ready ? "Claim at town" : status === "accepted" ? quest.objective : "Accept at town notice board";
-    return { text: `${quest.title}: ${label}`, done };
+    return { text: `${quest.title}: ${label}`, done, trackType: "town", trackId: id, trackLabel: questTrackLabel("town", id) };
   });
   heroStats.innerHTML =
     statSection("Champion") +
@@ -8409,6 +9516,7 @@ function renderSidebar() {
     stat("Gold", state.gold) +
     stat("Daylight", dayProgressMarkup()) +
     stat("Income", `${incomePreview}/day`) +
+    stat("Position", coordText(state.x, state.y)) +
     stat("Relics", `${relicCount}/4`) +
     stat("Towns", `${townCount}/${townTarget}`) +
     stat("Mines", `${mineCount}/${mineTarget}`) +
@@ -8418,30 +9526,56 @@ function renderSidebar() {
   renderInventory();
   const gate = fortressGateRequirements();
   const storyQuests = [
-    { text: `Build a four-unit warband (${state.party.length}/4)`, done: state.party.length >= 4 },
-    { text: `Bring ${townTarget} towns under your banner`, done: townCount >= townTarget },
-    { text: `Secure ${mineTarget} mines`, done: mineCount >= mineTarget },
-    { text: `Break all known outposts (${battleCount}/${battleTarget})`, done: battleCount >= battleTarget },
+    { text: `Build a four-unit warband (${state.party.length}/4)`, done: state.party.length >= 4, trackType: "story", trackId: "warband", trackLabel: questTrackLabel("story", "warband") },
+    { text: `Bring ${townTarget} towns under your banner`, done: townCount >= townTarget, trackType: "story", trackId: "towns", trackLabel: questTrackLabel("story", "towns") },
+    { text: `Secure ${mineTarget} mines`, done: mineCount >= mineTarget, trackType: "story", trackId: "mines", trackLabel: questTrackLabel("story", "mines") },
+    { text: `Break all known outposts (${battleCount}/${battleTarget})`, done: battleCount >= battleTarget, trackType: "story", trackId: "outposts", trackLabel: questTrackLabel("story", "outposts") },
   ];
   const winRows = victoryConditions().map((condition) => ({ text: condition.text, done: condition.done || (state.won && state.victoryType === condition.id) }));
   const gateRows = [
-    { text: `Recover 4 relics (${gate.relicCount}/${gate.relicTarget})`, done: gate.relicCount >= gate.relicTarget },
-    { text: `Clear 8 outposts (${gate.outpostCount}/${gate.outpostTarget})`, done: gate.outpostCount >= gate.outpostTarget },
-    { text: gate.ready ? "Challenge the Black Gate Warden" : "Black Gate Warden remains sealed", done: gate.ready },
+    { text: `Recover 4 relics (${gate.relicCount}/${gate.relicTarget})`, done: gate.relicCount >= gate.relicTarget, trackType: "story", trackId: "relics", trackLabel: questTrackLabel("story", "relics") },
+    { text: `Clear 8 outposts (${gate.outpostCount}/${gate.outpostTarget})`, done: gate.outpostCount >= gate.outpostTarget, trackType: "story", trackId: "outposts", trackLabel: questTrackLabel("story", "outposts") },
+    { text: finalGateCleared() ? "Black Gate Warden defeated" : gate.ready ? "Challenge the Black Gate Warden" : "Black Gate Warden remains sealed", done: finalGateCleared(), trackType: "story", trackId: "blackGate", trackLabel: questTrackLabel("story", "blackGate") },
+    { text: state.won ? "Fortress claimed from Orius" : finalGateCleared() ? "Enter the fortress heart" : "Fortress heart locked", done: state.won, trackType: "story", trackId: "fortress", trackLabel: questTrackLabel("story", "fortress") },
   ];
-  questLog.innerHTML = questSection("Immediate Goals", immediateRows) + questSection("Victory Condition", winRows) + questSection("Black Gate Requirements", gateRows) + questSection("Story Goals", storyQuests) + questSection("NPC Quests", npcQuestRows) + questSection("Town Commissions", townQuestRows);
+  questLog.innerHTML =
+    questSection("Immediate Goals", immediateRows, "priority") +
+    questSection("Victory Condition", winRows) +
+    questSection("Black Gate Requirements", gateRows) +
+    questSection("Story Goals", storyQuests, "compact") +
+    questSection("NPC Quests", npcQuestRows, "compact") +
+    questSection("Town Commissions", townQuestRows, "compact");
   renderMinimap();
 }
 
-function questSection(title, rows) {
+function questSection(title, rows, variant = "") {
+  if (variant === "compact") {
+    const remaining = rows.filter((quest) => !quest.done).length;
+    return `
+      <details class="quest-section compact">
+        <summary><h3>${title}</h3><span>${remaining ? `${remaining} open` : "complete"}</span></summary>
+        <ul>
+          ${rows.map(questRowMarkup).join("")}
+        </ul>
+      </details>
+    `;
+  }
   return `
-    <section class="quest-section">
+    <section class="quest-section ${variant}">
       <h3>${title}</h3>
       <ul>
-        ${rows.map((quest) => `<li class="${quest.done ? "done" : ""}">${quest.text}</li>`).join("")}
+        ${rows.map(questRowMarkup).join("")}
       </ul>
     </section>
   `;
+}
+
+function questRowMarkup(quest) {
+  const active = quest.trackType && state.activeQuest === `${quest.trackType}:${quest.trackId}`;
+  const trackButton = !quest.done && quest.trackType && quest.trackId && quest.trackLabel
+    ? `<button type="button" class="quest-track ${active ? "active" : ""}" data-track-quest="${quest.trackType}:${quest.trackId}" title="Mark ${escapeHtml(quest.trackLabel)} on the minimap">${active ? "Tracking" : "Track"}</button>`
+    : "";
+  return `<li class="${quest.done ? "done" : ""} ${active ? "tracked" : ""}"><span>${escapeHtml(quest.text)}</span>${trackButton}</li>`;
 }
 
 function uniqueRelicCount() {
@@ -8453,23 +9587,159 @@ function renderMinimap() {
   const scaleX = minimap.width / MAP_W;
   const scaleY = minimap.height / MAP_H;
   minimapCtx.clearRect(0, 0, minimap.width, minimap.height);
+  minimapCtx.fillStyle = "#0d1219";
+  minimapCtx.fillRect(0, 0, minimap.width, minimap.height);
   for (let y = 0; y < MAP_H; y += 1) {
     for (let x = 0; x < MAP_W; x += 1) {
-      minimapCtx.fillStyle = minimapColorForTile(map[y]?.[x]);
+      minimapCtx.fillStyle = isTileRevealed(x, y) ? minimapColorForTile(map[y]?.[x]) : "#05080d";
       minimapCtx.fillRect(Math.floor(x * scaleX), Math.floor(y * scaleY), Math.ceil(scaleX), Math.ceil(scaleY));
     }
   }
+  drawMinimapCoordinates(scaleX, scaleY);
   events.forEach((event, key) => {
     const [x, y] = key.split(",").map(Number);
-    minimapCtx.fillStyle = minimapColorForEvent(event, Boolean(state.visited[key]));
-    minimapCtx.fillRect(Math.floor(x * scaleX) - 1, Math.floor(y * scaleY) - 1, 4, 4);
+    if (!isTileRevealed(x, y)) return;
+    drawMinimapEventMarker(x, y, event, Boolean(state.visited[key]), scaleX, scaleY);
   });
+  drawMinimapScoutMarker(scaleX, scaleY);
+  drawMinimapPlayer(scaleX, scaleY);
+  drawMinimapFrame();
+  if (mapCoordinates) mapCoordinates.textContent = `You: ${coordText(state.x, state.y)} | Lead: ${minimapTargetText()} | Explored: ${exploredMapPercent()}%`;
+}
+
+function exploredMapPercent() {
+  const total = MAP_W * MAP_H;
+  const revealed = Object.keys(state.revealed || {}).length;
+  return Math.max(1, Math.min(100, Math.round((revealed / total) * 100)));
+}
+
+function drawMinimapEventMarker(x, y, event, visited, scaleX, scaleY) {
+  const px = Math.floor(x * scaleX);
+  const py = Math.floor(y * scaleY);
+  const color = minimapColorForEvent(event, visited);
+  minimapCtx.save();
+  minimapCtx.fillStyle = color;
+  minimapCtx.strokeStyle = visited ? "rgba(15,18,25,0.78)" : "rgba(255,242,182,0.72)";
+  minimapCtx.lineWidth = 1;
+  if (event.type === "battle" || event.type === "final") {
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(px + 1, py - 2);
+    minimapCtx.lineTo(px + 5, py + 2);
+    minimapCtx.lineTo(px + 1, py + 6);
+    minimapCtx.lineTo(px - 3, py + 2);
+    minimapCtx.closePath();
+    minimapCtx.fill();
+    minimapCtx.stroke();
+  } else if (event.type === "town") {
+    minimapCtx.fillRect(px - 2, py - 2, 6, 6);
+    minimapCtx.strokeRect(px - 2.5, py - 2.5, 6, 6);
+  } else {
+    minimapCtx.beginPath();
+    minimapCtx.arc(px + 1, py + 1, 2.4, 0, Math.PI * 2);
+    minimapCtx.fill();
+    minimapCtx.stroke();
+  }
+  minimapCtx.restore();
+}
+
+function drawMinimapPlayer(scaleX, scaleY) {
   const px = Math.floor(state.x * scaleX);
   const py = Math.floor(state.y * scaleY);
+  const angle = { up: 0, right: Math.PI / 2, down: Math.PI, left: -Math.PI / 2 }[facing] || 0;
+  minimapCtx.save();
+  minimapCtx.fillStyle = "rgba(255,255,255,0.22)";
+  minimapCtx.beginPath();
+  minimapCtx.arc(px, py, 7, 0, Math.PI * 2);
+  minimapCtx.fill();
+  minimapCtx.translate(px, py);
+  minimapCtx.rotate(angle);
   minimapCtx.fillStyle = "#ffffff";
-  minimapCtx.fillRect(px - 2, py - 2, 5, 5);
   minimapCtx.strokeStyle = "#0f1219";
-  minimapCtx.strokeRect(px - 2.5, py - 2.5, 5, 5);
+  minimapCtx.lineWidth = 1.5;
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(0, -5);
+  minimapCtx.lineTo(5, 5);
+  minimapCtx.lineTo(0, 3);
+  minimapCtx.lineTo(-5, 5);
+  minimapCtx.closePath();
+  minimapCtx.fill();
+  minimapCtx.stroke();
+  minimapCtx.restore();
+}
+
+function drawMinimapScoutMarker(scaleX, scaleY) {
+  const activeTarget = activeQuestTarget();
+  const key = activeTarget?.key || state.scoutMarker || nearestScoutingTarget()?.key;
+  if (!key) return;
+  const [x, y] = key.split(",").map(Number);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  if (!isTileRevealed(x, y)) return;
+  const px = Math.floor(x * scaleX);
+  const py = Math.floor(y * scaleY);
+  minimapCtx.save();
+  minimapCtx.strokeStyle = "#fff2b6";
+  minimapCtx.lineWidth = 2;
+  minimapCtx.beginPath();
+  minimapCtx.arc(px + 1, py + 1, 6, 0, Math.PI * 2);
+  minimapCtx.stroke();
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(px - 7, py + 1);
+  minimapCtx.lineTo(px + 9, py + 1);
+  minimapCtx.moveTo(px + 1, py - 7);
+  minimapCtx.lineTo(px + 1, py + 9);
+  minimapCtx.stroke();
+  minimapCtx.restore();
+}
+
+function minimapTargetText() {
+  const activeTarget = activeQuestTarget();
+  if (activeTarget) return isTileRevealed(activeTarget.x, activeTarget.y) ? activeTarget.label : "active quest beyond explored map";
+  const key = state.scoutMarker || nearestScoutingTarget()?.key;
+  if (!key) return "none";
+  const [x, y] = key.split(",").map(Number);
+  if (!isTileRevealed(x, y)) return "unexplored lead";
+  const event = events.get(key);
+  return `${scoutingTargetLabel({ event })} at ${coordText(x, y)}`;
+}
+
+function drawMinimapCoordinates(scaleX, scaleY) {
+  minimapCtx.save();
+  minimapCtx.font = "700 8px Trebuchet MS";
+  minimapCtx.textBaseline = "top";
+  minimapCtx.lineWidth = 1;
+  minimapCtx.strokeStyle = "rgba(255,242,182,0.11)";
+  minimapCtx.fillStyle = "rgba(255,242,182,0.74)";
+  for (let x = 0; x < MAP_W; x += 10) {
+    const px = Math.floor(x * scaleX);
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(px + 0.5, 0);
+    minimapCtx.lineTo(px + 0.5, minimap.height);
+    minimapCtx.stroke();
+    minimapCtx.fillText(String(x), px + 2, 2);
+  }
+  for (let y = 0; y < MAP_H; y += 10) {
+    const py = Math.floor(y * scaleY);
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(0, py + 0.5);
+    minimapCtx.lineTo(minimap.width, py + 0.5);
+    minimapCtx.stroke();
+    minimapCtx.fillText(String(y), 2, py + 2);
+  }
+  minimapCtx.fillStyle = "#ffffff";
+  minimapCtx.fillText("N", minimap.width - 14, 5);
+  minimapCtx.fillText("E", minimap.width - 14, 17);
+  minimapCtx.restore();
+}
+
+function drawMinimapFrame() {
+  minimapCtx.save();
+  minimapCtx.strokeStyle = "rgba(15,18,25,0.92)";
+  minimapCtx.lineWidth = 4;
+  minimapCtx.strokeRect(1, 1, minimap.width - 2, minimap.height - 2);
+  minimapCtx.strokeStyle = "rgba(240,193,91,0.68)";
+  minimapCtx.lineWidth = 1;
+  minimapCtx.strokeRect(3.5, 3.5, minimap.width - 7, minimap.height - 7);
+  minimapCtx.restore();
 }
 
 function minimapColorForEvent(event, visited) {
@@ -8508,6 +9778,7 @@ function renderInventoryItem(entry) {
   const action = definition.type === "consumable" ? "Use" : equipped ? "Unequip" : "Equip";
   return `
     <div class="inventory-item">
+      ${tradeItemIconMarkup(entry.id)}
       <div>
         <div class="item-name"><span>${definition.name}</span><span>x${entry.qty}</span></div>
         <p>${definition.description}</p>
@@ -8684,6 +9955,7 @@ modal.addEventListener("close", () => {
 });
 modal.addEventListener("close", () => {
   if (!battleModalLocked()) modalOpen = false;
+  refreshMusicMode();
   syncSnackbarHost();
 });
 inventoryList?.addEventListener("click", (event) => {
@@ -8700,6 +9972,13 @@ partyList?.addEventListener("click", (event) => {
   }
   const dismissButton = event.target.closest("[data-party-dismiss]");
   if (dismissButton) dismissPartyUnit(Number(dismissButton.dataset.partyDismiss));
+});
+
+questLog?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-track-quest]");
+  if (!button) return;
+  const [type, id] = button.dataset.trackQuest.split(":");
+  setActiveQuest(type, id);
 });
 
 renderAll();
