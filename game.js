@@ -31,7 +31,7 @@ const BATTLE_ROWS = 5;
 const MOVE_DURATION_MS = 235;
 const WALK_FRAME_MS = 76;
 const IDLE_FRAME_MS = 620;
-const DAY_LENGTH_STEPS = 48;
+const DAY_LENGTH_STEPS = 56;
 const NIGHT_ENCOUNTER_MIN = 1;
 const NIGHT_ENCOUNTER_MAX = 2;
 const NIGHT_WAVE_SNEAK_MS = 3200;
@@ -142,6 +142,8 @@ questGiverSheet.src = "assets/quest-giver-sheet.png";
 
 const unitSheet = new Image();
 let unitSheetReady = false;
+const extraUnitSheet = new Image();
+let extraUnitSheetReady = false;
 const unitCutoutCache = new Map();
 unitSheet.onload = () => {
   unitSheetReady = true;
@@ -149,7 +151,14 @@ unitSheet.onload = () => {
   portraitCache.clear();
   renderAll();
 };
-unitSheet.src = "assets/creature-unit-sheet.png";
+unitSheet.src = "assets/creature-unit-sheet.png?v=4";
+extraUnitSheet.onload = () => {
+  extraUnitSheetReady = true;
+  unitCutoutCache.clear();
+  portraitCache.clear();
+  renderAll();
+};
+extraUnitSheet.src = "assets/creature-unit-sheet-extra.png?v=2";
 
 const castleSheet = new Image();
 let castleSheetReady = false;
@@ -297,15 +306,15 @@ const heroSkillCatalog = [
 ];
 
 const encounters = {
-  goblin: { name: "Hill Bandit", color: "#ab7048", hp: 24, atk: 5, def: 1, speed: 5, power: 3, morale: 4, moveType: "ground", attackType: "melee", attackRange: 1, reward: 34 },
-  basilisk: { name: "Mire Basilisk", color: "#568d55", hp: 31, atk: 7, def: 3, speed: 5, power: 4, morale: 4, moveType: "ground", attackType: "melee", attackRange: 1, reward: 43 },
-  raiders: { name: "Cinder Raiders", color: "#bd5f45", hp: 35, atk: 8, def: 3, speed: 6, power: 5, morale: 5, moveType: "ground", attackType: "ranged", attackRange: 6, reward: 52 },
-  wyvern: { name: "Glasswing Wyvern", color: "#5aa6c8", hp: 40, atk: 9, def: 4, speed: 8, power: 6, morale: 5, moveType: "flying", attackType: "melee", attackRange: 1, reward: 62 },
-  knight: { name: "Clockwork Knight", color: "#9fa7b7", hp: 42, atk: 9, def: 5, speed: 3, power: 6, morale: 5, moveType: "ground", attackType: "melee", attackRange: 1, reward: 58 },
-  tideGuard: { name: "Harbor Guard", color: "#6aa7bf", hp: 37, atk: 7, def: 5, speed: 5, power: 5, morale: 5, moveType: "ground", attackType: "melee", attackRange: 1, reward: 54 },
-  warlock: { name: "Ashen Warlock", color: "#8b5fbf", hp: 56, atk: 11, def: 4, speed: 6, power: 8, morale: 6, moveType: "flying", attackType: "ranged", attackRange: 7, reward: 70 },
-  gatekeeper: { name: "Black Gate Warden", color: "#646b7d", hp: 86, atk: 13, def: 8, speed: 5, power: 8, morale: 8, moveType: "ground", attackType: "melee", attackRange: 1, reward: 115 },
-  rival: { name: "Rival Mage Orius", color: "#7a4bb5", hp: 116, atk: 16, def: 8, speed: 8, power: 11, morale: 9, moveType: "flying", attackType: "ranged", attackRange: 7, reward: 220 },
+  goblin: { name: "Hill Bandit", color: "#ab7048", hp: 27, atk: 6, def: 1, speed: 5, power: 3, morale: 5, moveType: "ground", attackType: "melee", attackRange: 1, reward: 34 },
+  basilisk: { name: "Mire Basilisk", color: "#568d55", hp: 35, atk: 8, def: 3, speed: 5, power: 4, morale: 5, moveType: "ground", attackType: "melee", attackRange: 1, reward: 43 },
+  raiders: { name: "Cinder Raiders", color: "#bd5f45", hp: 39, atk: 9, def: 3, speed: 6, power: 5, morale: 6, moveType: "ground", attackType: "ranged", attackRange: 6, reward: 52 },
+  wyvern: { name: "Glasswing Wyvern", color: "#5aa6c8", hp: 44, atk: 10, def: 4, speed: 8, power: 6, morale: 6, moveType: "flying", attackType: "melee", attackRange: 1, reward: 62 },
+  knight: { name: "Clockwork Knight", color: "#9fa7b7", hp: 46, atk: 10, def: 5, speed: 3, power: 6, morale: 6, moveType: "ground", attackType: "melee", attackRange: 1, reward: 58 },
+  tideGuard: { name: "Harbor Guard", color: "#6aa7bf", hp: 41, atk: 8, def: 5, speed: 5, power: 5, morale: 6, moveType: "ground", attackType: "melee", attackRange: 1, reward: 54 },
+  warlock: { name: "Ashen Warlock", color: "#8b5fbf", hp: 60, atk: 12, def: 4, speed: 6, power: 8, morale: 7, moveType: "flying", attackType: "ranged", attackRange: 7, reward: 70 },
+  gatekeeper: { name: "Black Gate Warden", color: "#646b7d", hp: 94, atk: 14, def: 8, speed: 5, power: 8, morale: 8, moveType: "ground", attackType: "melee", attackRange: 1, reward: 115 },
+  rival: { name: "Rival Mage Orius", color: "#7a4bb5", hp: 126, atk: 17, def: 8, speed: 8, power: 12, morale: 9, moveType: "flying", attackType: "ranged", attackRange: 7, reward: 220 },
 };
 
 const roamingHeroDefinitions = {
@@ -338,10 +347,10 @@ const npcSpriteVisuals = {
 };
 
 const townBuildingDefinitions = {
-  market: { name: "Market", cost: 75, income: 14, text: "+14 gold each dawn." },
-  caravanPost: { name: "Caravan Post", cost: 110, income: 8, text: "Shop stays open. Trade carts dispatch automatically and earn more with each owned town." },
-  barracks: { name: "Barracks", cost: 105, income: 0, text: "Lets this town raise and train its local unit." },
-  trainingYard: { name: "Training Yard", cost: 125, income: 0, text: "Owned town visits grant +1 attack once." },
+  market: { name: "Market", cost: 70, income: 10, text: "+10 gold each dawn." },
+  caravanPost: { name: "Caravan Post", cost: 125, income: 5, text: "Shop stays open. Trade carts dispatch automatically and earn more with each owned town." },
+  barracks: { name: "Barracks", cost: 95, income: 0, text: "Lets this town raise and train its local unit." },
+  trainingYard: { name: "Training Yard", cost: 115, income: 0, text: "Owned town visits grant +1 attack once." },
 };
 
 const npcQuests = {
@@ -396,6 +405,50 @@ const npcQuests = {
 };
 
 const townCommissionDefinitions = {
+  dawnhavenPatrol: {
+    title: "Dawnhaven Patrol",
+    towns: ["Dawnhaven"],
+    objective: "Clear the Hill Bandit camp at 7,7",
+    rewardText: "55 gold and a Healing Draught",
+    complete: () => Boolean(state.visited?.["7,7"]),
+    reward: () => {
+      state.gold += 55;
+      addInventoryItem("healingDraught", 1);
+    },
+  },
+  dawnRoadSurvey: {
+    title: "Dawn Road Survey",
+    towns: ["Dawnhaven"],
+    objective: "Visit Dawnhaven Crossing and Broken Watch",
+    rewardText: "35 gold and 24 XP",
+    complete: () => countVisitedKeys(["8,5", "18,11"]) >= 2,
+    reward: () => {
+      state.gold += 35;
+      gainXp(24);
+    },
+  },
+  ashbellOreRun: {
+    title: "Ore for the Ridge",
+    towns: ["Ashbell"],
+    objective: "Claim either nearby mine before forcing Ashbell Ridge",
+    rewardText: "45 gold and +1 defense",
+    complete: () => countVisitedKeys(["20,2", "21,9"]) >= 1,
+    reward: () => {
+      state.gold += 45;
+      state.hero.def += 1;
+    },
+  },
+  mistfenRemedy: {
+    title: "Mistfen Remedy",
+    towns: ["Mistfen"],
+    objective: "Open one first-biome supply cache or shrine",
+    rewardText: "1 Healing Draught and 20 XP",
+    complete: () => countVisitedKeys(["6,4", "12,6", "14,4"]) >= 1,
+    reward: () => {
+      addInventoryItem("healingDraught", 1);
+      gainXp(20);
+    },
+  },
   groveAid: {
     title: "Grove Aid",
     objective: "Recruit 3 creature units",
@@ -426,6 +479,10 @@ const townCommissionDefinitions = {
     },
   },
 };
+
+function countVisitedKeys(keys) {
+  return keys.filter((key) => state.visited?.[key]).length;
+}
 
 const campUpgradeDefinitions = {
   betterTent: { name: "Better Tent", cost: 120, text: "Restores more HP at dawn and makes camp feel safer." },
@@ -840,6 +897,9 @@ const events = new Map([
   ["5,3", { type: "npc", quest: "elder" }],
   ["18,7", { type: "npc", quest: "ranger" }],
   ["39,14", { type: "npc", quest: "archivist" }],
+  ["6,4", { type: "landmark", landmark: "shrine", title: "Dawn Shrine", reward: { heal: 18, morale: 1 }, hint: "The ridge guard expects a fresh army. Recruit, carry a draught, and claim a mine before crossing." }],
+  ["12,6", { type: "supply", item: "Healing Draught", qty: 1, gold: 18 }],
+  ["17,3", { type: "chest", gold: 42, item: "Healing Draught" }],
   ["63,4", { type: "town", name: "Highglass", creature: "emberGolem", faction: "forge" }],
   ["68,12", { type: "town", name: "Greenmarch", creature: "leafFox", faction: "grove" }],
   ["60,33", { type: "town", name: "Starfen", creature: "duskMoth", faction: "dusk" }],
@@ -935,6 +995,7 @@ let activeNight = null;
 let pendingLevelUps = 0;
 let pendingPostBattleAction = null;
 let caravanTradeFeedback = { text: "", type: "info" };
+let barracksFeedback = { text: "", type: "info" };
 let camera = { x: 0, y: 0, originX: 0, originY: 0, key: "" };
 let audioContext = null;
 let musicEnabled = false;
@@ -1046,7 +1107,7 @@ function normalizeState(saved) {
     unit.attackType ??= creatureBook[unit.id]?.attackType ?? "melee";
     unit.attackRange ??= creatureBook[unit.id]?.attackRange ?? 1;
     unit.skill ??= creatureBook[unit.id]?.skill ?? "";
-    unit.spriteId ??= creatureBook[unit.id]?.spriteId || unit.id;
+    unit.spriteId = creatureBook[unit.id]?.spriteId || unit.id;
     unit.skills ??= [];
   });
   return saved;
@@ -1246,14 +1307,67 @@ function scheduleMusicBeat() {
       sectionLength: 32,
     },
   };
-  const pattern = patterns[mode];
+  const fieldPatterns = {
+    "field:dawnhaven_march": {
+      variations: [
+        [262, 330, 392, 523, 494, 392, 330, 392, 262, 330, 392, 587, 523, 494, 392, 330],
+        [294, 330, 392, 440, 523, 494, 392, 330, 294, 392, 440, 523, 587, 523, 440, 392],
+      ],
+      bass: [65, 65, 98, 98, 82, 82, 110, 98, 65, 65, 98, 98, 110, 98, 82, 65],
+      tempo: 0.24,
+      delay: 260,
+      sectionLength: 16,
+    },
+    "field:central_kingdom": patterns.field,
+    "field:high_march": {
+      variations: [
+        [392, 494, 587, 740, 659, 587, 494, 587, 440, 523, 659, 784, 740, 659, 587, 494],
+        [330, 392, 494, 587, 740, 659, 587, 523, 494, 587, 659, 880, 784, 740, 659, 587],
+      ],
+      bass: [98, 98, 147, 147, 123, 123, 196, 147, 110, 110, 165, 165, 147, 196, 165, 123],
+      tempo: 0.2,
+      delay: 225,
+      sectionLength: 16,
+    },
+    "field:low_roads": {
+      variations: [
+        [196, 247, 294, 330, 294, 247, 220, 247, 196, 220, 247, 330, 294, 247, 220, 196],
+        [220, 247, 294, 370, 330, 294, 247, 220, 196, 247, 294, 392, 370, 330, 294, 247],
+      ],
+      bass: [49, 49, 73, 73, 65, 65, 98, 73, 55, 55, 82, 82, 73, 98, 82, 65],
+      tempo: 0.27,
+      delay: 285,
+      sectionLength: 16,
+    },
+    "field:southern_wilds": {
+      variations: [
+        [220, 277, 330, 392, 440, 392, 330, 277, 247, 294, 349, 440, 392, 349, 294, 247],
+        [247, 294, 349, 415, 494, 415, 349, 294, 277, 330, 392, 494, 440, 392, 330, 277],
+      ],
+      bass: [55, 55, 82, 82, 69, 69, 110, 82, 62, 62, 92, 92, 82, 110, 92, 69],
+      tempo: 0.25,
+      delay: 270,
+      sectionLength: 16,
+    },
+    "field:black_gate_approach": {
+      variations: [
+        [147, 185, 220, 277, 247, 220, 185, 165, 147, 165, 196, 247, 220, 196, 185, 147],
+        [165, 196, 247, 294, 277, 247, 220, 196, 165, 185, 220, 277, 247, 220, 196, 165],
+      ],
+      bass: [37, 37, 55, 55, 46, 46, 73, 55, 41, 41, 62, 62, 55, 73, 62, 46],
+      tempo: 0.29,
+      delay: 315,
+      sectionLength: 16,
+    },
+  };
+  const pattern = patterns[mode] || fieldPatterns[mode] || patterns.field;
   const sectionLength = pattern.sectionLength || 16;
   const sectionIndex = Math.floor(musicStep / sectionLength);
   const stepInSection = musicStep % sectionLength;
   const phrase = pattern.variations?.[sectionIndex % pattern.variations.length] || pattern.variations?.[0] || [];
   const note = phrase[stepInSection % phrase.length];
   const root = pattern.bass[Math.floor(musicStep / 2) % pattern.bass.length];
-  const field = mode === "field";
+  const field = mode.startsWith("field");
   const battle = mode === "battle";
   const night = mode === "night";
   playTone(note, pattern.tempo, battle ? "square" : field ? "sawtooth" : "triangle", battle ? 0.07 : field ? 0.045 : 0.052, musicGain);
@@ -1269,7 +1383,7 @@ function scheduleMusicBeat() {
   if (battle && musicStep % 4 === 2) playTone(55, 0.09, "sawtooth", 0.11, musicGain);
   if (mode !== "battle" && !field && musicStep % 8 === 6) playTone(note * 1.5, 0.14, "sine", 0.035, musicGain);
   if (sectionLength > 16 && [15, 31].includes(stepInSection)) playTone(root * 2, 0.18, battle ? "square" : "triangle", battle ? 0.03 : 0.024, musicGain);
-  if (mode === "field") playFieldDrums(musicStep);
+  if (field) playFieldDrums(musicStep);
   if (mode === "night") playNightDrums(musicStep);
   if (mode === "battle") playBattleDrums(musicStep);
   musicStep += 1;
@@ -1318,7 +1432,7 @@ function playBattleDrums(step) {
 function currentMusicMode() {
   if (activeBattle) return "battle";
   if (activeNight || state.nightReady) return "night";
-  return "field";
+  return `field:${currentRegionId()}`;
 }
 
 function updateMusicButton() {
@@ -2166,21 +2280,52 @@ function landmarkFlavor(event) {
   if (event.landmark === "ruins") return `${event.title || "The ruins"} still watch the road. Broken stone and old ash suggest this route has been contested for years.`;
   if (event.landmark === "camp") return `${event.title || "The camp"} is warm but abandoned. The embers are recent enough to suggest travelers or raiders passed through not long ago.`;
   if (event.landmark === "statue") return `${event.title || "The monument"} rises over the road, reminding every army marching past that someone else once tried to rule this ground.`;
+  if (event.landmark === "shrine") return `${event.title || "The shrine"} glows with clean daylight. ${event.hint || "Old stones hum with a small blessing for the road ahead."}`;
   return `${event.title || "The landmark"} breaks the road's monotony.`;
 }
 
 function landmarkEvent(key, event) {
   const firstVisit = !state.visited[key];
   state.visited[key] = true;
-  const text = landmarkFlavor(event);
+  const rewardText = firstVisit ? applyLandmarkReward(event) : "";
+  const text = `${landmarkFlavor(event)}${rewardText ? `\n\n${rewardText}` : ""}`;
   setMessage(firstVisit ? `Discovered ${event.title || "a landmark"}.` : `${event.title || "This landmark"} is familiar now.`);
   openModal(event.title || "Landmark", text, [
     { label: firstVisit ? "Mark Route" : "Continue", action: () => renderAll() },
   ]);
 }
 
+function applyLandmarkReward(event) {
+  const reward = event.reward;
+  if (!reward) return "";
+  const parts = [];
+  if (reward.gold) {
+    state.gold += reward.gold;
+    parts.push(`${reward.gold} gold`);
+  }
+  if (reward.xp) {
+    gainXp(reward.xp);
+    parts.push(`${reward.xp} XP`);
+  }
+  if (reward.heal) {
+    recoverParty(reward.heal);
+    parts.push(`${reward.heal} HP restored`);
+  }
+  if (reward.morale) {
+    state.hero.morale += reward.morale;
+    parts.push(`+${reward.morale} morale`);
+  }
+  if (reward.item) {
+    addInventoryItem(reward.item, reward.qty || 1);
+    parts.push(`${reward.qty && reward.qty > 1 ? `${reward.qty}x ` : ""}${itemDefinitions[reward.item]?.name || reward.item}`);
+  }
+  if (!parts.length) return "";
+  playSfx("coin");
+  return `First visit reward: ${parts.join(", ")}.`;
+}
+
 function townClaimCost(event) {
-  const baseCost = 75 + (townFaction(event).units.length - 1) * 20 + state.hero.level * 10;
+  const baseCost = 68 + (townFaction(event).units.length - 1) * 16 + state.hero.level * 8;
   return Math.round(baseCost * economyDiscountMultiplier());
 }
 
@@ -2242,10 +2387,20 @@ function reopenTownNoticeBoard(key, event) {
 
 function openTownCommissionModal(key, event) {
   state.quests ??= {};
-  const entries = Object.entries(townCommissionDefinitions);
+  const entries = townNoticeEntries(key, event);
   openModal("Town Notice Board", townNoticeBoardMarkup(event, entries), [
     { label: "Back", secondary: true, action: () => reopenTownModal(key, event) },
   ], { html: true, className: "notice-modal", onRender: () => bindTownNoticeBoard(key, event) });
+}
+
+function townNoticeEntries(key, event) {
+  const local = [];
+  const general = [];
+  Object.entries(townCommissionDefinitions).forEach(([id, quest]) => {
+    if (quest.towns && !quest.towns.includes(event.name) && !quest.towns.includes(key) && !quest.towns.includes(event.faction)) return;
+    (quest.towns ? local : general).push([id, quest]);
+  });
+  return [...local, ...general].slice(0, 5);
 }
 
 function townNoticeBoardMarkup(event, entries) {
@@ -2255,9 +2410,11 @@ function townNoticeBoardMarkup(event, entries) {
     const claimed = status === "claimed";
     const tone = claimed ? "claimed" : ready ? "ready" : status === "accepted" ? "active" : "new";
     const label = claimed ? "Complete" : ready ? "Reward ready" : status === "accepted" ? "In progress" : "Available";
-    const action = claimed ? "Already paid." : ready ? "Claim this reward now." : status === "accepted" ? "Keep working, then return here." : "Accept this job now.";
+    const action = claimed ? "Already paid." : ready ? "Claim this reward now." : status === "accepted" ? "Tracked in your quest log." : "Accept this job now.";
     const buttonLabel = claimed ? "Done" : ready ? "Claim Reward" : status === "accepted" ? "View Objective" : "Accept Job";
-    const disabled = claimed ? " disabled" : "";
+    const actionControl = status === "accepted" && !ready
+      ? `<span class="notice-job-pill">Tracked in Quest Log</span>`
+      : `<button type="button" data-notice-job="${id}"${claimed ? " disabled" : ""}>${buttonLabel}</button>`;
     return `
       <article class="notice-job ${tone}">
         <span class="notice-pin"></span>
@@ -2265,7 +2422,7 @@ function townNoticeBoardMarkup(event, entries) {
         <em>${label}</em>
         <p>${quest.objective}</p>
         <small>Reward: ${quest.rewardText}. ${action}</small>
-        <button type="button" data-notice-job="${id}"${disabled}>${buttonLabel}</button>
+        ${actionControl}
       </article>
     `;
   }).join("");
@@ -2581,10 +2738,10 @@ function useTownFactionAction(key, event) {
       const amount = Math.max(10, Math.round(missing * 0.45));
       recoverParty(amount);
       const remaining = totalMissingPartyHealth();
-      messageText = `${event.name}'s wardens call a Grove Blessing and restore ${amount} HP across the party.${remaining > 0 ? ` ${remaining} HP still needs mending.` : " The warband is fully restored."}`;
+      messageText = `Grove Blessing used: ${event.name}'s wardens restore ${amount} HP across the party.${remaining > 0 ? ` ${remaining} HP still needs mending.` : " The warband is fully restored."}`;
     } else {
       addInventoryItem("healingDraught", 1);
-      messageText = `${event.name}'s herbalists answer the Grove Blessing with a Healing Draught. You now carry ${inventoryCount("healingDraught")} draught${inventoryCount("healingDraught") === 1 ? "" : "s"}.`;
+      messageText = `Grove Blessing used: ${event.name}'s herbalists add a Healing Draught to your bag. You now carry ${inventoryCount("healingDraught")} draught${inventoryCount("healingDraught") === 1 ? "" : "s"}.`;
     }
     markTownActionUsed(town, actionId);
   }
@@ -2597,7 +2754,7 @@ function recruitableUnitsForTown(event) {
 
 function recruitCostForTown(id, event = null) {
   const unit = creatureBook[id];
-  const baseCost = 24 + (unit?.maxHp || 20) * 0.8 + (unit?.atk || 5) * 3.2 + state.hero.level * 5;
+  const baseCost = 22 + (unit?.maxHp || 20) * 0.72 + (unit?.atk || 5) * 3 + state.hero.level * 4;
   const factionMultiplier = event?.faction === "grove" ? 0.9 : 1;
   return Math.round(baseCost * economyDiscountMultiplier() * factionMultiplier);
 }
@@ -2653,11 +2810,17 @@ function townRecruitCard(key, event, town, id) {
   const selected = getTownSelection(key, event) === `recruit:${id}` ? " selected" : "";
   return `
     <button type="button" class="town-recruit-card${selected}" data-town-recruit="${id}" aria-label="${unit.name}"${disabled}>
-      <span class="recruit-dot" style="--unit-color:${unit.color}"></span>
+      ${townRecruitSpriteMarkup(id, unit)}
       <span class="town-recruit-main"><b>${unit.name}</b><small>${role} / ${rangeText(unit)}</small><span class="town-card-tags"><i class="town-state-badge ${tone}">${badge}</i>${existing ? `<i class="town-state-badge neutral">Veteran</i>` : ""}</span></span>
       <em>${note}</em>
     </button>
   `;
+}
+
+function townRecruitSpriteMarkup(id, unit) {
+  const portrait = unitArtReady(id) ? getUnitPortraitDataUrl(id) : "";
+  if (portrait) return `<span class="town-recruit-sprite" style="--unit-color:${unit.color}"><img src="${portrait}" alt="" /></span>`;
+  return `<span class="town-recruit-sprite fallback" style="--unit-color:${unit.color}"><span class="recruit-dot"></span></span>`;
 }
 
 function townYardSprite(sprite, slot, visible, town, buildingId, owned = true, selected = false) {
@@ -2827,6 +2990,30 @@ function previewTownRecruit(key, event, unitId) {
   setTownFeedback(`${unit.name}: ${unitRole(unit)}, ${rangeText(unit)}, ${unit.skill}. ${baseStatus}`, !primary && !builtBarracks ? "warn" : existing && isTownActionUsed(town, `upgrade:${unitId}`) ? "used" : "info");
 }
 
+function barracksRecruitPreview(key, event, unitId) {
+  const town = getTownState(key);
+  const unit = creatureBook[unitId];
+  if (!unit) return;
+  setTownSelection(key, event, `recruit:${unitId}`, false);
+  const primary = unitId === event.creature;
+  const existing = partyUnitForId(unitId);
+  const builtBarracks = town.buildings.includes("barracks");
+  const baseStatus = town.owner !== "player"
+    ? `Claim ${event.name} before this roster can drill.`
+    : !primary && !builtBarracks
+      ? `Needs Barracks before ${unit.name} can join.`
+      : existing
+        ? isTownActionUsed(town, `upgrade:${unitId}`)
+          ? `${unit.name} already trained here today.`
+          : `Upgrade for ${townUpgradeCostForUnit(unitId, event)} gold.`
+        : !primary && isTownActionUsed(town, "barracks")
+          ? "The Barracks has already raised a unit today."
+          : state.party.length >= MAX_PARTY_UNITS
+            ? `Party full. Replace a creature for ${recruitCostForTown(unitId, event)} gold.`
+            : `Recruit for ${recruitCostForTown(unitId, event)} gold.`;
+  setBarracksFeedback(`${unit.name}: ${unitRole(unit)}, ${rangeText(unit)}. ${unit.skill}. ${baseStatus}`, !primary && !builtBarracks ? "warn" : existing && isTownActionUsed(town, `upgrade:${unitId}`) ? "used" : "info");
+}
+
 function handleTownBuildingClick(key, event, buildingId) {
   const town = getTownState(key);
   const definition = townBuildingDefinitions[buildingId];
@@ -2853,8 +3040,8 @@ function handleTownBuildingClick(key, event, buildingId) {
   } else if (buildingId === "caravanPost") {
     openCaravanTradeModal(key, event);
   } else if (buildingId === "barracks") {
-    setTownFeedback("Barracks roster is open. Local units can be raised here; built Barracks unlocks the wider roster once per day.", "info");
-    return;
+    barracksFeedback = { text: `${event.name}'s Barracks is open. Select a roster card to recruit a new unit or train a veteran.`, type: "info" };
+    openBarracksModal(key, event);
   } else if (buildingId === "trainingYard") {
     if (isTownActionUsed(town, buildingId)) {
       setTownFeedback(`${definition.name} has already been used today. It will be ready again tomorrow.`, "used");
@@ -2889,6 +3076,68 @@ function buildTownBuilding(key, event, buildingId) {
   state.visited[key] = true;
   const autoBonus = buildingId === "caravanPost" ? autoDispatchCaravan(town) : 0;
   refreshTownModal(key, event, autoBonus > 0 ? `${event.name} builds a ${building.name}. Its first caravan returns with ${autoBonus} gold.` : `${event.name} builds a ${building.name}.`, "good");
+}
+
+function openBarracksModal(key, event) {
+  openModal("Barracks", barracksMarkup(key, event), [
+    { label: "Back to Town", secondary: true, action: () => reopenTownModal(key, event) },
+  ], { html: true, className: "barracks-modal", onRender: () => bindBarracksModal(key, event) });
+}
+
+function reopenBarracksModal(key, event) {
+  window.setTimeout(() => {
+    if (!activeBattle && !activeNight) openBarracksModal(key, event);
+  }, 0);
+}
+
+function barracksMarkup(key, event) {
+  const town = getTownState(key);
+  const faction = townFaction(event);
+  const roster = recruitableUnitsForTown(event).map((id) => townRecruitCard(key, event, town, id)).join("");
+  const builtBarracks = town.buildings.includes("barracks");
+  const recruitUsed = isTownActionUsed(town, "barracks");
+  const available = recruitableUnitsForTown(event).filter((id) => {
+    const primary = id === event.creature;
+    const existing = partyUnitForId(id);
+    if (!primary && !builtBarracks) return false;
+    if (existing) return !isTownActionUsed(town, `upgrade:${id}`);
+    if (!primary && recruitUsed) return false;
+    return true;
+  }).length;
+  const feedback = barracksFeedback.text
+    ? `<div id="barracksFeedback" class="barracks-feedback ${barracksFeedback.type}">${escapeHtml(barracksFeedback.text)}</div>`
+    : `<div id="barracksFeedback" class="barracks-feedback info">Select a roster card to recruit, replace, or train a veteran.</div>`;
+  const primaryUnit = creatureBook[event.creature];
+  return `
+    <div class="barracks-panel">
+      <div class="barracks-hero">
+        ${townSpriteDataUrl("barracks", true) ? `<img src="${townSpriteDataUrl("barracks", true)}" alt="" />` : ""}
+        <div>
+          <strong>${escapeHtml(event.name)} Barracks</strong>
+          <span>${escapeHtml(faction.name)} drill hall. Recruit the local ${escapeHtml(primaryUnit?.name || "unit")} anytime, and use the built Barracks to raise one wider faction unit each day.</span>
+        </div>
+      </div>
+      <div class="barracks-summary">
+        <span><b>Gold</b>${state.gold}</span>
+        <span><b>Party</b>${state.party.length}/${MAX_PARTY_UNITS}</span>
+        <span><b>Roster</b>${faction.units.length} units</span>
+        <span><b>Ready</b>${available}</span>
+      </div>
+      ${feedback}
+      <section class="barracks-roster-panel">
+        <h3><span>Barracks Roster</span><small>${recruitUsed ? "Daily recruit used" : "Daily recruit ready"}</small></h3>
+        <div class="barracks-roster">${roster}</div>
+      </section>
+    </div>
+  `;
+}
+
+function bindBarracksModal(key, event) {
+  modalText.querySelectorAll("[data-town-recruit]").forEach((button) => {
+    button.addEventListener("click", () => recruitTownUnit(key, event, button.dataset.townRecruit, { source: "barracks" }));
+    button.addEventListener("focus", () => barracksRecruitPreview(key, event, button.dataset.townRecruit));
+  });
+  syncTownSelectionUi(getTownSelection(key, event));
 }
 
 function openCaravanTradeModal(key, event) {
@@ -3120,42 +3369,61 @@ function setTownFeedback(text, type = "info") {
   setMessage(text);
 }
 
+function setBarracksFeedback(text, type = "info") {
+  barracksFeedback = { text, type };
+  const feedback = modalText.querySelector("#barracksFeedback");
+  if (feedback) {
+    feedback.textContent = text;
+    feedback.className = `barracks-feedback ${type}`;
+  }
+  setMessage(text);
+}
+
+function setRecruitFeedback(key, event, text, type, source) {
+  if (source === "barracks") {
+    setBarracksFeedback(text, type);
+    return;
+  }
+  setTownFeedback(text, type);
+}
+
 function refreshTownModal(key, event, feedbackText = "", feedbackType = "info") {
   townEvent(key, event);
   if (feedbackText) setTownFeedback(feedbackText, feedbackType);
   renderSidebar();
 }
 
-function recruitTownUnit(key, event, unitId) {
+function recruitTownUnit(key, event, unitId, options = {}) {
+  const source = options.source || "town";
   const town = getTownState(key);
   const unit = creatureBook[unitId];
   if (!unit) return;
   if (town.owner !== "player") {
-    setTownFeedback(`Claim ${event.name} before recruiting or training units here.`, "warn");
+    setRecruitFeedback(key, event, `Claim ${event.name} before recruiting or training units here.`, "warn", source);
     return;
   }
   const primary = unitId === event.creature;
   const existing = partyUnitForId(unitId);
   const actionId = existing ? `upgrade:${unitId}` : "barracks";
   if (!primary && !town.buildings.includes("barracks")) {
-    setTownFeedback(`Build Barracks to recruit ${unit.name}.`, "warn");
+    setRecruitFeedback(key, event, `Build Barracks to recruit ${unit.name}.`, "warn", source);
     return;
   }
   if (existing && isTownActionUsed(town, actionId)) {
-    setTownFeedback(`${unit.name} has already trained here today. Try again tomorrow.`, "used");
+    setRecruitFeedback(key, event, `${unit.name} has already trained here today. Try again tomorrow.`, "used", source);
     return;
   }
   if (!existing && !primary && isTownActionUsed(town, "barracks")) {
-    setTownFeedback("Barracks has already raised a unit today. Try again tomorrow.", "used");
+    setRecruitFeedback(key, event, "Barracks has already raised a unit today. Try again tomorrow.", "used", source);
     return;
   }
   const cost = existing ? townUpgradeCostForUnit(unitId, event) : recruitCostForTown(unitId, event);
   if (state.gold < cost) {
-    setTownFeedback(`${existing ? "Training" : unit.name} costs ${cost} gold.`, "warn");
+    setRecruitFeedback(key, event, `${existing ? "Training" : unit.name} costs ${cost} gold.`, "warn", source);
     return;
   }
   if (!existing && state.party.length >= MAX_PARTY_UNITS) {
-    openReplaceUnitModal(key, event, unitId, cost);
+    openReplaceUnitModal(key, event, unitId, cost, source);
     return;
   }
   state.gold -= cost;
@@ -3167,12 +3435,20 @@ function recruitTownUnit(key, event, unitId) {
   }
   state.visited[key] = true;
   if (!existing && !primary) markTownActionUsed(town, "barracks");
-  refreshTownModal(key, event, existing ? `${event.name} upgrades ${existing.name} to level ${existing.level}.` : `${event.name} recruits ${unit.name}.`, "good");
+  const text = existing ? `${event.name} upgrades ${existing.name} to level ${existing.level}.` : `${event.name} recruits ${unit.name}.`;
+  if (source === "barracks") {
+    setBarracksFeedback(text, "good");
+    renderAll();
+    reopenBarracksModal(key, event);
+    return;
+  }
+  refreshTownModal(key, event, text, "good");
 }
 
-function openReplaceUnitModal(key, event, unitId, cost) {
+function openReplaceUnitModal(key, event, unitId, cost, source = "town") {
   const unit = creatureBook[unitId];
   if (!unit) return;
+  const reopenSourceModal = () => source === "barracks" ? reopenBarracksModal(key, event) : reopenTownModal(key, event);
   openModal(
     "Replace Unit",
     `Your party has ${MAX_PARTY_UNITS} creature units. Choose one to dismiss and recruit ${unit.name} for ${cost} gold.`,
@@ -3182,7 +3458,7 @@ function openReplaceUnitModal(key, event, unitId, cost) {
         action: () => {
           if (state.gold < cost) {
             setMessage(`${unit.name} costs ${cost} gold.`);
-            reopenTownModal(key, event);
+            reopenSourceModal();
             return;
           }
           const removed = state.party[index];
@@ -3193,10 +3469,11 @@ function openReplaceUnitModal(key, event, unitId, cost) {
           state.visited[key] = true;
           setMessage(`${removed.name} leaves. ${unit.name} joins the party.`);
           renderAll();
-          reopenTownModal(key, event);
+          if (source === "barracks") barracksFeedback = { text: `${removed.name} leaves. ${unit.name} joins the party.`, type: "good" };
+          reopenSourceModal();
         },
       })),
-      { label: "Cancel", secondary: true, action: () => reopenTownModal(key, event) },
+      { label: "Cancel", secondary: true, action: () => reopenSourceModal() },
     ],
   );
 }
@@ -3236,7 +3513,7 @@ function applyTownTraining(town) {
 }
 
 function caravanRouteGoldFor(caravanCount, townCount) {
-  return caravanCount ? caravanCount * Math.max(12, townCount * 12) : 0;
+  return caravanCount ? caravanCount * Math.max(9, Math.min(36, townCount * 7)) : 0;
 }
 
 function caravanRouteGoldForTown(key, townCount) {
@@ -3259,7 +3536,7 @@ function townEconomyPreview() {
   const buildingGold = ownedTowns.reduce((sum, [, town]) => sum + town.buildings.reduce((part, id) => part + (townBuildingDefinitions[id]?.income || 0), 0), 0);
   const caravanTowns = ownedTowns.filter(([, town]) => town.buildings.includes("caravanPost"));
   const routeGold = caravanTowns.reduce((sum, [key]) => sum + caravanRouteGoldForTown(key, ownedTowns.length), 0);
-  const townGold = ownedTowns.length * 8;
+  const townGold = ownedTowns.length * 5;
   return { total: mineGold + townGold + buildingGold + routeGold, mines: mineGold, towns: townGold + buildingGold, routes: routeGold };
 }
 
@@ -3280,7 +3557,7 @@ function collectTownIncome() {
 function claimedMineIncome() {
   let total = 0;
   events.forEach((event, key) => {
-    if (event.type === "mine" && state.visited[key]) total += event.gold;
+    if (event.type === "mine" && state.visited[key]) total += Math.max(7, Math.round(event.gold * 0.38));
   });
   return total;
 }
@@ -3352,8 +3629,8 @@ function rollChestRewards(key, event) {
   const bonusA = seededUnit(`${seed}:a`);
   const bonusB = seededUnit(`${seed}:b`);
   const bonusC = seededUnit(`${seed}:c`);
-  if (bonusA > 0.28) rewards.push({ gold: 18 + Math.floor(bonusA * 54) });
-  if (bonusB > 0.5) rewards.push({ xp: 12 + Math.floor(bonusB * 28) });
+  if (bonusA > 0.34) rewards.push({ gold: 14 + Math.floor(bonusA * 42) });
+  if (bonusB > 0.46) rewards.push({ xp: 14 + Math.floor(bonusB * 34) });
   if (bonusC > 0.72) {
     const artifactPool = ["Banner of Luck", "Silver Bridle", "Starlit Compass", "Forge Charm"];
     rewards.push({ item: artifactPool[Math.floor(bonusC * artifactPool.length) % artifactPool.length], gold: 10 });
@@ -3516,15 +3793,15 @@ function useInventoryItem(id) {
 }
 
 function battleEvent(key, event) {
-  const enemies = createEnemyParty(event.encounter);
+  const enemies = createBattleEnemyParty(event);
   const leader = enemies[0];
-  const tier = campaignDifficultyTier();
+  const tier = { label: leader?.difficultyTier || campaignDifficultyTier().label };
   const leaderName = event.guardName || leader.name;
   const enemyText = enemies.length > 1 ? `${leaderName} and ${enemies.length - 1} ${enemies.length === 2 ? "ally" : "allies"} block the path.` : `${leaderName} blocks the path.`;
   openModal("Battle", battlePreviewMarkup(event, enemies, tier, enemyText), [
     { label: "Fight", action: () => startBattle(key, event, enemies) },
     { label: "Retreat", secondary: true, action: () => retreatFromBattlePreview(key, event) },
-  ], { html: true, className: event.gate || event.type === "final" ? "boss-preview-modal" : "" });
+  ], { html: true, className: event.gate || event.passName || event.type === "final" ? "boss-preview-modal" : "" });
 }
 
 function retreatFromBattlePreview(key, event) {
@@ -3557,19 +3834,22 @@ function retreatFromBattlePreview(key, event) {
 }
 
 function battlePreviewMarkup(event, enemies, tier, enemyText) {
-  const reward = enemies.reduce((sum, enemy) => sum + (enemy.reward || 0), 0);
+  const reward = battleGoldReward(event, enemies);
   const icons = enemies.map((enemy) => `<span class="enemy-icon ${enemyArchetype(enemy)}" title="${escapeHtml(enemy.name)}">${enemyArchetypeIcon(enemy)}</span>`).join("");
   const leadText = bossLeadText(event);
   const bossText = bossTraitText(event);
+  const readinessText = passReadinessText(event);
   const guardedCaches = (event.guards || [])
     .map((key) => ({ key, event: events.get(key) }))
     .filter((entry) => entry.event)
     .map(({ event: cache }) => eventLabel(cache))
     .join(", ");
   return `
-    <div class="battle-preview ${event.gate || event.type === "final" ? "boss-preview" : ""}">
-      ${leadText ? `<div class="boss-preview-hero"><strong>${event.gate ? "Fortress Approach" : event.type === "final" ? "Fortress Heart" : "Battle Readiness"}</strong><p>${leadText}</p></div>` : ""}
+    <div class="battle-preview ${event.gate || event.passName || event.type === "final" ? "boss-preview" : ""}">
+      ${leadText || event.passName ? `<div class="boss-preview-hero"><strong>${event.passName ? "Biome Boss" : event.gate ? "Fortress Approach" : event.type === "final" ? "Fortress Heart" : "Battle Readiness"}</strong><p>${escapeHtml(leadText || `${event.guardName || "The pass guardian"} is a mini-boss holding ${event.passName}. Bring extra units, healing, or upgrades before forcing the crossing.`)}</p></div>` : ""}
       <p>${escapeHtml(enemyText)} Threat: <strong>${tier.label}</strong>.</p>
+      ${readinessText ? `<div class="boss-preview-panel ready-check"><strong>Ready Check</strong><p>${escapeHtml(readinessText)}</p></div>` : ""}
+      <div class="boss-preview-panel"><strong>Tactical Ask</strong><p>${escapeHtml(enemyTraitText(enemies[0]?.sourceEncounter || event.encounter))}</p></div>
       ${event.passName ? `<div class="boss-preview-panel"><strong>Pass Guardian</strong><p>Defeat this guard to make ${escapeHtml(event.passName)} safe to cross. This fight controls movement between regions, not just loot.</p></div>` : ""}
       ${guardedCaches ? `<div class="boss-preview-panel"><strong>Guarding</strong><p>Clearing this outpost opens the ${escapeHtml(guardedCaches)} nearby.</p></div>` : ""}
       ${bossText ? `<div class="boss-preview-panel"><strong>Boss Trait</strong><p>${bossText}</p></div>` : ""}
@@ -3580,6 +3860,52 @@ function battlePreviewMarkup(event, enemies, tier, enemyText) {
       </div>
     </div>
   `;
+}
+
+function passReadinessText(event) {
+  if (!event.passName) return "";
+  if (event.passName === "Ashbell Ridge") {
+    return "Recommended before crossing: champion level 2, one recruited creature, one Healing Draught, and at least one mine or shrine reward. Dawnhaven and Ashbell notice jobs point you toward those prep steps.";
+  }
+  return "Recommended before crossing: a filled front line, healing in the bag, and at least one recent town or cache upgrade.";
+}
+
+function enemyTraitText(encounterId) {
+  return {
+    goblin: "Bandits punish isolated units. Keep wounded allies near the line or they will be picked off.",
+    basilisk: "Basilisks grind down guarded targets with venom. Do not rely on guarding alone.",
+    raiders: "Raiders bring ranged pressure. Protect your backline or close the distance quickly.",
+    wyvern: "Wyverns dive exposed targets and move fast. Spread carefully, but do not strand units.",
+    knight: "Knights are armored anchors. Focus fire instead of trading single blows.",
+    tideGuard: "Harbor guards hold formation. Bring damage or upgrades before forcing the claim.",
+    warlock: "Warlocks punish unguarded backline units with long-range magic.",
+    gatekeeper: "The Warden shields the first blow and enrages at half health.",
+    rival: "Orius uses wards, blinks, and field-wide barrages. End the fight before attrition wins.",
+  }[encounterId] || "This enemy controls a useful route or reward. Defeating it changes the map, not just your gold.";
+}
+
+function battleGoldReward(event, enemies) {
+  const base = enemies.reduce((sum, enemy) => sum + (enemy.reward || 0), 0);
+  if (event.type === "final") return base + 80;
+  if (event.gate) return base + 45;
+  if (event.passName) return base + 48;
+  if (event.guards?.length) return base + 18;
+  if (event.type === "townClaim") return base + 12;
+  if (event.type === "roamingHero") return base + 24;
+  return base;
+}
+
+function battleXpReward(event, leader, enemies) {
+  if (event.type === "night") return Math.max(18, 18 + (leader.nightLevel || state.hero.level) * 4);
+  if (event.type === "final") return 80;
+  if (event.gate) return 64;
+  const tier = leader?.difficultyTier === "Hard" ? 2 : leader?.difficultyTier === "Medium" ? 1 : campaignDifficultyTier().rank;
+  const partyBonus = Math.max(0, (enemies?.length || 1) - 2) * 3;
+  if (event.passName) return 52 + tier * 8 + partyBonus;
+  if (event.guards?.length || event.type === "chestGuard") return 32 + tier * 5 + partyBonus;
+  if (event.type === "townClaim") return 30 + tier * 4 + partyBonus;
+  if (event.type === "roamingHero") return 38 + tier * 5 + partyBonus;
+  return 24 + tier * 4 + partyBonus;
 }
 
 function bossLeadText(event) {
@@ -3610,9 +3936,50 @@ function enemyArchetypeIcon(enemy) {
   return "M";
 }
 
+function createBattleEnemyParty(event) {
+  if (event.passName) return createPassGuardianParty(event);
+  return createEnemyParty(event.encounter);
+}
+
+function createPassGuardianParty(event) {
+  const tier = campaignDifficultyTier();
+  const firstRidge = event.passName === "Ashbell Ridge";
+  const bossTier = firstRidge
+    ? { ...tier, rank: Math.max(0, tier.rank), label: tier.rank >= 1 ? "Medium" : "Easy" }
+    : { ...tier, rank: Math.max(1, tier.rank + 1), label: tier.rank >= 1 ? "Hard" : "Medium" };
+  const minimumSize = firstRidge ? 2 : 3;
+  const partySize = Math.min(BATTLE_ROWS, Math.max(minimumSize, desiredEnemyPartySize(event.encounter, { tier: bossTier })));
+  const party = createEnemyParty(event.encounter, { ...encounters[event.encounter], difficultyTier: bossTier, partySize });
+  party.forEach((unit, index) => {
+    unit.passGuardian = true;
+    unit.difficultyTier = bossTier.label;
+    if (index === 0) {
+      unit.name = event.guardName || `${unit.name} Warden`;
+      unit.passBoss = true;
+      unit.maxHp = Math.round(unit.maxHp * (firstRidge ? 1.04 : 1.42) + (firstRidge ? 2 : 8));
+      unit.hp = unit.maxHp;
+      unit.atk += firstRidge ? 0 : 2;
+      unit.def += firstRidge ? -1 : 1;
+      if (!firstRidge) unit.speed += 1;
+      unit.reward = Math.round((unit.reward || 0) * (firstRidge ? 1.18 : 1.45));
+    } else {
+      unit.name = `${event.passName} ${unit.name}`;
+      unit.maxHp = Math.round(unit.maxHp * (firstRidge ? 0.76 : 1.1));
+      unit.hp = unit.maxHp;
+      unit.atk += firstRidge ? -1 : 1;
+      if (firstRidge) unit.def = Math.max(1, unit.def - 1);
+      unit.reward = Math.round((unit.reward || 0) * (firstRidge ? 1.05 : 1.15));
+    }
+  });
+  return party;
+}
+
 function createEnemyParty(encounterId, sourceEnemy = null) {
   const base = structuredClone(sourceEnemy || encounters[encounterId]);
-  const tier = sourceEnemy?.difficultyTier || campaignDifficultyTier();
+  const campaignTier = campaignDifficultyTier();
+  const regionRank = sourceEnemy ? 0 : regionalThreatRank();
+  const effectiveRank = Math.max(campaignTier.rank, regionRank);
+  const tier = sourceEnemy?.difficultyTier || { ...campaignTier, rank: effectiveRank, label: difficultyLabelForRank(effectiveRank) };
   const count = sourceEnemy?.partySize || desiredEnemyPartySize(encounterId, { tier });
   const partyNames = {
     goblin: [`${base.name} Leader`, `${base.name} Scout`, `${base.name} Skirmisher`, `${base.name} Trapper`, `${base.name} Guard`],
@@ -3631,11 +3998,11 @@ function createEnemyParty(encounterId, sourceEnemy = null) {
     if (!sourceEnemy && encounterId === "rival" && index === 2) unit.sourceEncounter = "towerSentinel";
     if (count > 1) {
       const rewardShare = Math.floor((base.reward || 0) / count);
-      const hpScale = index === 0 ? 0.9 + tier.rank * 0.09 : 0.64 + tier.rank * 0.08;
+      const hpScale = index === 0 ? 1 + tier.rank * 0.12 : 0.76 + tier.rank * 0.1;
       unit.maxHp = Math.max(8, Math.round(unit.maxHp * hpScale));
       unit.hp = unit.maxHp;
-      unit.atk = Math.max(2, unit.atk - (index === 0 ? 1 : 2) + tier.rank);
-      unit.def = Math.max(0, unit.def - (index === 0 ? 0 : 1) + Math.floor(tier.rank / 2));
+      unit.atk = Math.max(2, unit.atk - (index === 0 ? 0 : 1) + tier.rank);
+      unit.def = Math.max(0, unit.def - (index === 0 ? 0 : 1) + Math.ceil(tier.rank / 2));
       unit.speed = Math.max(1, unit.speed + (tier.rank >= 2 && index > 0 ? 1 : 0));
       unit.reward = index === 0 ? (base.reward || 0) - rewardShare * (count - 1) : rewardShare;
     } else {
@@ -3659,12 +4026,29 @@ function campaignDifficultyTier() {
   return { label: "Easy", rank: 0, score };
 }
 
+function difficultyLabelForRank(rank) {
+  if (rank >= 2) return "Hard";
+  if (rank >= 1) return "Medium";
+  return "Easy";
+}
+
+function regionalThreatRank(regionId = currentRegionId()) {
+  return {
+    dawnhaven_march: 0,
+    central_kingdom: 0,
+    low_roads: 1,
+    high_march: 1,
+    southern_wilds: 1,
+    black_gate_approach: 2,
+  }[regionId] || 0;
+}
+
 function desiredEnemyPartySize(encounterId, options = {}) {
   const tier = options.tier || campaignDifficultyTier();
   const base = { goblin: 2, basilisk: 2, raiders: 3, wyvern: 2, knight: 2, warlock: 2, tideGuard: 2, gatekeeper: 4, rival: 5 }[encounterId] || 2;
-  const armyPressure = Math.max(0, Math.floor((state.party.length - 2) / 2));
+  const armyPressure = Math.max(0, Math.floor((state.party.length - 1) / 2));
   const nightBonus = options.night ? 1 : 0;
-  const cap = encounterId === "rival" || encounterId === "gatekeeper" ? 5 : tier.rank === 0 ? 2 : tier.rank === 1 ? 4 : 5;
+  const cap = encounterId === "rival" || encounterId === "gatekeeper" ? 5 : tier.rank === 0 ? 3 : tier.rank === 1 ? 4 : 5;
   return Math.max(1, Math.min(BATTLE_ROWS, cap, base + tier.rank + armyPressure + nightBonus));
 }
 
@@ -3681,6 +4065,15 @@ function normalizeEnemyUnit(enemy) {
 }
 
 function createBossBattleState(event) {
+  if (event.passName) {
+    const firstRidge = event.passName === "Ashbell Ridge";
+    return {
+      kind: "passGuardian",
+      shieldCharges: firstRidge ? 0 : 1,
+      introPass: firstRidge,
+      rallied: false,
+    };
+  }
   if (event.encounter === "gatekeeper") {
     return {
       kind: "gatekeeper",
@@ -3716,7 +4109,7 @@ function startBattle(key, event, enemyInput) {
     key,
     event,
     enemies,
-    reward: enemies.reduce((sum, enemy) => sum + (enemy.reward || 0), 0),
+    reward: battleGoldReward(event, enemies),
     turn: "",
     round: 1,
     selectedIndex: -1,
@@ -4137,7 +4530,7 @@ function battleFeedbackClassForEnemy(index) {
 }
 function battleUnitPortrait(unit) {
   if (!unit.id && heroDirectionSheetReady) return getHeroBattlePortraitDataUrl("right");
-  if (unit.id && unitSheetReady && unitCell(unit.id, 0)) return getUnitPortraitDataUrl(unit.id);
+  if (unit.id && unitArtReady(unit.id) && unitCell(unit.id, 0)) return getUnitPortraitDataUrl(unit.id);
   const sprite = spriteNameForUnit(unit);
   if (!sprite) return "";
   if (!characterSheetReady && !spriteSheetReady) return "";
@@ -4150,7 +4543,7 @@ function battleEnemyPortrait(enemy) {
     const enemyPortrait = getEnemyPortraitDataUrl(visual.id);
     if (enemyPortrait) return enemyPortrait;
   }
-  if (visual?.source === "unit" && unitSheetReady) return getUnitPortraitDataUrl(visual.id);
+  if (visual?.source === "unit" && unitArtReady(visual.id)) return getUnitPortraitDataUrl(visual.id);
   if (visual?.source === "character" && (characterSheetReady || spriteSheetReady)) return getPortraitDataUrl(visual.id);
   return "";
 }
@@ -4400,7 +4793,13 @@ function playerBattleAction(attackerIndex, enemyIndex) {
   const moraleBonus = (attacker.morale || 0) >= 7 ? 2 : 0;
   let damage = Math.max(1, attacker.atk + Math.ceil((attacker.power || 0) / 2) + attacker.level + moraleBonus - (enemy.def || 0) - penalty * 2 + Math.floor(Math.random() * 4) - 1);
   let bossNote = "";
-  if (enemy.sourceEncounter === "gatekeeper" && activeBattle.bossState?.kind === "gatekeeper" && activeBattle.bossState.shieldCharges > 0) {
+  if (enemy.passBoss && activeBattle.bossState?.kind === "passGuardian" && activeBattle.bossState.shieldCharges > 0) {
+    const absorbed = Math.min(Math.max(0, damage - 1), 5);
+    damage = Math.max(1, damage - absorbed);
+    activeBattle.bossState.shieldCharges -= 1;
+    bossNote = ` The pass ward absorbs ${absorbed}.`;
+    addBattleFloater(enemyPos.x, enemyPos.y, "Ward", "guard");
+  } else if (enemy.sourceEncounter === "gatekeeper" && activeBattle.bossState?.kind === "gatekeeper" && activeBattle.bossState.shieldCharges > 0) {
     const absorbed = Math.min(Math.max(0, damage - 1), 6);
     damage = Math.max(1, damage - absorbed);
     activeBattle.bossState.shieldCharges -= 1;
@@ -4439,6 +4838,17 @@ function maybeTriggerBossPhase(enemyIndex) {
     enemy.speed += 1;
     activeBattle.log.push(`${enemy.name} roars behind the broken gate and fights in a rage.`);
     if (enemyPos) addBattleFloater(enemyPos.x, enemyPos.y, "Rage", "attack");
+    return true;
+  }
+  if (enemy.passBoss && activeBattle.bossState?.kind === "passGuardian" && !activeBattle.bossState.introPass && !activeBattle.bossState.rallied && enemy.hp <= Math.ceil(enemy.maxHp * 0.5)) {
+    activeBattle.bossState.rallied = true;
+    enemy.atk += 2;
+    enemy.def += 1;
+    activeBattle.enemies.forEach((ally, index) => {
+      if (index !== enemyIndex && ally.hp > 0) ally.atk += 1;
+    });
+    activeBattle.log.push(`${enemy.name} plants the pass banner and rallies the guard line.`);
+    if (enemyPos) addBattleFloater(enemyPos.x, enemyPos.y, "Rally", "attack");
     return true;
   }
   if (enemy.sourceEncounter === "rival" && activeBattle.bossState?.kind === "rival" && !activeBattle.bossState.blinkUsed && enemy.hp <= Math.ceil(enemy.maxHp * 0.5)) {
@@ -4578,22 +4988,43 @@ function resolveEnemyAttack(enemyIndex, targetIndex) {
     advanceBattleTurn();
     return renderBattle();
   }
-  const guardReduction = activeBattle.guarding ? 4 : 0;
+  const guardReduction = activeBattle.guarding ? 2 : 0;
   const penalty = rangedDamagePenalty(enemy, enemyPos, targetPos);
-  const partyCourage = Math.min(2, Math.floor(livingTeam().length / 3));
+  const partyCourage = Math.min(1, Math.floor(Math.max(0, livingTeam().length - 2) / 3));
   const gatekeeperCrush = enemy.sourceEncounter === "gatekeeper" && activeBattle.bossState?.kind === "gatekeeper" && activeBattle.bossState.enraged;
-  const damage = Math.max(1, enemy.atk - (resolvedTarget.def || 1) - guardReduction - partyCourage - penalty * 2 + (gatekeeperCrush ? 3 : 0) + Math.floor(Math.random() * 3));
+  const passBossCrush = enemy.passBoss && activeBattle.bossState?.kind === "passGuardian" && activeBattle.bossState.rallied;
+  const trait = enemyAttackTraitBonus(enemy, targetIndex);
+  const damage = Math.max(1, enemy.atk - (resolvedTarget.def || 1) - guardReduction - partyCourage - penalty * 2 + (gatekeeperCrush ? 3 : 0) + (passBossCrush ? 2 : 0) + trait.damage + Math.floor(Math.random() * 3));
   activeBattle.feedback = { type: "hit", unitIndex: targetIndex, target: "unit" };
   resolvedTarget.hp -= damage;
   if (resolvedTarget.hp <= 0) resolvedTarget.hp = 0;
   addBattleFloater(targetPos.x, targetPos.y, `-${damage}`, "damage");
   playSfx("hit");
-  activeBattle.log.push(`${enemy.name} ${gatekeeperCrush ? "crushes" : "strikes"} ${resolvedTarget.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}. ${randomBattleQuip("enemyHit")}`);
+  activeBattle.log.push(`${enemy.name} ${gatekeeperCrush || passBossCrush ? "crushes" : "strikes"} ${resolvedTarget.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}${trait.note}. ${randomBattleQuip("enemyHit")}`);
   if (resolvedTarget.hp <= 0) activeBattle.log.push(`${resolvedTarget.name} falls.`);
   activeBattle.guarding = false;
   if (!livingTeam().length) return finishBattle(false);
   advanceBattleTurn();
   renderBattle();
+}
+
+function enemyAttackTraitBonus(enemy, targetIndex) {
+  const encounter = enemy.sourceEncounter;
+  const isolated = isBattleUnitIsolated(targetIndex);
+  if ((encounter === "goblin" || encounter === "wyvern") && isolated) return { damage: 3, note: " (isolated)" };
+  if (encounter === "basilisk") return { damage: activeBattle.round >= 2 ? 2 : 1, note: " (venom)" };
+  if ((encounter === "raiders" || encounter === "warlock") && targetIndex > 0 && !activeBattle.guarding) return { damage: 3, note: " (backline pressure)" };
+  if (encounter === "knight" || encounter === "tideGuard") return { damage: activeBattle.round >= 2 ? 1 : 0, note: activeBattle.round >= 2 ? " (formation grind)" : "" };
+  return { damage: 0, note: "" };
+}
+
+function isBattleUnitIsolated(targetIndex) {
+  const targetPos = activeBattle?.positions?.[targetIndex];
+  if (!targetPos) return false;
+  return activeBattle.positions.every((pos, index) => {
+    if (index === targetIndex || !pos || [state.hero, ...state.party][index]?.hp <= 0) return true;
+    return attackDistance(targetPos, pos) > 1;
+  });
 }
 
 function nearestEnemyTarget(enemyIndex, targets) {
@@ -4604,9 +5035,12 @@ function nearestEnemyTarget(enemyIndex, targets) {
     .map((unit) => {
       const index = team.indexOf(unit);
       const pos = activeBattle.positions[index];
-      return { unit, distance: battleDistance(enemyPos, pos, enemy) };
+      const distance = battleDistance(enemyPos, pos, enemy);
+      const attackable = canAttackTarget(enemy, enemyPos, pos);
+      const wounded = 1 - Math.max(0, unit.hp || 0) / Math.max(1, unit.maxHp || 1);
+      return { unit, distance, attackable, wounded };
     })
-    .sort((a, b) => a.distance - b.distance || a.unit.name.localeCompare(b.unit.name))[0].unit;
+    .sort((a, b) => Number(b.attackable) - Number(a.attackable) || a.distance - b.distance || b.wounded - a.wounded || a.unit.name.localeCompare(b.unit.name))[0].unit;
 }
 
 function moveEnemyTowardTarget(enemyIndex, target) {
@@ -4661,7 +5095,7 @@ function finishBattle(wonBattle) {
   if (wonBattle) {
     playSfx("win");
     state.gold += reward;
-    const xpReport = gainXp(event.type === "night" ? Math.max(18, 18 + (leader.nightLevel || state.hero.level) * 4) : event.encounter === "rival" ? 60 : 24);
+    const xpReport = gainXp(battleXpReward(event, leader, enemies));
     if (event.type !== "night") state.visited[key] = true;
     if (event.type === "townClaim" && event.townKey) {
       const town = getTownState(event.townKey);
@@ -4694,15 +5128,21 @@ function finishBattle(wonBattle) {
       ], { html: true, className: "boss-aftermath-modal" });
     } else if (event.passName) {
       setMessage(`${event.passName} is clear. The road through this biome is open.`);
-      openModal("Pass Cleared", `${log.slice(-3).join(" ")} Reward: ${reward} gold and ${xpReport.amount} XP. ${event.passName} is now safe to cross.`, [
+      openModal("Pass Cleared", battleAftermathMarkup("Biome Pass Secured", log, reward, xpReport.amount, [
+        ["Road Open", `${event.passName} is now safe to cross.`],
+        ["Region Access", "The next biome is no longer gated by this guardian."],
+      ]), [
         { label: "Continue", action: () => resolvePostBattleProgression() },
-      ]);
+      ], { html: true, className: "boss-aftermath-modal" });
     } else if (event.type === "night") {
       setMessage(`${enemyLabel} defeated before dawn.`);
-      openModal("Camp Defended", `${log.slice(-3).join(" ")} Reward: ${reward} gold and ${xpReport.amount} XP.`, [{ label: "Continue Watch", action: () => resolvePostBattleProgression() }]);
+      openModal("Camp Defended", battleAftermathMarkup("Night Threat Broken", log, reward, xpReport.amount, [
+        ["Camp Holds", "The party survives this night wave and keeps its supplies."],
+        ["Watch Continues", "Any remaining night threats still need to be handled before dawn."],
+      ]), [{ label: "Continue Watch", action: () => resolvePostBattleProgression() }], { html: true, className: "boss-aftermath-modal" });
     } else {
       setMessage(`${enemyLabel} defeated. Gained ${reward} gold.`);
-      openModal("Victory", `${log.slice(-3).join(" ")} Reward: ${reward} gold and ${xpReport.amount} XP.`, [{ label: "Done", action: () => resolvePostBattleProgression() }]);
+      openModal("Victory", battleAftermathMarkup("Outpost Cleared", log, reward, xpReport.amount, battleChangeCards(event)), [{ label: "Done", action: () => resolvePostBattleProgression() }], { html: true, className: "boss-aftermath-modal" });
     }
   } else {
     const wasNightBattle = event.type === "night";
@@ -4719,6 +5159,30 @@ function finishBattle(wonBattle) {
     openModal("Defeat", wasNightBattle ? "Your camp breaks before dawn. The party retreats to Dawnhaven and loses 30 gold." : "Your party collapses and retreats to Dawnhaven. You lose 30 gold.", [{ label: "Recover", action: () => renderAll() }]);
   }
   renderAll();
+}
+
+function battleChangeCards(event) {
+  if (event.guards?.length) return [["Guard Removed", "Nearby loot is now reachable."], ["Map Progress", "This guarded pocket no longer blocks the cache."]];
+  if (event.type === "roamingHero") return [["Rival Removed", "This roaming hero will no longer patrol the map."], ["Safer Travel", "Nearby routes are less contested."]];
+  if (event.type === "townClaim") return [["Town Claimed", "Your banner now controls this town."], ["New Services", "Town actions, buildings, and recruitment are unlocked here."]];
+  return [["Outpost Cleared", "This enemy is removed from the map."], ["Progress", "Cleared outposts count toward relic and campaign victories."]];
+}
+
+function battleAftermathMarkup(title, log, reward, xp, cards) {
+  const changes = cards.map(([label, text]) => `<article><small>${escapeHtml(label)}</small><strong>${escapeHtml(text)}</strong></article>`).join("");
+  return `
+    <div class="boss-aftermath">
+      <div class="boss-aftermath-hero">
+        <strong>${escapeHtml(title)}</strong>
+        <p>${escapeHtml(log.slice(-3).join(" "))}</p>
+      </div>
+      <div class="boss-aftermath-grid">
+        <article><small>Reward</small><strong>${reward} gold</strong><p>Immediate resources for recruiting, building, and recovery.</p></article>
+        <article><small>Experience</small><strong>${xp} XP</strong><p>Your warband grows stronger from the fight.</p></article>
+        ${changes}
+      </div>
+    </div>
+  `;
 }
 
 function victoryConditions() {
@@ -4991,13 +5455,41 @@ function drawObjectiveHint() {
   ctx.restore();
 }
 
+const worldRegions = [
+  {
+    id: "black_gate_approach",
+    name: "Black Gate Approach",
+    contains: (x, y) => x >= 66 && y <= 8,
+  },
+  {
+    id: "high_march",
+    name: "High March",
+    contains: (x, y) => x >= 62 && y <= 17,
+  },
+  {
+    id: "southern_wilds",
+    name: "Southern Wilds",
+    contains: (x, y) => x >= 39 && y >= 24,
+  },
+  {
+    id: "low_roads",
+    name: "Low Roads",
+    contains: (x, y) => y >= 19 && x <= 37,
+  },
+  {
+    id: "dawnhaven_march",
+    name: "Dawnhaven March",
+    contains: (x, y) => x <= 21 && y <= 17,
+  },
+  {
+    id: "central_kingdom",
+    name: "Central Kingdom",
+    contains: () => true,
+  },
+];
+
 function currentRegionId() {
-  if (state.x >= 66 && state.y <= 8) return "black_gate_approach";
-  if (state.x >= 56 && state.y >= 28) return "southern_wilds";
-  if (state.x >= 56 && state.y <= 14) return "high_march";
-  if (state.y >= 28) return "low_roads";
-  if (state.x <= 18 && state.y <= 12) return "dawnhaven_march";
-  return "central_kingdom";
+  return worldRegions.find((region) => region.contains(state.x, state.y))?.id || "central_kingdom";
 }
 
 function regionFlavorText(regionId) {
@@ -5144,14 +5636,7 @@ function drawScoutMarkerOverlay() {
 }
 
 function currentRegionName() {
-  return {
-    black_gate_approach: "Black Gate Approach",
-    southern_wilds: "Southern Wilds",
-    high_march: "High March",
-    low_roads: "Low Roads",
-    dawnhaven_march: "Dawnhaven March",
-    central_kingdom: "Central Kingdom",
-  }[currentRegionId()] || "Central Kingdom";
+  return worldRegions.find((region) => region.id === currentRegionId())?.name || "Central Kingdom";
 }
 
 function drawLocationBanner() {
@@ -5531,13 +6016,26 @@ function drawQuestGiverCutout(questId, frame, cx, footY, options = {}) {
   return drawPreparedCutout(cutout, cx, footY, options);
 }
 
-function unitCell(unitId, frame) {
+function extraUnitSpriteRow(unitId) {
+  return ["bloomStag", "cinderMage", "coralArcher", "nightblade"].indexOf(unitId);
+}
+
+function unitSpriteSource(unitId, frame) {
+  const extraRow = extraUnitSpriteRow(unitId);
+  const col = Math.max(0, Math.min(3, frame || 0));
+  if (extraRow >= 0) {
+    if (!extraUnitSheetReady) return null;
+    return { image: extraUnitSheet, rect: atlasGridCell(extraUnitSheet, 4, 4, col, extraRow) };
+  }
   const spriteId = creatureBook[unitId]?.spriteId || unitId;
   const order = ["leafFox", "emberGolem", "tideWisp", "duskMoth", "thornArcher", "ironPikeman", "reefGuard", "moonSeer"];
   const row = order.indexOf(spriteId);
-  const col = Math.max(0, Math.min(3, frame || 0));
   if (!unitSheetReady || row < 0) return null;
-  return atlasGridCell(unitSheet, 4, order.length, col, row);
+  return { image: unitSheet, rect: atlasGridCell(unitSheet, 4, order.length, col, row) };
+}
+
+function unitCell(unitId, frame) {
+  return unitSpriteSource(unitId, frame)?.rect || null;
 }
 
 function atlasGridCell(image, cols, rows, col, row) {
@@ -5551,9 +6049,9 @@ function atlasGridCell(image, cols, rows, col, row) {
 function getUnitCutout(unitId, frame) {
   const key = `unit:${unitId}:${frame}`;
   if (unitCutoutCache.has(key)) return unitCutoutCache.get(key);
-  const rect = unitCell(unitId, frame);
-  if (!rect) return null;
-  const cutout = buildChromaCutout(unitSheet, rect, { transparentThreshold: 72 });
+  const source = unitSpriteSource(unitId, frame);
+  if (!source) return null;
+  const cutout = buildChromaCutout(source.image, source.rect, { transparentThreshold: 72 });
   unitCutoutCache.set(key, cutout);
   return cutout;
 }
@@ -5820,7 +6318,7 @@ function getEnemyPortraitDataUrl(name) {
 
 function getUnitPortraitDataUrl(unitId) {
   const spriteId = creatureBook[unitId]?.spriteId || unitId;
-  const cacheKey = `unit-portrait:${unitId}:${spriteId}`;
+  const cacheKey = `unit-portrait:${unitId}:${spriteId}:${extraUnitSpriteRow(unitId) >= 0 ? "extra" : "base"}`;
   if (portraitCache.has(cacheKey)) return portraitCache.get(cacheKey);
   const cutout = getUnitCutout(unitId, 0);
   if (!cutout) return "";
@@ -5840,6 +6338,10 @@ function getUnitPortraitDataUrl(unitId) {
   const url = portrait.toDataURL("image/png");
   portraitCache.set(cacheKey, url);
   return url;
+}
+
+function unitArtReady(unitId) {
+  return extraUnitSpriteRow(unitId) >= 0 ? extraUnitSheetReady : unitSheetReady;
 }
 
 function spriteNameForUnit(unit) {
@@ -6339,6 +6841,7 @@ function drawLandmark(px, py, event) {
   if (event.landmark === "ruins") return drawRuins(px, py);
   if (event.landmark === "camp") return drawRoadCamp(px, py);
   if (event.landmark === "statue") return drawMonument(px, py);
+  if (event.landmark === "shrine") return drawDawnShrine(px, py);
 }
 
 function drawSignpost(px, py) {
@@ -6404,6 +6907,29 @@ function drawMonument(px, py) {
   ctx.lineTo(px + 19, py + 10);
   ctx.lineTo(px + 16, py + 9);
   ctx.lineTo(px + 13, py + 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawDawnShrine(px, py) {
+  drawShadow(px + 16, py + 28, 24, 7);
+  ctx.save();
+  const pulse = 0.55 + Math.sin(animationTime / 360) * 0.16;
+  ctx.fillStyle = `rgba(240,193,91,${pulse * 0.22})`;
+  ctx.beginPath();
+  ctx.arc(px + 16, py + 16, 15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#8d9ab0";
+  ctx.fillRect(px + 9, py + 17, 14, 10);
+  ctx.fillStyle = "#c7d5e8";
+  ctx.fillRect(px + 11, py + 12, 10, 7);
+  ctx.fillStyle = "#fff2b6";
+  ctx.beginPath();
+  ctx.moveTo(px + 16, py + 5);
+  ctx.lineTo(px + 20, py + 14);
+  ctx.lineTo(px + 16, py + 12);
+  ctx.lineTo(px + 12, py + 14);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -7240,7 +7766,7 @@ function renderUnit(unit, partyIndex = -1) {
   const color = unit.color || "#f0c15b";
   const spriteClass = unit.id ? ` sprite-${unit.id}` : " sprite-hero";
   const portraitKey = spriteNameForUnit(unit);
-  const portrait = unit.id && unitSheetReady && unitCell(unit.id, 0)
+  const portrait = unit.id && unitArtReady(unit.id) && unitCell(unit.id, 0)
     ? getUnitPortraitDataUrl(unit.id)
     : portraitKey && (characterSheetReady || spriteSheetReady) ? getPortraitDataUrl(portraitKey) : "";
   const sprite = portrait
