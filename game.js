@@ -122,6 +122,14 @@ caravanMarketArt.onload = () => {
 };
 caravanMarketArt.src = "assets/caravan-market-banner.png";
 
+const itemIconSheet = new Image();
+let itemIconSheetReady = false;
+itemIconSheet.onload = () => {
+  itemIconSheetReady = true;
+  renderAll();
+};
+itemIconSheet.src = "assets/caravan-item-icons.png";
+
 const questGiverSheet = new Image();
 let questGiverSheetReady = false;
 const questGiverCutoutCache = new Map();
@@ -646,6 +654,141 @@ finalFortressMountainTiles.forEach(([x, y]) => {
 if (map[finalFortressApproachTile.y]?.[finalFortressApproachTile.x]) {
   map[finalFortressApproachTile.y][finalFortressApproachTile.x] = "R";
 }
+
+const guardedCachePassages = [
+  { guard: "10,2", tiles: ["11,2", "11,3"], encounter: "goblin", guardName: "Dawnhaven Vault Guard" },
+  { guard: "10,13", tiles: ["11,13", "11,14"], encounter: "basilisk", guardName: "Mistfen Cache Beast" },
+  { guard: "34,13", tiles: ["35,13", "36,13"], encounter: "raiders", guardName: "Glass Road Blockade" },
+  { guard: "3,20", tiles: ["4,20", "4,21"], encounter: "knight", guardName: "Forge Pass Sentinel" },
+  { guard: "40,10", tiles: ["41,10", "42,10"], encounter: "wyvern", guardName: "Bow Cache Wyvern" },
+  { guard: "26,23", tiles: ["27,23", "28,23"], encounter: "warlock", guardName: "Cinder Vault Warlock" },
+  { guard: "47,26", tiles: ["48,26", "49,26", "49,27"], encounter: "warlock", guardName: "River Cache Warlock" },
+  { guard: "56,35", tiles: ["57,35", "57,36", "58,36"], roads: ["55,35"], encounter: "warlock", guardName: "Starfen Relic Guard" },
+  { guard: "35,37", tiles: ["36,37", "37,37"], encounter: "knight", guardName: "Wayfinder Ridge Sentinel" },
+  { guard: "53,24", tiles: ["54,24", "55,24"], encounter: "raiders", guardName: "Greenmarch Cache Raiders" },
+  { guard: "48,33", tiles: ["49,33", "50,33"], encounter: "warlock", guardName: "Southern Vault Warlock" },
+  { guard: "39,30", tiles: ["40,30", "41,30"], encounter: "basilisk", guardName: "Fen Cache Basilisk" },
+  { guard: "19,35", tiles: ["20,35", "21,35"], encounter: "knight", guardName: "Low Road Chest Sentinel" },
+];
+
+const biomePassages = [
+  {
+    guard: "22,6",
+    name: "Ashbell Ridge",
+    axis: "x",
+    line: 22,
+    min: 1,
+    max: 18,
+    blockers: ["21,5", "22,5", "23,5", "21,7", "22,7", "23,7"],
+    roads: ["21,6", "22,6", "23,6"],
+  },
+  {
+    guard: "24,18",
+    name: "Cinderfen Cut",
+    axis: "y",
+    line: 18,
+    min: 1,
+    max: 37,
+    blockers: ["23,17", "25,17", "23,18", "25,18", "23,19", "25,19"],
+    roads: ["24,17", "24,18", "24,19"],
+  },
+  {
+    guard: "38,24",
+    name: "Sunfall Gap",
+    axis: "x",
+    line: 38,
+    min: 1,
+    max: 38,
+    blockers: ["37,23", "38,23", "39,23", "37,25", "38,25", "39,25"],
+    roads: ["37,24", "38,24", "39,24"],
+  },
+  {
+    guard: "61,6",
+    name: "Glassroad Pass",
+    axis: "x",
+    line: 61,
+    min: 1,
+    max: 38,
+    blockers: ["60,5", "61,5", "62,5", "60,7", "61,7", "62,7"],
+    roads: ["60,6", "61,6", "62,6"],
+  },
+  {
+    guard: "13,36",
+    name: "Lowmarket Causeway",
+    axis: "x",
+    line: 13,
+    min: 30,
+    max: 38,
+    blockers: ["12,35", "13,35", "14,35", "12,37", "13,37", "14,37"],
+    roads: ["12,36", "13,36", "14,36"],
+  },
+];
+
+function pointFromKeyString(key) {
+  const [x, y] = key.split(",").map(Number);
+  return { x, y };
+}
+
+function guardForCache(chestKey) {
+  return guardedCachePassages.find((passage) => passage.tiles.includes(chestKey)) || null;
+}
+
+function applyGuardedCacheTerrain() {
+  guardedCachePassages.forEach(({ tiles, roads = [], guard }) => {
+    const guardPoint = pointFromKeyString(guard);
+    const openKeys = new Set([guard, ...tiles, ...roads]);
+    if (map[guardPoint.y]?.[guardPoint.x]) map[guardPoint.y][guardPoint.x] = "R";
+    roads.forEach((tileKey) => {
+      const point = pointFromKeyString(tileKey);
+      if (map[point.y]?.[point.x]) map[point.y][point.x] = "R";
+    });
+    tiles.forEach((tileKey) => {
+      const tilePoint = pointFromKeyString(tileKey);
+      if (map[tilePoint.y]?.[tilePoint.x]) map[tilePoint.y][tilePoint.x] = "G";
+    });
+    tiles.forEach((tileKey) => {
+      const tilePoint = pointFromKeyString(tileKey);
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+        const x = tilePoint.x + dx;
+        const y = tilePoint.y + dy;
+        if (openKeys.has(`${x},${y}`)) return;
+        if (!map[y]?.[x] || map[y][x] === "W") return;
+        map[y][x] = "M";
+      });
+    });
+  });
+}
+
+function applyBiomePassageTerrain() {
+  biomePassages.forEach(({ blockers, roads, guard, axis, line, min, max }) => {
+    const openKeys = new Set([guard, ...roads]);
+    for (let value = min; value <= max; value += 1) {
+      const key = axis === "x" ? `${line},${value}` : `${value},${line}`;
+      if (openKeys.has(key)) continue;
+      const point = pointFromKeyString(key);
+      if (map[point.y]?.[point.x] && map[point.y][point.x] !== "W") map[point.y][point.x] = "M";
+    }
+    blockers.forEach((tileKey) => {
+      const point = pointFromKeyString(tileKey);
+      if (openKeys.has(tileKey)) return;
+      if (map[point.y]?.[point.x] && map[point.y][point.x] !== "W") map[point.y][point.x] = "M";
+    });
+    openKeys.forEach((tileKey) => {
+      const point = pointFromKeyString(tileKey);
+      if (map[point.y]?.[point.x]) map[point.y][point.x] = "R";
+    });
+  });
+}
+
+function guardedCacheBattleEntries() {
+  return guardedCachePassages.map(({ tiles, guard, encounter, guardName }) => [
+    guard,
+    { type: "battle", encounter, guardName, guards: tiles },
+  ]);
+}
+
+applyBiomePassageTerrain();
+applyGuardedCacheTerrain();
 const events = new Map([
   ["3,2", { type: "town", name: "Dawnhaven", creature: "leafFox", faction: "grove" }],
   ["16,5", { type: "town", name: "Ashbell", creature: "emberGolem", faction: "forge" }],
@@ -655,24 +798,33 @@ const events = new Map([
   ["47,7", { type: "town", name: "Eastmere", creature: "leafFox", faction: "grove" }],
   ["44,16", { type: "town", name: "Sunforge", creature: "emberGolem", faction: "forge" }],
   ["44,23", { type: "town", name: "Amberwatch", creature: "duskMoth", faction: "dusk" }],
-  ["11,2", { type: "chest", gold: 55, item: "Banner of Luck" }],
-  ["11,13", { type: "chest", gold: 70, item: "Silver Bridle" }],
-  ["35,13", { type: "chest", gold: 85, item: "Starlit Compass" }],
-  ["4,20", { type: "chest", gold: 95, item: "Forge Charm" }],
-  ["41,10", { type: "chest", gold: 115, item: "Dawnwood Bow" }],
-  ["27,23", { type: "chest", gold: 130, item: "Forge Charm" }],
-  ["48,26", { type: "chest", gold: 150, item: "Starlit Compass" }],
+  ["11,2", { type: "artifact", item: "Banner of Luck", gold: 55, guardedBy: "10,2" }],
+  ["11,3", { type: "supply", item: "Healing Draught", qty: 2, gold: 20, guardedBy: "10,2" }],
+  ["11,13", { type: "chest", gold: 70, item: "Silver Bridle", guardedBy: "10,13" }],
+  ["11,14", { type: "supply", item: "Healing Draught", qty: 1, gold: 25, guardedBy: "10,13" }],
+  ["35,13", { type: "artifact", item: "Starlit Compass", gold: 85, guardedBy: "34,13" }],
+  ["36,13", { type: "supply", item: "Healing Draught", qty: 1, gold: 35, guardedBy: "34,13" }],
+  ["4,20", { type: "chest", gold: 95, item: "Forge Charm", guardedBy: "3,20" }],
+  ["4,21", { type: "supply", item: "Healing Draught", qty: 1, gold: 30, guardedBy: "3,20" }],
+  ["41,10", { type: "chest", gold: 115, item: "Dawnwood Bow", guardedBy: "40,10" }],
+  ["42,10", { type: "supply", item: "Healing Draught", qty: 1, gold: 40, guardedBy: "40,10" }],
+  ["27,23", { type: "chest", gold: 130, item: "Forge Charm", guardedBy: "26,23" }],
+  ["28,23", { type: "supply", item: "Healing Draught", qty: 1, gold: 35, guardedBy: "26,23" }],
+  ["48,26", { type: "artifact", item: "Starlit Compass", gold: 150, guardedBy: "47,26" }],
+  ["49,26", { type: "artifact", item: "Silver Bridle", gold: 40, guardedBy: "47,26" }],
+  ["49,27", { type: "supply", item: "Healing Draught", qty: 1, guardedBy: "47,26" }],
   ["7,7", { type: "battle", encounter: "goblin" }],
   ["13,9", { type: "battle", encounter: "basilisk" }],
   ["29,6", { type: "battle", encounter: "raiders" }],
   ["31,11", { type: "battle", encounter: "wyvern" }],
-  ["22,6", { type: "battle", encounter: "knight" }],
-  ["24,18", { type: "battle", encounter: "warlock" }],
+  ["22,6", { type: "battle", encounter: "knight", guardName: "Ashbell Ridge Warden", passName: "Ashbell Ridge" }],
+  ["24,18", { type: "battle", encounter: "warlock", guardName: "Cinderfen Hexguard", passName: "Cinderfen Cut" }],
   ["34,20", { type: "battle", encounter: "knight" }],
   ["42,12", { type: "battle", encounter: "basilisk" }],
   ["45,18", { type: "battle", encounter: "wyvern" }],
-  ["38,24", { type: "battle", encounter: "raiders" }],
+  ["38,24", { type: "battle", encounter: "raiders", guardName: "Sunfall Gap Raiders", passName: "Sunfall Gap" }],
   ["51,25", { type: "battle", encounter: "warlock" }],
+  ...guardedCacheBattleEntries(),
   ["71,5", { type: "battle", encounter: "gatekeeper", gate: true }],
   ["71,4", { type: "final", encounter: "rival" }],
   ["5,6", { type: "mine", gold: 20 }],
@@ -680,7 +832,7 @@ const events = new Map([
   ["21,9", { type: "mine", gold: 25 }],
   ["30,10", { type: "mine", gold: 30 }],
   ["7,16", { type: "mine", gold: 35 }],
-  ["31,18", { type: "mine", gold: 40 }],
+  ["31,19", { type: "mine", gold: 40 }],
   ["42,14", { type: "mine", gold: 45 }],
   ["46,20", { type: "mine", gold: 50 }],
   ["30,26", { type: "mine", gold: 55 }],
@@ -692,30 +844,55 @@ const events = new Map([
   ["68,12", { type: "town", name: "Greenmarch", creature: "leafFox", faction: "grove" }],
   ["60,33", { type: "town", name: "Starfen", creature: "duskMoth", faction: "dusk" }],
   ["9,31", { type: "town", name: "Lowmarket", creature: "reefGuard", faction: "tide" }],
-  ["61,6", { type: "battle", encounter: "raiders" }],
+  ["61,6", { type: "battle", encounter: "raiders", guardName: "Glassroad Toll Guard", passName: "Glassroad Pass" }],
   ["70,9", { type: "battle", encounter: "wyvern" }],
   ["59,20", { type: "battle", encounter: "warlock" }],
   ["60,31", { type: "battle", encounter: "knight" }],
   ["59,35", { type: "battle", encounter: "warlock" }],
-  ["13,36", { type: "battle", encounter: "raiders" }],
+  ["13,36", { type: "battle", encounter: "raiders", guardName: "Lowmarket Causeway Raiders", passName: "Lowmarket Causeway" }],
   ["43,36", { type: "battle", encounter: "wyvern" }],
   ["8,5", { type: "landmark", landmark: "signpost", title: "Dawnhaven Crossing" }],
   ["18,11", { type: "landmark", landmark: "ruins", title: "Broken Watch" }],
   ["33,8", { type: "landmark", landmark: "camp", title: "Cinder Road Camp" }],
   ["41,21", { type: "landmark", landmark: "statue", title: "Sunfall Monument" }],
   ["57,12", { type: "landmark", landmark: "signpost", title: "High March Road" }],
-  ["63,31", { type: "landmark", landmark: "camp", title: "South Road Camp" }],
-  ["19,31", { type: "chest", gold: 105, item: "Healing Draught" }],
-  ["65,16", { type: "chest", gold: 175, item: "Healing Draught" }],
-  ["60,32", { type: "chest", gold: 190, item: "Banner of Luck" }],
-  ["36,37", { type: "chest", gold: 170, item: "Silver Bridle" }],
-  ["61,28", { type: "mine", gold: 65 }],
+  ["60,30", { type: "landmark", landmark: "camp", title: "South Road Camp" }],
+  ["25,3", { type: "landmark", landmark: "ruins", title: "Old Banner Vault" }],
+  ["52,5", { type: "landmark", landmark: "statue", title: "Glass Road Shrine" }],
+  ["67,17", { type: "landmark", landmark: "ruins", title: "Sunken Tollhouse" }],
+  ["22,32", { type: "landmark", landmark: "signpost", title: "Low Road Split" }],
+  ["33,34", { type: "landmark", landmark: "statue", title: "Wayfinder Cairn" }],
+  ["19,31", { type: "chest", gold: 105, item: "Healing Draught", guardian: "raiders" }],
+  ["65,16", { type: "chest", gold: 175, item: "Healing Draught", guardian: "wyvern" }],
+  ["57,35", { type: "supply", item: "Healing Draught", qty: 2, guardedBy: "56,35" }],
+  ["57,36", { type: "artifact", item: "Banner of Luck", gold: 190, guardedBy: "56,35" }],
+  ["58,36", { type: "artifact", item: "Forge Charm", gold: 30, guardedBy: "56,35" }],
+  ["36,37", { type: "chest", gold: 170, item: "Silver Bridle", guardedBy: "35,37" }],
+  ["37,37", { type: "supply", item: "Healing Draught", qty: 1, gold: 40, guardedBy: "35,37" }],
+  ["54,24", { type: "chest", gold: 160, item: "Dawnwood Bow", guardedBy: "53,24" }],
+  ["55,24", { type: "supply", item: "Healing Draught", qty: 1, gold: 45, guardedBy: "53,24" }],
+  ["49,33", { type: "artifact", item: "Forge Charm", gold: 185, guardedBy: "48,33" }],
+  ["50,33", { type: "artifact", item: "Starlit Compass", gold: 45, guardedBy: "48,33" }],
+  ["40,30", { type: "chest", gold: 120, item: "Starlit Compass", guardedBy: "39,30" }],
+  ["41,30", { type: "supply", item: "Healing Draught", qty: 1, gold: 30, guardedBy: "39,30" }],
+  ["20,35", { type: "chest", gold: 135, item: "Healing Draught", guardedBy: "19,35" }],
+  ["21,35", { type: "artifact", item: "Banner of Luck", gold: 25, guardedBy: "19,35" }],
+  ["14,4", { type: "chest", gold: 45, item: "Healing Draught" }],
+  ["32,32", { type: "chest", gold: 85, item: "Healing Draught" }],
+  ["56,31", { type: "chest", gold: 110, item: "Healing Draught" }],
+  ["66,25", { type: "chest", gold: 125, item: "Silver Bridle", guardian: "wyvern" }],
+  ["3,35", { type: "supply", item: "Healing Draught", qty: 2, gold: 60 }],
+  ["4,35", { type: "artifact", item: "Banner of Luck", gold: 20 }],
+  ["14,28", { type: "supply", item: "Healing Draught", qty: 1, gold: 80 }],
+  ["15,28", { type: "artifact", item: "Dawnwood Bow", gold: 25 }],
+  ["62,28", { type: "mine", gold: 65 }],
   ["6,33", { type: "mine", gold: 70 }],
   ["58,34", { type: "mine", gold: 75 }],
   ["28,38", { type: "npc", quest: "wayfinder" }],
 ]);
 
 const defaultState = () => ({
+  worldSeed: Math.floor(Math.random() * 1000000000),
   x: 2,
   y: 2,
   day: 1,
@@ -736,6 +913,8 @@ const defaultState = () => ({
   won: false,
   visited: {},
   discoveredRegions: {},
+  chestRolls: {},
+  lastTravelPosition: null,
   scoutMarker: "",
   nightPlan: "holdfast",
   hero: { ...heroBaseStats, nameChosen: false, skills: [] },
@@ -789,6 +968,11 @@ const padDirectionMap = {
   right: [1, 0],
 };
 
+function isEditableInputTarget(target) {
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']"));
+}
+
 function makeCreature(id) {
   const base = creatureBook[id];
   return { id, name: base.name, color: base.color, level: 1, xp: 0, maxHp: base.maxHp, hp: base.maxHp, atk: base.atk, def: base.def, speed: base.speed, power: base.power, morale: base.morale, moveType: base.moveType, attackType: base.attackType, attackRange: base.attackRange, skill: base.skill, spriteId: base.spriteId || id, skills: [] };
@@ -820,10 +1004,15 @@ function loadGame() {
 }
 
 function normalizeState(saved) {
+  saved.worldSeed = Number.isFinite(saved.worldSeed) ? saved.worldSeed : Math.floor(Math.random() * 1000000000);
   saved.steps ??= 0;
   saved.dayProgress = Number.isFinite(saved.dayProgress) ? Math.max(0, Math.min(DAY_LENGTH_STEPS, saved.dayProgress)) : (saved.steps || 0) % DAY_LENGTH_STEPS;
   saved.nightReady ??= saved.dayProgress >= DAY_LENGTH_STEPS;
   saved.relics ??= [];
+  saved.chestRolls = saved.chestRolls && typeof saved.chestRolls === "object" ? saved.chestRolls : {};
+  saved.lastTravelPosition = saved.lastTravelPosition && Number.isFinite(saved.lastTravelPosition.x) && Number.isFinite(saved.lastTravelPosition.y)
+    ? { x: saved.lastTravelPosition.x, y: saved.lastTravelPosition.y }
+    : null;
   saved.inventory = normalizeInventory(saved.inventory ?? saved.relics);
   saved.equipped ??= {};
   saved.towns ??= { "3,2": { owner: "player", buildings: ["market"] } };
@@ -1228,6 +1417,36 @@ function isBlocked(x, y) {
   return !tile || tile === "W" || tile === "M" || event?.type === "wall";
 }
 
+function blocksBiomePassageMove(ox, oy, nx, ny) {
+  return biomePassages.some((passage) => {
+    if (state.visited?.[passage.guard]) return false;
+    const targetKey = `${nx},${ny}`;
+    const fromKey = `${ox},${oy}`;
+    if (targetKey === passage.guard) return false;
+    if (fromKey === passage.guard) return true;
+    if (passage.axis === "x") {
+      if (ny < passage.min || ny > passage.max) return false;
+      return (ox < passage.line && nx >= passage.line) || (ox > passage.line && nx <= passage.line);
+    }
+    if (nx < passage.min || nx > passage.max) return false;
+    return (oy < passage.line && ny >= passage.line) || (oy > passage.line && ny <= passage.line);
+  });
+}
+
+function blockingBiomePassageName(ox, oy, nx, ny) {
+  const passage = biomePassages.find((entry) => {
+    if (state.visited?.[entry.guard] || `${nx},${ny}` === entry.guard) return false;
+    if (`${ox},${oy}` === entry.guard) return true;
+    if (entry.axis === "x") {
+      if (ny < entry.min || ny > entry.max) return false;
+      return (ox < entry.line && nx >= entry.line) || (ox > entry.line && nx <= entry.line);
+    }
+    if (nx < entry.min || nx > entry.max) return false;
+    return (oy < entry.line && ny >= entry.line) || (oy > entry.line && ny <= entry.line);
+  });
+  return passage?.name || "the guarded pass";
+}
+
 function finalGateCleared() {
   return Boolean(state.visited[`${finalFortressGateTile.x},${finalFortressGateTile.y}`]);
 }
@@ -1243,11 +1462,16 @@ function move(dx, dy) {
     setMessage("Impassable terrain blocks the route.");
     return;
   }
+  if (blocksBiomePassageMove(ox, oy, nx, ny)) {
+    setMessage(`${blockingBiomePassageName(ox, oy, nx, ny)} is guarded. Defeat the pass guardian before crossing this biome boundary.`);
+    return;
+  }
   if (nx === finalFortressAnchor.x && ny === finalFortressAnchor.y && !finalGateCleared()) {
     setMessage("The mountain pass is still guarded. Defeat the warden in the gap before entering the fortress.");
     return;
   }
   facing = dx < 0 ? "left" : dx > 0 ? "right" : dy < 0 ? "up" : "down";
+  state.lastTravelPosition = { x: ox, y: oy };
   state.x = nx;
   state.y = ny;
   state.steps = (state.steps || 0) + 1;
@@ -1367,7 +1591,7 @@ function triggerEvent() {
   if (event.type === "town") return townEvent(key, event);
   if (event.type === "npc") return npcEvent(key, event);
   if (event.type === "mine") return mineEvent(key, event);
-  if (event.type === "chest") return chestEvent(key, event);
+  if (["chest", "cache", "artifact", "supply"].includes(event.type)) return chestEvent(key, event);
   if (event.type === "landmark") return landmarkEvent(key, event);
   if (event.type === "battle" || event.type === "final") return battleEvent(key, event);
 }
@@ -1929,6 +2153,9 @@ function eventLabel(event) {
   if (event.type === "npc") return npcQuests[event.quest]?.name || "This traveler";
   if (event.type === "mine") return "This mine";
   if (event.type === "chest") return "This treasure";
+  if (event.type === "cache") return event.name || "This cache";
+  if (event.type === "artifact") return event.item || "This artifact";
+  if (event.type === "supply") return event.item || "These supplies";
   if (event.type === "battle") return "This outpost";
   if (event.type === "landmark") return event.title || "This landmark";
   return "This place";
@@ -2153,6 +2380,9 @@ function syncTownSelectionUi(selection) {
         : "";
     node.classList.toggle("selected", current === selection);
   });
+  modalText.querySelectorAll(".town-recruit-list").forEach((node) => {
+    node.classList.toggle("selected", selection === "building:barracks");
+  });
 }
 
 function townDescription(event, town, creature, cost, ownsCreature) {
@@ -2218,7 +2448,7 @@ function townModalMarkup(key, event, town, creature, cost, ownsCreature) {
             ${town.owner === "player" ? townCommandRailMarkup(key, event, town) : `<div class="town-claim-note">Claim ${event.name} before issuing town orders, building, or training units.</div>`}
             <div id="townFeedback" class="town-feedback">Select a building plot to inspect it. Built plots act immediately, and empty owned plots can be purchased from the square.</div>
           </div>
-          <div class="town-recruit-list town-panel">
+          <div class="town-recruit-list town-panel${selection === "building:barracks" ? " selected" : ""}">
             <strong>Barracks Roster</strong>
             <p class="town-panel-note">${barracksIntro}</p>
             ${recruitableUnitsForTown(event).map((id) => townRecruitCard(key, event, town, id)).join("")}
@@ -2232,7 +2462,13 @@ function townModalMarkup(key, event, town, creature, cost, ownsCreature) {
 function townCommandRailMarkup(key, event, town) {
   const actionId = townFactionActionId(event);
   const factionUsed = isTownActionUsed(town, actionId);
+  const faction = townFaction(event);
   return `
+    <div class="town-faction-order ${event.faction || "grove"}">
+      <strong>${townFactionActionLabel(event)}</strong>
+      <span>${townFactionActionDescription(event)}</span>
+      <em>${faction.name} town order${factionUsed ? " already used today" : " ready now"}</em>
+    </div>
     <div class="town-command-rail">
       <button type="button" class="town-command-button" data-town-action="rest">Rest Party</button>
       <button type="button" class="town-command-button secondary" data-town-action="notice">Open Notice Board</button>
@@ -2254,7 +2490,7 @@ function nearestScoutingTarget() {
   const candidates = [];
   events.forEach((event, key) => {
     if (state.visited[key]) return;
-    if (!["chest", "battle", "town"].includes(event.type)) return;
+    if (!["chest", "cache", "artifact", "supply", "battle", "town"].includes(event.type)) return;
     const [x, y] = key.split(",").map(Number);
     const distance = Math.abs(x - state.x) + Math.abs(y - state.y);
     const priority = event.type === "chest" ? 0 : event.type === "town" ? 1 : 2;
@@ -3064,18 +3300,175 @@ function mineEvent(key, event) {
   ]);
 }
 
+function chestGuardianKey(key) {
+  return `guard:${key}`;
+}
+
+function isChestGuardianCleared(key) {
+  return Boolean(state.visited?.[chestGuardianKey(key)]);
+}
+
+function isLinkedGuardCleared(event) {
+  return Boolean(!event.guardedBy || state.visited?.[event.guardedBy]);
+}
+
+function isCacheGuarded(key, event) {
+  if (event.guardedBy) return !isLinkedGuardCleared(event);
+  return Boolean(event.guardian && !isChestGuardianCleared(key));
+}
+
+function chestGuardianName(event) {
+  return encounters[event.guardian]?.name || "Treasure Guard";
+}
+
+function linkedGuardName(event) {
+  const guard = events.get(event.guardedBy);
+  return guard?.guardName || encounters[guard?.encounter]?.name || "Cache Guard";
+}
+
+function seededUnit(seedText) {
+  let value = 2166136261;
+  for (let i = 0; i < seedText.length; i += 1) {
+    value ^= seedText.charCodeAt(i);
+    value = Math.imul(value, 16777619);
+  }
+  value += value << 13;
+  value ^= value >>> 7;
+  value += value << 3;
+  value ^= value >>> 17;
+  value += value << 5;
+  return (value >>> 0) / 4294967295;
+}
+
+function baseTreasureRewards(event) {
+  if (Array.isArray(event.rewards) && event.rewards.length) return event.rewards;
+  return [{ item: event.item, gold: event.gold || 0, qty: event.qty || 1 }];
+}
+
+function rollChestRewards(key, event) {
+  const rewards = baseTreasureRewards(event).map((reward) => ({ ...reward }));
+  if (event.type !== "chest" || !key) return rewards;
+  const seed = `${state.worldSeed || 0}:${key}`;
+  const bonusA = seededUnit(`${seed}:a`);
+  const bonusB = seededUnit(`${seed}:b`);
+  const bonusC = seededUnit(`${seed}:c`);
+  if (bonusA > 0.28) rewards.push({ gold: 18 + Math.floor(bonusA * 54) });
+  if (bonusB > 0.5) rewards.push({ xp: 12 + Math.floor(bonusB * 28) });
+  if (bonusC > 0.72) {
+    const artifactPool = ["Banner of Luck", "Silver Bridle", "Starlit Compass", "Forge Charm"];
+    rewards.push({ item: artifactPool[Math.floor(bonusC * artifactPool.length) % artifactPool.length], gold: 10 });
+  } else if (bonusC > 0.34 && event.item !== "Healing Draught") {
+    rewards.push({ item: "Healing Draught", qty: 1 });
+  }
+  return rewards;
+}
+
+function treasureRewards(event, key = "") {
+  if (key && state.chestRolls?.[key]) return state.chestRolls[key];
+  return rollChestRewards(key, event);
+}
+
+function treasurePrimaryItem(event) {
+  return treasureRewards(event).find((reward) => reward.item)?.item || event.item || "treasure";
+}
+
+function treasureRewardSummary(event, key = "") {
+  const rewards = treasureRewards(event, key);
+  const itemText = rewards
+    .filter((reward) => reward.item)
+    .map((reward) => `${reward.qty && reward.qty > 1 ? `${reward.qty}x ` : ""}${reward.item}`)
+    .join(", ");
+  const totalGold = rewards.reduce((sum, reward) => sum + (reward.gold || 0), 0);
+  const totalXp = rewards.reduce((sum, reward) => sum + (reward.xp || 0), 0);
+  return [itemText, totalGold ? `${totalGold} gold` : "", totalXp ? `${totalXp} XP` : ""].filter(Boolean).join(" and ");
+}
+
 function chestEvent(key, event) {
-  state.gold += event.gold;
-  const isRelic = relicItems.has(event.item);
-  if (isRelic && !state.relics.includes(event.item)) state.relics.push(event.item);
-  const itemId = chestItemIds[event.item];
-  if (itemId) addInventoryItem(itemId, 1);
+  if (event.guardedBy && !isLinkedGuardCleared(event)) {
+    const guardName = linkedGuardName(event);
+    setMessage(`${guardName} blocks the way to ${treasurePrimaryItem(event)}.`);
+    openModal("Guarded Cache", linkedGuardedChestMarkup(event, guardName), [
+      {
+        label: "Mark Guard",
+        action: () => {
+          state.scoutMarker = event.guardedBy;
+          setMessage(`${guardName} marked on the overworld.`);
+          renderAll();
+        },
+      },
+      { label: "Leave Cache", secondary: true, action: () => renderAll() },
+    ], { html: true });
+    return;
+  }
+  if (event.guardian && !isChestGuardianCleared(key)) {
+    const guardianName = chestGuardianName(event);
+    setMessage(`${guardianName} guards ${treasurePrimaryItem(event)}.`);
+    openModal("Guarded Treasure", guardedChestMarkup(event, guardianName), [
+      { label: "Fight Guard", action: () => startBattle(chestGuardianKey(key), { type: "chestGuard", chestKey: key, encounter: event.guardian }, createEnemyParty(event.guardian)) },
+      { label: "Retreat", secondary: true, action: () => setMessage(`${guardianName} still guards the cache.`) },
+    ], { html: true });
+    return;
+  }
+  let totalGold = 0;
+  let totalXp = 0;
+  const foundItems = [];
+  let relicsFound = 0;
+  const rewards = treasureRewards(event, key);
+  state.chestRolls ??= {};
+  if (event.type === "chest") state.chestRolls[key] = rewards.map((reward) => ({ ...reward }));
+  rewards.forEach((reward) => {
+    totalGold += reward.gold || 0;
+    totalXp += reward.xp || 0;
+    if (!reward.item) return;
+    const qty = Math.max(1, reward.qty || 1);
+    if (relicItems.has(reward.item) && !state.relics.includes(reward.item)) {
+      state.relics.push(reward.item);
+      relicsFound += 1;
+    }
+    const itemId = chestItemIds[reward.item];
+    if (itemId) addInventoryItem(itemId, qty);
+    foundItems.push(`${qty > 1 ? `${qty}x ` : ""}${reward.item}`);
+  });
+  state.gold += totalGold;
+  const xpReport = totalXp ? gainXp(totalXp) : null;
   state.visited[key] = true;
   playSfx("coin");
-  setMessage(`Found ${event.item} and ${event.gold} gold.`);
-  openModal(isRelic ? "Relic Found" : "Treasure Found", `You found ${event.item} and ${event.gold} gold.${isRelic ? ` Relics: ${state.relics.length}/4.` : ""} The item was added to your inventory.`, [
-    { label: "Done", action: () => renderAll() },
+  const foundText = [foundItems.join(", "), totalGold ? `${totalGold} gold` : "", totalXp ? `${totalXp} XP` : ""].filter(Boolean).join(" and ");
+  const title = event.type === "cache" ? "Cache Opened" : event.type === "artifact" ? "Artifact Found" : event.type === "supply" ? "Supplies Found" : relicsFound ? "Relic Found" : "Treasure Found";
+  setMessage(`Found ${foundText}.`);
+  openModal(title, `You found ${foundText}.${relicsFound ? ` Relics: ${state.relics.length}/4.` : ""}${xpReport?.heroLevels ? ` ${championName()} reached level ${state.hero.level}.` : ""} The loot was added to your inventory.`, [
+    { label: "Done", action: () => resolvePostBattleProgression() },
   ]);
+}
+
+function linkedGuardedChestMarkup(event, guardName) {
+  const isRelic = treasureRewards(event).some((reward) => relicItems.has(reward.item));
+  const guard = events.get(event.guardedBy);
+  const guardReward = guard ? createEnemyParty(guard.encounter).reduce((sum, enemy) => sum + (enemy.reward || 0), 0) : 0;
+  return `
+    <div class="battle-preview">
+      <p><strong>${escapeHtml(guardName)}</strong> holds the road before this cache. Defeat that visible outpost first, then return for the reward.</p>
+      <div class="battle-reward-preview">
+        <span>${isRelic ? "Artifacts" : "Loot"}: ${escapeHtml(treasureRewardSummary(event))}</span>
+        ${guardReward ? `<span>Guard reward ${guardReward} gold</span>` : ""}
+      </div>
+      <p>This cache is intentionally guarded from the overworld, not by a hidden popup fight.</p>
+    </div>
+  `;
+}
+
+function guardedChestMarkup(event, guardianName) {
+  const isRelic = treasureRewards(event).some((reward) => relicItems.has(reward.item));
+  const rewardType = isRelic ? "Artifact" : itemDefinitions[chestItemIds[event.item]]?.type === "equipment" ? "Item" : "Supply";
+  return `
+    <div class="battle-preview">
+      <p><strong>${escapeHtml(guardianName)}</strong> has made camp around a sealed cache.</p>
+      <div class="battle-reward-preview">
+        <span>${rewardType}: ${escapeHtml(treasureRewardSummary(event))}</span>
+      </div>
+      <p>Win the guard fight to open the cache. Retreating leaves the treasure marked on the overworld.</p>
+    </div>
+  `;
 }
 
 function addInventoryItem(id, qty = 1) {
@@ -3126,11 +3519,41 @@ function battleEvent(key, event) {
   const enemies = createEnemyParty(event.encounter);
   const leader = enemies[0];
   const tier = campaignDifficultyTier();
-  const enemyText = enemies.length > 1 ? `${leader.name} and ${enemies.length - 1} ${enemies.length === 2 ? "ally" : "allies"} block the path.` : `${leader.name} blocks the path.`;
+  const leaderName = event.guardName || leader.name;
+  const enemyText = enemies.length > 1 ? `${leaderName} and ${enemies.length - 1} ${enemies.length === 2 ? "ally" : "allies"} block the path.` : `${leaderName} blocks the path.`;
   openModal("Battle", battlePreviewMarkup(event, enemies, tier, enemyText), [
     { label: "Fight", action: () => startBattle(key, event, enemies) },
-    { label: "Retreat", secondary: true, action: () => setMessage("You hold position and prepare.") },
+    { label: "Retreat", secondary: true, action: () => retreatFromBattlePreview(key, event) },
   ], { html: true, className: event.gate || event.type === "final" ? "boss-preview-modal" : "" });
+}
+
+function retreatFromBattlePreview(key, event) {
+  if (event.passName) {
+    const fallback = state.lastTravelPosition;
+    if (fallback && !isBlocked(fallback.x, fallback.y)) {
+      state.x = fallback.x;
+      state.y = fallback.y;
+      visual = { x: state.x, y: state.y, fromX: state.x, fromY: state.y, toX: state.x, toY: state.y, moving: false, startedAt: 0, progress: 0 };
+    }
+    setMessage(`${event.guardName || "The pass guardian"} still holds ${event.passName}.`);
+    renderAll();
+    return;
+  }
+  if (event.guards?.length) {
+    const guard = pointFromKeyString(key);
+    const chest = pointFromKeyString(event.guards[0]);
+    const fallback = { x: guard.x * 2 - chest.x, y: guard.y * 2 - chest.y };
+    if (!isBlocked(fallback.x, fallback.y)) {
+      state.x = fallback.x;
+      state.y = fallback.y;
+      visual = { x: state.x, y: state.y, fromX: state.x, fromY: state.y, toX: state.x, toY: state.y, moving: false, startedAt: 0, progress: 0 };
+    }
+    setMessage(`${event.guardName || "The guard"} still holds the pass.`);
+    renderAll();
+    return;
+  }
+  setMessage("You hold position and prepare.");
+  renderAll();
 }
 
 function battlePreviewMarkup(event, enemies, tier, enemyText) {
@@ -3138,15 +3561,22 @@ function battlePreviewMarkup(event, enemies, tier, enemyText) {
   const icons = enemies.map((enemy) => `<span class="enemy-icon ${enemyArchetype(enemy)}" title="${escapeHtml(enemy.name)}">${enemyArchetypeIcon(enemy)}</span>`).join("");
   const leadText = bossLeadText(event);
   const bossText = bossTraitText(event);
+  const guardedCaches = (event.guards || [])
+    .map((key) => ({ key, event: events.get(key) }))
+    .filter((entry) => entry.event)
+    .map(({ event: cache }) => eventLabel(cache))
+    .join(", ");
   return `
     <div class="battle-preview ${event.gate || event.type === "final" ? "boss-preview" : ""}">
       ${leadText ? `<div class="boss-preview-hero"><strong>${event.gate ? "Fortress Approach" : event.type === "final" ? "Fortress Heart" : "Battle Readiness"}</strong><p>${leadText}</p></div>` : ""}
       <p>${escapeHtml(enemyText)} Threat: <strong>${tier.label}</strong>.</p>
+      ${event.passName ? `<div class="boss-preview-panel"><strong>Pass Guardian</strong><p>Defeat this guard to make ${escapeHtml(event.passName)} safe to cross. This fight controls movement between regions, not just loot.</p></div>` : ""}
+      ${guardedCaches ? `<div class="boss-preview-panel"><strong>Guarding</strong><p>Clearing this outpost opens the ${escapeHtml(guardedCaches)} nearby.</p></div>` : ""}
       ${bossText ? `<div class="boss-preview-panel"><strong>Boss Trait</strong><p>${bossText}</p></div>` : ""}
       <div class="enemy-icon-row">${icons}</div>
       <div class="battle-reward-preview">
         <span>Reward ${reward} gold</span>
-        <span>${event.type === "final" ? "Victory fight" : event.gate ? "Pass guardian" : `${enemies.length} enemy unit${enemies.length === 1 ? "" : "s"}`}</span>
+        <span>${event.type === "final" ? "Victory fight" : event.gate || event.passName ? "Pass guardian" : `${enemies.length} enemy unit${enemies.length === 1 ? "" : "s"}`}</span>
       </div>
     </div>
   `;
@@ -3307,6 +3737,7 @@ function startBattle(key, event, enemyInput) {
   renderBattle();
   modal.classList.remove("victory-modal", "town-modal", "night-modal", "name-modal");
   modal.classList.add("battle-modal");
+  if (!modal.open) modal.showModal();
 }
 
 function buildBattleQueue() {
@@ -4244,6 +4675,16 @@ function finishBattle(wonBattle) {
       const roamingHero = state.enemyHeroes?.find((hero) => hero.id === event.roamingHeroId);
       if (roamingHero) roamingHero.defeated = true;
     }
+    if (event.type === "chestGuard" && event.chestKey) {
+      state.visited[chestGuardianKey(event.chestKey)] = true;
+      const chest = events.get(event.chestKey);
+      const itemText = chest?.item ? ` The cache holding ${chest.item} can now be opened.` : "";
+      setMessage(`${enemyLabel} defeated. The guarded cache is open.`);
+      return resolvePostBattleProgression(() => openModal("Guard Broken", `${log.slice(-3).join(" ")} Reward: ${reward} gold and ${xpReport.amount} XP.${itemText}`, [
+        { label: "Open Cache", action: () => chest ? chestEvent(event.chestKey, chest) : renderAll() },
+        { label: "Leave It", secondary: true, action: () => renderAll() },
+      ]));
+    }
     if (event.type === "final") {
       return triggerVictory("military", "DAYLIGHT VICTORY", finalVictoryMarkup(enemyLabel, reward, xpReport.amount), { html: true, className: "victory-modal boss-aftermath-modal" });
     } else if (event.gate) {
@@ -4251,6 +4692,11 @@ function finishBattle(wonBattle) {
       openModal("Pass Cleared", gateAftermathMarkup(reward, xpReport.amount), [
         { label: "March to Fortress", action: () => resolvePostBattleProgression() },
       ], { html: true, className: "boss-aftermath-modal" });
+    } else if (event.passName) {
+      setMessage(`${event.passName} is clear. The road through this biome is open.`);
+      openModal("Pass Cleared", `${log.slice(-3).join(" ")} Reward: ${reward} gold and ${xpReport.amount} XP. ${event.passName} is now safe to cross.`, [
+        { label: "Continue", action: () => resolvePostBattleProgression() },
+      ]);
     } else if (event.type === "night") {
       setMessage(`${enemyLabel} defeated before dawn.`);
       openModal("Camp Defended", `${log.slice(-3).join(" ")} Reward: ${reward} gold and ${xpReport.amount} XP.`, [{ label: "Continue Watch", action: () => resolvePostBattleProgression() }]);
@@ -4484,6 +4930,7 @@ function draw() {
   updateCamera();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawTerrain();
+  drawWorldAtmosphere();
   drawWorldReadabilityOverlays();
   drawWorldEntities();
   drawObjectiveHint();
@@ -4725,6 +5172,24 @@ function drawLocationBanner() {
   ctx.restore();
 }
 
+function drawWorldAtmosphere() {
+  ctx.save();
+  const dawn = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  dawn.addColorStop(0, "rgba(255, 220, 132, 0.09)");
+  dawn.addColorStop(0.42, "rgba(105, 166, 216, 0.03)");
+  dawn.addColorStop(1, "rgba(15, 18, 25, 0.18)");
+  ctx.fillStyle = dawn;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const vignette = ctx.createRadialGradient(canvas.width * 0.5, canvas.height * 0.44, canvas.width * 0.25, canvas.width * 0.5, canvas.height * 0.5, canvas.width * 0.72);
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(0.72, "rgba(0,0,0,0.04)");
+  vignette.addColorStop(1, "rgba(0,0,0,0.24)");
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+}
+
 function updateCamera() {
   const maxX = Math.max(0, map[0].length - VIEW_W);
   const maxY = Math.max(0, map.length - VIEW_H);
@@ -4765,7 +5230,7 @@ function buildTerrainCache() {
     for (let x = 0; x < VIEW_W + 2; x += 1) {
       const worldX = camera.originX + x;
       const worldY = camera.originY + y;
-      drawTile(x, y, map[worldY]?.[worldX] || "W", cacheCtx);
+      drawTile(x, y, map[worldY]?.[worldX] || "W", cacheCtx, worldX, worldY);
     }
   }
   return cache;
@@ -5404,6 +5869,31 @@ function drawCutout(name, cx, footY, maxW, maxH, options = {}) {
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
+  if (options.outline) {
+    ctx.globalAlpha = 0.78;
+    ctx.filter = "brightness(0)";
+    const outlineOffset = options.outlineOffset || 1.4;
+    [
+      [-outlineOffset, 0],
+      [outlineOffset, 0],
+      [0, -outlineOffset],
+      [0, outlineOffset],
+    ].forEach(([ox, oy]) => {
+      if (options.flip) {
+        ctx.save();
+        ctx.translate(dx + dw + ox, dy + oy);
+        ctx.scale(-1, 1);
+        ctx.drawImage(source, sx, sy, sw, sh, 0, 0, dw, dh);
+        ctx.restore();
+      } else {
+        ctx.drawImage(source, sx, sy, sw, sh, dx + ox, dy + oy, dw, dh);
+      }
+    });
+    ctx.globalAlpha = 1;
+    ctx.filter = options.filter || "none";
+  } else if (options.filter) {
+    ctx.filter = options.filter;
+  }
   if (options.flip) {
     ctx.translate(dx + dw, dy);
     ctx.scale(-1, 1);
@@ -5462,6 +5952,31 @@ function drawPreparedCutout(cutout, cx, footY, options = {}) {
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
+  if (options.outline) {
+    ctx.globalAlpha = 0.78;
+    ctx.filter = "brightness(0)";
+    const outlineOffset = options.outlineOffset || 1.4;
+    [
+      [-outlineOffset, 0],
+      [outlineOffset, 0],
+      [0, -outlineOffset],
+      [0, outlineOffset],
+    ].forEach(([ox, oy]) => {
+      if (options.flip) {
+        ctx.save();
+        ctx.translate(dx + dw + ox, dy + oy);
+        ctx.scale(-1, 1);
+        ctx.drawImage(source, sx, sy, sw, sh, 0, 0, dw, dh);
+        ctx.restore();
+      } else {
+        ctx.drawImage(source, sx, sy, sw, sh, dx + ox, dy + oy, dw, dh);
+      }
+    });
+    ctx.globalAlpha = 1;
+    ctx.filter = options.filter || "none";
+  } else if (options.filter) {
+    ctx.filter = options.filter;
+  }
   if (options.flip) {
     ctx.translate(dx + dw, dy);
     ctx.scale(-1, 1);
@@ -5475,56 +5990,130 @@ function drawPreparedCutout(cutout, cx, footY, options = {}) {
   return true;
 }
 
-function drawTileAtPixel(px, py, tile, targetCtx = ctx) {
+function terrainHash(x, y, salt = 0) {
+  let value = Math.imul(x + 101 + salt * 17, 374761393) ^ Math.imul(y + 211 + salt * 31, 668265263);
+  value = Math.imul(value ^ (value >>> 13), 1274126177);
+  return ((value ^ (value >>> 16)) >>> 0) / 4294967295;
+}
+
+function nearbyTravelTile(x, y) {
+  return ["R", "B"].includes(map[y]?.[x]);
+}
+
+function drawTileAtPixel(px, py, tile, targetCtx = ctx, worldX = Math.round(px / TILE), worldY = Math.round(py / TILE)) {
   const spriteName = tile === "W" ? "water" : tile === "B" ? "bridge" : tile === "F" ? "forest" : tile === "M" ? "mountain" : tile === "R" ? "road" : "grass";
   const color = tile === "W" ? palette.water : tile === "B" ? palette.bridge : tile === "F" ? palette.forest : tile === "M" ? palette.mountain : tile === "R" ? palette.road : palette.grass;
   targetCtx.fillStyle = color;
   targetCtx.fillRect(px, py, TILE, TILE);
-  const tileX = Math.round(px / TILE);
-  const tileY = Math.round(py / TILE);
-  if (drawAtlas(spriteName, px, py, TILE, TILE, { alpha: tile === "G" ? 0.7 : 0.86, inset: tile === "W" ? 10 : 8 }, targetCtx)) {
-    if (tile === "G" && (tileX + tileY) % 3 !== 0) {
+  const spriteDrawn = drawAtlas(spriteName, px, py, TILE, TILE, { alpha: tile === "G" ? 0.72 : 0.88, inset: tile === "W" ? 10 : 8 }, targetCtx);
+  if (spriteDrawn) {
+    if (tile === "G" && terrainHash(worldX, worldY, 1) > 0.32) {
       targetCtx.fillStyle = "rgba(95, 174, 93, 0.28)";
       targetCtx.fillRect(px, py, TILE, TILE);
     }
-    return;
+  } else {
+    targetCtx.fillStyle = tile === "G" ? palette.grass2 : "rgba(255,255,255,0.08)";
+    if ((worldX + worldY) % 2 === 0) targetCtx.fillRect(px + 3, py + 24, 7, 3);
+    if (tile === "F") drawTree(px, py, targetCtx);
+    if (tile === "M") drawMountain(px, py, targetCtx);
+    if (tile === "W") drawWater(px, py, worldX, worldY, targetCtx);
+    if (tile === "B") drawBridge(px, py, targetCtx);
   }
-  targetCtx.fillStyle = tile === "G" ? palette.grass2 : "rgba(255,255,255,0.08)";
-  if ((tileX + tileY) % 2 === 0) targetCtx.fillRect(px + 3, py + 24, 7, 3);
-  if (tile === "F") drawTree(px, py);
-  if (tile === "M") drawMountain(px, py);
-  if (tile === "W") drawWater(px, py, tileX, tileY);
-  if (tile === "B") drawBridge(px, py, targetCtx);
+  drawTilePolish(px, py, tile, targetCtx, worldX, worldY);
 }
 
-function drawTile(x, y, tile, targetCtx = ctx) {
-  drawTileAtPixel(x * TILE, y * TILE, tile, targetCtx);
+function drawTile(x, y, tile, targetCtx = ctx, worldX = x, worldY = y) {
+  drawTileAtPixel(x * TILE, y * TILE, tile, targetCtx, worldX, worldY);
 }
 
-function drawTree(px, py) {
-  ctx.fillStyle = "#164d2e";
-  ctx.fillRect(px + 13, py + 18, 6, 9);
-  ctx.fillStyle = "#2f8650";
-  ctx.fillRect(px + 8, py + 8, 16, 14);
-  ctx.fillStyle = "#3fa35d";
-  ctx.fillRect(px + 12, py + 5, 10, 7);
+function drawTilePolish(px, py, tile, targetCtx, worldX, worldY) {
+  const shade = terrainHash(worldX, worldY, 2);
+  targetCtx.save();
+  targetCtx.fillStyle = shade > 0.5 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.045)";
+  targetCtx.fillRect(px, py, TILE, TILE);
+
+  if (tile === "G") {
+    const tuftCount = shade > 0.72 ? 3 : shade > 0.38 ? 2 : 1;
+    targetCtx.strokeStyle = "rgba(214, 226, 167, 0.32)";
+    targetCtx.lineWidth = 1;
+    for (let i = 0; i < tuftCount; i += 1) {
+      const tx = px + 6 + terrainHash(worldX, worldY, 10 + i) * 20;
+      const ty = py + 9 + terrainHash(worldX, worldY, 20 + i) * 17;
+      targetCtx.beginPath();
+      targetCtx.moveTo(tx, ty + 4);
+      targetCtx.lineTo(tx + 2, ty);
+      targetCtx.lineTo(tx + 5, ty + 4);
+      targetCtx.stroke();
+    }
+    if (terrainHash(worldX, worldY, 30) > 0.93) {
+      targetCtx.fillStyle = "rgba(255, 229, 122, 0.78)";
+      targetCtx.fillRect(px + 11, py + 13, 2, 2);
+      targetCtx.fillRect(px + 20, py + 21, 2, 2);
+    }
+  }
+
+  if (tile === "F") {
+    targetCtx.fillStyle = "rgba(14, 50, 30, 0.18)";
+    targetCtx.fillRect(px, py + 20, TILE, 12);
+    targetCtx.fillStyle = "rgba(133, 204, 106, 0.24)";
+    targetCtx.fillRect(px + 7 + Math.floor(terrainHash(worldX, worldY, 3) * 10), py + 6, 4, 3);
+  }
+
+  if (tile === "R") {
+    targetCtx.fillStyle = "rgba(89, 54, 33, 0.18)";
+    if (!nearbyTravelTile(worldX - 1, worldY)) targetCtx.fillRect(px, py, 4, TILE);
+    if (!nearbyTravelTile(worldX + 1, worldY)) targetCtx.fillRect(px + TILE - 4, py, 4, TILE);
+    if (!nearbyTravelTile(worldX, worldY - 1)) targetCtx.fillRect(px, py, TILE, 4);
+    if (!nearbyTravelTile(worldX, worldY + 1)) targetCtx.fillRect(px, py + TILE - 4, TILE, 4);
+    targetCtx.fillStyle = "rgba(255, 231, 168, 0.16)";
+    targetCtx.fillRect(px + 6, py + 15, TILE - 12, 2);
+  }
+
+  if (tile === "W") {
+    targetCtx.strokeStyle = "rgba(190, 231, 245, 0.32)";
+    targetCtx.lineWidth = 1;
+    const waveY = py + 9 + Math.floor(terrainHash(worldX, worldY, 4) * 12);
+    targetCtx.beginPath();
+    targetCtx.moveTo(px + 5, waveY);
+    targetCtx.lineTo(px + 13, waveY - 2);
+    targetCtx.lineTo(px + 23, waveY);
+    targetCtx.stroke();
+  }
+
+  if (tile === "M") {
+    targetCtx.fillStyle = "rgba(255, 255, 255, 0.18)";
+    targetCtx.fillRect(px + 10 + Math.floor(terrainHash(worldX, worldY, 5) * 7), py + 8, 4, 7);
+    targetCtx.fillStyle = "rgba(0, 0, 0, 0.14)";
+    targetCtx.fillRect(px + 3, py + 24, TILE - 6, 4);
+  }
+
+  targetCtx.restore();
 }
 
-function drawMountain(px, py) {
-  ctx.fillStyle = "#535761";
-  ctx.beginPath();
-  ctx.moveTo(px + 4, py + 27);
-  ctx.lineTo(px + 16, py + 6);
-  ctx.lineTo(px + 29, py + 27);
-  ctx.fill();
-  ctx.fillStyle = "#d9dde4";
-  ctx.fillRect(px + 14, py + 10, 4, 4);
+function drawTree(px, py, targetCtx = ctx) {
+  targetCtx.fillStyle = "#164d2e";
+  targetCtx.fillRect(px + 13, py + 18, 6, 9);
+  targetCtx.fillStyle = "#2f8650";
+  targetCtx.fillRect(px + 8, py + 8, 16, 14);
+  targetCtx.fillStyle = "#3fa35d";
+  targetCtx.fillRect(px + 12, py + 5, 10, 7);
 }
 
-function drawWater(px, py, x, y) {
-  ctx.fillStyle = "#7fc4df";
-  ctx.fillRect(px + ((x + y) % 3) * 4 + 4, py + 13, 12, 3);
-  ctx.fillRect(px + 17, py + 22, 9, 2);
+function drawMountain(px, py, targetCtx = ctx) {
+  targetCtx.fillStyle = "#535761";
+  targetCtx.beginPath();
+  targetCtx.moveTo(px + 4, py + 27);
+  targetCtx.lineTo(px + 16, py + 6);
+  targetCtx.lineTo(px + 29, py + 27);
+  targetCtx.fill();
+  targetCtx.fillStyle = "#d9dde4";
+  targetCtx.fillRect(px + 14, py + 10, 4, 4);
+}
+
+function drawWater(px, py, x, y, targetCtx = ctx) {
+  targetCtx.fillStyle = "#7fc4df";
+  targetCtx.fillRect(px + ((x + y) % 3) * 4 + 4, py + 13, 12, 3);
+  targetCtx.fillRect(px + 17, py + 22, 9, 2);
 }
 
 function drawBridge(px, py, targetCtx = ctx) {
@@ -5649,8 +6238,11 @@ function drawEventEntity(key, event, x, y) {
   if (event.type === "landmark") drawLandmark(px, py, event);
   if (event.type === "town") drawBuilding(px, py, key, event);
   if (event.type === "npc") drawNpc(px, py, event);
-  if (event.type === "mine") drawMine(px, py);
-  if (event.type === "chest") drawChest(px, py, state.visited[key]);
+  if (event.type === "mine") drawMine(px, py, state.visited[key]);
+  if (event.type === "chest") drawChest(px, py, state.visited[key], isCacheGuarded(key, event));
+  if (event.type === "cache") drawTreasureCache(px, py, state.visited[key], isCacheGuarded(key, event), event);
+  if (event.type === "artifact") drawArtifactPickup(px, py, state.visited[key], isCacheGuarded(key, event), event);
+  if (event.type === "supply") drawSupplyPickup(px, py, state.visited[key], isCacheGuarded(key, event), event);
   if (event.type === "battle" && event.gate) {
     drawMonster(encounters[event.encounter].color, x, y, event.encounter);
     if (!state.visited[key]) drawEnemyHeroMarker(px, py - 10);
@@ -5818,7 +6410,7 @@ function drawMonument(px, py) {
 }
 
 function shouldFlagEvent(event) {
-  return event.type === "mine" || event.type === "battle" || event.type === "town";
+  return event.type === "town";
 }
 
 function drawBuilding(px, py, key, event) {
@@ -5885,10 +6477,17 @@ function drawOwnedTownBanner(px, py, town) {
   ctx.restore();
 }
 
-function drawMine(px, py) {
+function drawMine(px, py, owned = false) {
   drawShadow(px + 16, py + 27, 26, 8);
-  if (drawTownCutout("mineOutpost", px + 16, py + 35, { targetHeight: 42 })) return;
-  if (drawAtlas("mine", px - 4, py - 8, 42, 42)) return;
+  if (owned) drawMineClaimMarker(px, py);
+  if (drawTownCutout("mineOutpost", px + 16, py + 35, { targetHeight: 42 })) {
+    if (owned) drawMineBanner(px, py);
+    return;
+  }
+  if (drawAtlas("mine", px - 4, py - 8, 42, 42)) {
+    if (owned) drawMineBanner(px, py);
+    return;
+  }
   ctx.fillStyle = palette.mine;
   ctx.fillRect(px + 6, py + 17, 20, 11);
   ctx.fillStyle = "#241914";
@@ -5896,6 +6495,42 @@ function drawMine(px, py) {
   ctx.strokeStyle = "#d6aa62";
   ctx.lineWidth = 2;
   ctx.strokeRect(px + 8, py + 15, 16, 13);
+  if (owned) drawMineBanner(px, py);
+}
+
+function drawMineClaimMarker(px, py) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(102, 167, 216, 0.9)";
+  ctx.fillStyle = "rgba(102, 167, 216, 0.18)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(px + 16, py + 28, 22, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawMineBanner(px, py) {
+  ctx.save();
+  ctx.fillStyle = "#f4ead7";
+  ctx.strokeStyle = "#0f1219";
+  ctx.lineWidth = 1.5;
+  ctx.fillRect(px + 3, py + 4, 3, 22);
+  ctx.strokeRect(px + 3, py + 4, 3, 22);
+  ctx.fillStyle = palette.playerFlag;
+  ctx.beginPath();
+  ctx.moveTo(px + 6, py + 5);
+  ctx.lineTo(px + 22, py + 8);
+  ctx.lineTo(px + 17, py + 16);
+  ctx.lineTo(px + 6, py + 14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#f0c15b";
+  ctx.beginPath();
+  ctx.arc(px + 25, py + 25, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawNpc(px, py, event) {
@@ -5906,7 +6541,7 @@ function drawNpc(px, py, event) {
   const phase = Math.floor(animationTime / 180) % 4;
   const bob = Math.sin(animationTime / 360 + px * 0.03) * 0.7;
   drawShadow(px + 16, py + 30, 22, 7);
-  if (drawQuestGiverCutout(event.quest, phase, px + 16, py + 35, { targetHeight: 44, offsetY: bob })) {
+  if (drawQuestGiverCutout(event.quest, phase, px + 16, py + 35, { targetHeight: 44, offsetY: bob, outline: true, filter: "contrast(1.12) saturate(1.1)" })) {
     drawNpcQuestMarker(px, py, ready, status);
     return;
   }
@@ -5981,15 +6616,168 @@ function drawNpcQuestMarker(px, py, ready, status) {
   ctx.restore();
 }
 
-function drawChest(px, py, opened = false) {
+function drawChest(px, py, opened = false, guarded = false) {
   drawShadow(px + 17, py + 27, 19, 5);
-  if (drawAtlas(opened ? "chestOpen" : "chest", px + 5, py + 5, 24, 24)) return;
-  ctx.fillStyle = palette.chest;
-  ctx.fillRect(px + 8, py + 14, 17, 12);
-  ctx.fillStyle = "#6f3c28";
-  ctx.fillRect(px + 8, py + 19, 17, 3);
-  ctx.fillStyle = "#fff0a3";
-  ctx.fillRect(px + 15, py + 18, 3, 5);
+  const painted = drawAtlas(opened ? "chestOpen" : "chest", px + 5, py + 5, 24, 24);
+  if (!painted) {
+    ctx.fillStyle = palette.chest;
+    ctx.fillRect(px + 8, py + 14, 17, 12);
+    ctx.fillStyle = "#6f3c28";
+    ctx.fillRect(px + 8, py + 19, 17, 3);
+    ctx.fillStyle = "#fff0a3";
+    ctx.fillRect(px + 15, py + 18, 3, 5);
+  }
+  if (guarded && !opened) drawGuardedCacheMarker(px, py);
+}
+
+function drawTreasureCache(px, py, opened = false, guarded = false, event = {}) {
+  drawShadow(px + 16, py + 29, 30, 7);
+  if (opened) {
+    drawChest(px - 2, py + 1, true, false);
+    drawOpenedPickupMarker(px, py);
+    return;
+  }
+  drawChest(px - 5, py + 2, false, false);
+  drawChest(px + 7, py + 6, false, false);
+  const rewards = treasureRewards(event);
+  const hasRelic = rewards.some((reward) => relicItems.has(reward.item));
+  const hasPotion = rewards.some((reward) => reward.item === "Healing Draught");
+  if (hasRelic) drawLooseArtifact(px + 15, py + 7);
+  if (hasPotion) drawPotionPickup(px + 7, py + 10);
+  if (guarded) drawGuardedCacheMarker(px, py - 2);
+}
+
+function drawArtifactPickup(px, py, opened = false, guarded = false, event = {}) {
+  drawShadow(px + 16, py + 27, 18, 6);
+  if (opened) {
+    drawOpenedPickupMarker(px, py);
+    return;
+  }
+  if (!drawWorldItemIcon(event.item || "Banner of Luck", px + 16, py + 18, 25)) drawLooseArtifact(px + 16, py + 8);
+  if (guarded) drawGuardedCacheMarker(px, py - 2);
+}
+
+function drawSupplyPickup(px, py, opened = false, guarded = false, event = {}) {
+  drawShadow(px + 16, py + 28, 20, 6);
+  if (opened) {
+    drawOpenedPickupMarker(px, py);
+    return;
+  }
+  if (!drawWorldItemIcon(event.item || "Healing Draught", px + 16, py + 19, 24)) drawPotionPickup(px + 16, py + 10);
+  if ((event.qty || 1) > 1) {
+    ctx.save();
+    ctx.fillStyle = "rgba(15,18,25,0.74)";
+    ctx.fillRect(px + 18, py + 18, 13, 11);
+    ctx.fillStyle = "#fff2b6";
+    ctx.font = "700 9px Trebuchet MS";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`x${event.qty}`, px + 24.5, py + 23.5);
+    ctx.restore();
+  }
+  if (guarded) drawGuardedCacheMarker(px, py - 2);
+}
+
+function drawOpenedPickupMarker(px, py) {
+  ctx.save();
+  ctx.fillStyle = "rgba(244, 234, 215, 0.42)";
+  ctx.beginPath();
+  ctx.ellipse(px + 16, py + 27, 10, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function itemIconIndex(id) {
+  return {
+    healingDraught: 0,
+    bannerOfLuck: 1,
+    dawnwoodBow: 2,
+    silverBridle: 3,
+    starlitCompass: 4,
+    forgeCharm: 5,
+    supplyCrate: 6,
+    coinPouch: 7,
+  }[id] ?? 6;
+}
+
+function drawWorldItemIcon(itemNameOrId, cx, cy, size = 24) {
+  if (!itemIconSheetReady || !itemIconSheet.naturalWidth || !itemIconSheet.naturalHeight) return false;
+  const id = chestItemIds[itemNameOrId] || itemNameOrId || "supplyCrate";
+  const index = itemIconIndex(id);
+  const cols = 4;
+  const rows = 2;
+  const sw = itemIconSheet.naturalWidth / cols;
+  const sh = itemIconSheet.naturalHeight / rows;
+  const sx = (index % cols) * sw;
+  const sy = Math.floor(index / cols) * sh;
+  ctx.save();
+  ctx.fillStyle = "rgba(15,18,25,0.34)";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + size * 0.36, size * 0.48, size * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255, 231, 138, 0.18)";
+  ctx.beginPath();
+  ctx.arc(cx, cy, size * 0.58, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(itemIconSheet, sx, sy, sw, sh, cx - size / 2, cy - size / 2, size, size);
+  ctx.restore();
+  return true;
+}
+
+function drawLooseArtifact(cx, cy) {
+  const pulse = 0.72 + Math.sin(animationTime / 240) * 0.18;
+  ctx.save();
+  ctx.fillStyle = `rgba(255, 231, 138, ${0.3 + pulse * 0.25})`;
+  ctx.beginPath();
+  ctx.arc(cx, cy + 8, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff2b6";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + 5, cy + 7);
+  ctx.lineTo(cx, cy + 15);
+  ctx.lineTo(cx - 5, cy + 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#8a5f21";
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPotionPickup(cx, cy) {
+  ctx.save();
+  ctx.fillStyle = "#66a7d8";
+  ctx.fillRect(cx - 3, cy + 6, 7, 9);
+  ctx.fillStyle = "#f4ead7";
+  ctx.fillRect(cx - 1, cy + 3, 3, 4);
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.fillRect(cx - 2, cy + 7, 2, 5);
+  ctx.strokeStyle = "#0f1219";
+  ctx.strokeRect(cx - 3.5, cy + 5.5, 7, 9);
+  ctx.restore();
+}
+
+function drawGuardedCacheMarker(px, py) {
+  const pulse = 0.75 + Math.sin(animationTime / 260) * 0.25;
+  ctx.save();
+  ctx.fillStyle = "rgba(15, 18, 25, 0.78)";
+  ctx.beginPath();
+  ctx.arc(px + 25, py + 7, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = `rgba(217, 93, 93, ${0.65 + pulse * 0.25})`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.strokeStyle = "#fff2b6";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(px + 20, py + 4);
+  ctx.lineTo(px + 30, py + 10);
+  ctx.moveTo(px + 30, py + 4);
+  ctx.lineTo(px + 20, py + 10);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawPlayerFlag(px, py) {
@@ -6345,7 +7133,7 @@ function renderMinimap() {
   }
   events.forEach((event, key) => {
     const [x, y] = key.split(",").map(Number);
-    minimapCtx.fillStyle = state.visited[key] ? "#68b36b" : event.type === "battle" ? "#d95d5d" : "#f0c15b";
+    minimapCtx.fillStyle = minimapColorForEvent(event, Boolean(state.visited[key]));
     minimapCtx.fillRect(Math.floor(x * scaleX) - 1, Math.floor(y * scaleY) - 1, 4, 4);
   });
   const px = Math.floor(state.x * scaleX);
@@ -6354,6 +7142,15 @@ function renderMinimap() {
   minimapCtx.fillRect(px - 2, py - 2, 5, 5);
   minimapCtx.strokeStyle = "#0f1219";
   minimapCtx.strokeRect(px - 2.5, py - 2.5, 5, 5);
+}
+
+function minimapColorForEvent(event, visited) {
+  if (event.type === "town") return visited ? "#68b36b" : "#f0c15b";
+  if (event.type === "mine") return visited ? "#66a7d8" : "#f0c15b";
+  if (event.type === "battle" || event.type === "gate" || event.type === "final") return visited ? "#4f5664" : "#d95d5d";
+  if (["chest", "cache", "artifact", "supply"].includes(event.type)) return visited ? "#6f7075" : "#fff2b6";
+  if (event.type === "npc") return visited ? "#8d6ea9" : "#c392e8";
+  return visited ? "#6f7075" : "#f0c15b";
 }
 
 function minimapColorForTile(tile) {
@@ -6467,6 +7264,7 @@ document.addEventListener("keydown", (event) => {
 }, true);
 
 document.addEventListener("keydown", (event) => {
+  if (isEditableInputTarget(event.target)) return;
   const delta = keyMap[event.key];
   if (!delta) return;
   event.preventDefault();
@@ -6477,6 +7275,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("keyup", (event) => {
+  if (isEditableInputTarget(event.target)) return;
   if (!keyMap[event.key]) return;
   heldKeys.delete(event.key);
   if (!getHeldDirection()) stopHeldMovementLoop();
