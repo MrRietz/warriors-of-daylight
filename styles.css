@@ -446,7 +446,7 @@ h2 {
 
 .map-compass {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: 48px minmax(0, 1fr);
   gap: 2px 8px;
   align-items: center;
   margin-bottom: 8px;
@@ -454,22 +454,55 @@ h2 {
   border: 2px solid #0f1219;
   border-radius: 5px;
   background:
-    radial-gradient(circle at 17px 17px, rgba(255, 242, 182, 0.18), transparent 16px),
+    radial-gradient(circle at 24px 24px, rgba(255, 242, 182, 0.18), transparent 22px),
     #151a24;
 }
 
-.map-compass span {
-  display: grid;
+.map-compass .compass-rose {
+  position: relative;
   grid-row: 1 / span 2;
-  place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 42px;
+  height: 42px;
   border: 2px solid rgba(240, 193, 91, 0.7);
   border-radius: 50%;
-  color: #17120a;
-  background: var(--gold);
-  font-size: 0.78rem;
+  color: #fff2b6;
+  background:
+    radial-gradient(circle at center, #17120a 0 18%, transparent 19%),
+    linear-gradient(45deg, transparent 45%, rgba(240, 193, 91, 0.5) 46% 54%, transparent 55%),
+    linear-gradient(-45deg, transparent 45%, rgba(240, 193, 91, 0.36) 46% 54%, transparent 55%),
+    #26344f;
+  font-size: 0.62rem;
   font-weight: 900;
+}
+
+.compass-rose i {
+  position: absolute;
+  font-style: normal;
+  line-height: 1;
+}
+
+.compass-rose .north {
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.compass-rose .east {
+  top: 50%;
+  right: 3px;
+  transform: translateY(-50%);
+}
+
+.compass-rose .south {
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.compass-rose .west {
+  top: 50%;
+  left: 3px;
+  transform: translateY(-50%);
 }
 
 .map-compass b {
@@ -5633,7 +5666,7 @@ dialog.notice-modal .modal-card {
   }
 
   .battle-cell {
-    pointer-events: none;
+    pointer-events: auto;
   }
 
   .battle-base {
@@ -5890,9 +5923,13 @@ dialog.notice-modal .modal-card {
     overflow: visible;
   }
 
-  html.mobile-touch .battle-roster,
-  html.mobile-touch .battle-cell {
+  html.mobile-touch .battle-roster {
     display: none;
+  }
+
+  html.mobile-touch .battle-cell {
+    display: block;
+    pointer-events: auto;
   }
 
   html.mobile-touch .battle-combatant {
