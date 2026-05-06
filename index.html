@@ -25,8 +25,8 @@
             <button id="musicBtn" type="button" title="Toggle music">Music</button>
             <label class="volume-control" for="musicVolume" title="Music volume">
               <span>Vol</span>
-              <input id="musicVolume" type="range" min="0" max="100" step="1" value="58" aria-label="Music volume" />
-              <strong id="musicVolumeValue">58%</strong>
+              <input id="musicVolume" type="range" min="0" max="100" step="1" value="100" aria-label="Music volume" />
+              <strong id="musicVolumeValue">100%</strong>
             </label>
             <button id="saveBtn" type="button" title="Save game">Save</button>
             <button id="resetBtn" type="button" title="Reset game">Reset</button>
@@ -64,8 +64,10 @@
         <section class="menu-panel" data-panel="quests">
           <h2>Quest Log</h2>
           <div id="questLog" class="quest-log"></div>
-          <h2>How To Play</h2>
-          <p class="small">Move with WASD, arrow keys, or the pad. Visit towns to recruit, claim mines for gold, recover relic chests, survive each night, and break through the northeast fortress. Defeat the Black Gate Warden outside, then Rival Mage Orius inside.</p>
+          <details class="help-drawer">
+            <summary>Quick Help</summary>
+            <p class="small">Move, recruit, claim mines, survive the night, and keep pushing northeast as the realm opens up.</p>
+          </details>
         </section>
         <section class="menu-panel" data-panel="map">
           <h2>Minimap</h2>

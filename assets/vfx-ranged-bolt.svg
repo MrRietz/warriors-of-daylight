@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 64">
+  <defs>
+    <linearGradient id="trail" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#fff2b6" stop-opacity="0"/>
+      <stop offset="45%" stop-color="#ffe27a" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#ffb126" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="head" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fffdf0"/>
+      <stop offset="36%" stop-color="#fff0a1"/>
+      <stop offset="72%" stop-color="#ffbf34"/>
+      <stop offset="100%" stop-color="#d46e19"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-80%" width="160%" height="260%">
+      <feGaussianBlur stdDeviation="3.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#glow)">
+    <rect x="16" y="28" width="176" height="8" rx="4" fill="url(#trail)"/>
+    <rect x="32" y="30" width="132" height="4" rx="2" fill="#fff8df" opacity="0.9"/>
+    <path d="M166 32 L204 14 L196 28 L240 32 L196 36 L204 50 Z" fill="url(#head)" stroke="#fff8df" stroke-width="3" stroke-linejoin="round"/>
+    <circle cx="208" cy="32" r="6" fill="#fffdf0" opacity="0.95"/>
+    <circle cx="56" cy="18" r="3.2" fill="#ffe27a" opacity="0.8"/>
+    <circle cx="74" cy="46" r="2.4" fill="#ffbf34" opacity="0.7"/>
+    <circle cx="118" cy="18" r="2.8" fill="#fff2b6" opacity="0.75"/>
+  </g>
+</svg>

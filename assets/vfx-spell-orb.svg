@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 72">
+  <defs>
+    <linearGradient id="spellTrail" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#d7ecff" stop-opacity="0"/>
+      <stop offset="35%" stop-color="#c39cff" stop-opacity="0.78"/>
+      <stop offset="100%" stop-color="#7a49d9" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="spellHead" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="25%" stop-color="#d7ecff"/>
+      <stop offset="60%" stop-color="#b17dff"/>
+      <stop offset="100%" stop-color="#5d30b5"/>
+    </radialGradient>
+    <filter id="spellGlow" x="-30%" y="-80%" width="160%" height="260%">
+      <feGaussianBlur stdDeviation="4.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#spellGlow)">
+    <rect x="20" y="31" width="170" height="10" rx="5" fill="url(#spellTrail)"/>
+    <rect x="38" y="33" width="128" height="5" rx="2.5" fill="#eef7ff" opacity="0.76"/>
+    <circle cx="210" cy="36" r="18" fill="url(#spellHead)"/>
+    <circle cx="210" cy="36" r="10" fill="#ffffff" opacity="0.65"/>
+    <path d="M210 10 L216 26 L234 24 L220 36 L234 48 L216 46 L210 62 L204 46 L186 48 L200 36 L186 24 L204 26 Z" fill="#f2dcff" opacity="0.86"/>
+    <circle cx="80" cy="18" r="2.8" fill="#e9dbff" opacity="0.72"/>
+    <circle cx="112" cy="52" r="2.4" fill="#d7ecff" opacity="0.68"/>
+    <circle cx="146" cy="20" r="2.6" fill="#b17dff" opacity="0.74"/>
+  </g>
+</svg>

@@ -29,10 +29,13 @@ const VIEW_W = 24;
 const VIEW_H = 16;
 const SAVE_KEY = "heroes-robin-era-save-v1";
 const AUDIO_SETTINGS_KEY = "heroes-robin-era-audio-v1";
+const MUSIC_VOLUME_MAX = 1;
+const MUSIC_OUTPUT_BOOST = 3.1;
 const HERO_WORLD_HEIGHT = 54;
 const NPC_WORLD_HEIGHT = 52;
 const BATTLE_COLS = 9;
 const BATTLE_ROWS = 5;
+const BATTLE_HIT_PAUSE_MS = 260;
 const MOVE_DURATION_MS = 235;
 const WALK_FRAME_MS = 76;
 const IDLE_FRAME_MS = 620;
@@ -548,10 +551,11 @@ const townCommissionDefinitions = {
     title: "Glass Road Marker",
     towns: ["Eastmere"],
     targetKeys: ["57,12"],
-    objective: "After accepting: visit the High March Road signpost at 57,12",
+    objective: "After accepting: visit High March Road at 57,12 and scout the road held by the Black Gate Warden",
     rewardText: "70 gold and 22 XP",
     complete: () => questVisitedSince("eastmereGlassroad", ["57,12"]),
     reward: () => {
+      revealGateIntel();
       state.gold += 70;
       gainXp(22);
     },
@@ -1417,6 +1421,10 @@ const defaultState = () => ({
   visited: {},
   revealed: {},
   discoveredRegions: {},
+  storyFlags: {
+    gateIntelKnown: false,
+    gateRequirementsKnown: false,
+  },
   chestRolls: {},
   lastTravelPosition: null,
   lastRespawn: { key: "3,2", x: 3, y: 2, name: "Dawnhaven" },
@@ -1455,6 +1463,7 @@ let musicGain = null;
 let musicMode = "field";
 let musicTransitionTimer = 0;
 let autoBattleTimer = 0;
+let battleEffectId = 0;
 let lastStepSoundAt = 0;
 let lastSnackbarText = "";
 let lastSnackbarAt = 0;
@@ -1524,14 +1533,14 @@ function loadGame() {
 function loadAudioSettings() {
   try {
     const raw = localStorage.getItem(AUDIO_SETTINGS_KEY);
-    if (!raw) return { musicVolume: 0.58 };
+    if (!raw) return { musicVolume: 1 };
     const parsed = JSON.parse(raw);
     const musicVolumeValue = Number(parsed?.musicVolume);
     return {
-      musicVolume: Number.isFinite(musicVolumeValue) ? Math.max(0, Math.min(1, musicVolumeValue)) : 0.58,
+      musicVolume: Number.isFinite(musicVolumeValue) ? Math.max(0, Math.min(MUSIC_VOLUME_MAX, musicVolumeValue)) : 1,
     };
   } catch {
-    return { musicVolume: 0.58 };
+    return { musicVolume: 1 };
   }
 }
 
@@ -1569,6 +1578,9 @@ function normalizeState(saved) {
   saved.nightStreak = Number.isFinite(saved.nightStreak) ? Math.max(0, saved.nightStreak) : 0;
   saved.revealed = saved.revealed && typeof saved.revealed === "object" ? saved.revealed : {};
   saved.discoveredRegions = saved.discoveredRegions && typeof saved.discoveredRegions === "object" ? saved.discoveredRegions : {};
+  saved.storyFlags = saved.storyFlags && typeof saved.storyFlags === "object" ? saved.storyFlags : {};
+  saved.storyFlags.gateIntelKnown ??= false;
+  saved.storyFlags.gateRequirementsKnown ??= false;
   saved.scoutMarker = typeof saved.scoutMarker === "string" ? saved.scoutMarker : "";
   saved.activeQuest = typeof saved.activeQuest === "string" ? saved.activeQuest : "";
   saved.tutorial = saved.tutorial && typeof saved.tutorial === "object" ? saved.tutorial : {};
@@ -1711,20 +1723,20 @@ function ensureAudioContext() {
 
 function musicRoleLevel(role = "lead", mode = musicMode) {
   const battle = mode.startsWith("battle");
-  if (role === "bass") return battle ? 0.74 : 0.78;
-  if (role === "bassPulse") return battle ? 0.7 : 0.74;
-  if (role === "pad") return 0.88;
-  if (role === "accent") return battle ? 0.8 : 0.84;
-  if (role === "spark") return 0.66;
-  if (role === "turnaround") return 0.8;
-  if (role === "cue") return 0.62;
-  return battle ? 0.9 : 0.94;
+  if (role === "bass") return battle ? 0.76 : 1.12;
+  if (role === "bassPulse") return battle ? 0.72 : 1.06;
+  if (role === "pad") return battle ? 0.8 : 1.08;
+  if (role === "accent") return battle ? 0.74 : 1.04;
+  if (role === "spark") return battle ? 0.62 : 0.92;
+  if (role === "turnaround") return battle ? 0.7 : 0.98;
+  if (role === "cue") return 0.86;
+  return battle ? 0.7 : 1.14;
 }
 
 function musicNoiseLevel(mode = musicMode, filterType = "bandpass") {
-  let level = mode.startsWith("battle") ? 0.74 : 0.78;
-  if (filterType === "highpass") level *= 0.78;
-  if (mode.startsWith("modal:caravan")) level *= 0.86;
+  let level = mode.startsWith("battle") ? 0.68 : 1.02;
+  if (filterType === "highpass") level *= 0.84;
+  if (mode.startsWith("modal:caravan")) level *= 0.92;
   return level;
 }
 
@@ -1735,8 +1747,8 @@ function updateMusicVolumeUi() {
 }
 
 function setMusicVolume(value, persist = true) {
-  const nextValue = Math.max(0, Math.min(1, Number(value)));
-  musicVolume = Number.isFinite(nextValue) ? nextValue : 0.58;
+  const nextValue = Math.max(0, Math.min(MUSIC_VOLUME_MAX, Number(value)));
+  musicVolume = Number.isFinite(nextValue) ? nextValue : 1;
   updateMusicVolumeUi();
   updateMusicButton();
   if (persist) saveAudioSettings();
@@ -1831,6 +1843,9 @@ function playSfx(kind) {
     step: [120, 0.035, "triangle", 0.04],
     coin: [880, 0.09, "square", 0.075],
     hit: [150, 0.08, "sawtooth", 0.09],
+    slash: [132, 0.09, "sawtooth", 0.14],
+    shot: [920, 0.06, "square", 0.11],
+    spell: [620, 0.12, "triangle", 0.095],
     guard: [520, 0.12, "triangle", 0.07],
     win: [660, 0.16, "square", 0.08],
   };
@@ -1838,6 +1853,18 @@ function playSfx(kind) {
   if (!sound) return;
   playTone(sound[0], sound[1], sound[2], sound[3]);
   if (kind === "coin") window.setTimeout(() => playTone(1175, 0.08, "square", 0.035), 70);
+  if (kind === "shot") {
+    window.setTimeout(() => playTone(1240, 0.05, "square", 0.07), 34);
+    window.setTimeout(() => playTone(760, 0.035, "triangle", 0.04), 86);
+  }
+  if (kind === "spell") {
+    window.setTimeout(() => playTone(880, 0.11, "sine", 0.06), 42);
+    window.setTimeout(() => playTone(1160, 0.09, "triangle", 0.05), 96);
+  }
+  if (kind === "slash") {
+    window.setTimeout(() => playTone(96, 0.05, "square", 0.09), 22);
+    window.setTimeout(() => playTone(182, 0.045, "triangle", 0.05), 72);
+  }
   if (kind === "win") window.setTimeout(() => playTone(990, 0.18, "square", 0.045), 120);
 }
 
@@ -1905,18 +1932,18 @@ function currentMusicState(mode = currentMusicMode()) {
 
 function targetMusicGainForMode(mode, musicState = currentMusicState(mode)) {
   const base = mode.startsWith("battle")
-    ? 0.17
+    ? 0.145
     : mode.startsWith("modal:caravan")
-      ? 0.14
+      ? 0.255
       : mode.startsWith("modal:")
-        ? 0.135
+        ? 0.245
         : mode === "night"
-          ? 0.155
+          ? 0.27
           : mode === "victory"
-            ? 0.18
-            : 0.16;
-  const leveled = Math.max(0.035, base + musicState.lift * 0.012 - musicState.tension * (mode.startsWith("modal:") ? 0.008 : 0.012));
-  return Math.max(0.0001, leveled * musicVolume);
+            ? 0.285
+            : 0.275;
+  const leveled = Math.max(0.13, base + musicState.lift * 0.02 - musicState.tension * (mode.startsWith("modal:") ? 0.007 : 0.01));
+  return Math.max(0.0001, leveled * musicVolume * MUSIC_OUTPUT_BOOST);
 }
 
 function applyMusicGain(mode, musicState = currentMusicState(mode), quick = false) {
@@ -2914,6 +2941,32 @@ function fortressGateRequirements() {
   };
 }
 
+function gateIntelKnown() {
+  return Boolean(state.storyFlags?.gateIntelKnown);
+}
+
+function gateRequirementsKnown() {
+  return Boolean(state.storyFlags?.gateRequirementsKnown);
+}
+
+function revealGateIntel(source = "") {
+  state.storyFlags ??= {};
+  if (state.storyFlags.gateIntelKnown) return false;
+  state.storyFlags.gateIntelKnown = true;
+  if (source === "high_march") {
+    setMessage("High March rumor: a Black Gate Warden bars the road to Orius.");
+  }
+  return true;
+}
+
+function revealGateRequirements() {
+  state.storyFlags ??= {};
+  state.storyFlags.gateIntelKnown = true;
+  if (state.storyFlags.gateRequirementsKnown) return false;
+  state.storyFlags.gateRequirementsKnown = true;
+  return true;
+}
+
 function fortressGateRequirementText() {
   const gate = fortressGateRequirements();
   return `Recover 4 relics and clear 8 outposts before challenging the Black Gate Warden (${gate.relicCount}/${gate.relicTarget} relics, ${gate.outpostCount}/${gate.outpostTarget} outposts).`;
@@ -3330,6 +3383,7 @@ function createNightState(plan = "holdfast") {
     report,
     campEvent,
     campEventResolved: false,
+    commandStep: campEvent ? "plan" : "plan",
   };
 }
 
@@ -3389,8 +3443,10 @@ function currentNightPlan() {
 
 function setNightPlan(id) {
   if (!nightPlanDefinitions[id]) return beginNight();
+  const nextStep = activeNight?.campEvent ? "event" : "forecast";
   state.nightPlan = id;
   activeNight = createNightState(id);
+  activeNight.commandStep = nextStep;
   setMessage(`Night plan set: ${nightPlanDefinitions[id].name}.`);
   beginNight();
 }
@@ -3542,13 +3598,17 @@ function nightfallMarkup() {
   const effects = nightDefenseEffectPills();
   const event = activeNight?.campEvent;
   const report = activeNight?.report;
+  const steps = nightCommandSteps();
+  const currentStepId = currentNightCommandStep();
+  const currentStep = steps.find((step) => step.id === currentStepId) || steps[0];
+  const currentIndex = Math.max(0, steps.findIndex((step) => step.id === currentStep.id));
   return `
     <div class="night-wave">
       <div class="nightfall-head">
         <div class="night-watch-crest" aria-hidden="true"><i></i></div>
         <div>
           <strong>Camp Command</strong>
-          <p>Pick a night plan, resolve the camp event, read the incoming waves, then start the watch.</p>
+          <p>Pick, resolve, review, stand guard.</p>
         </div>
       </div>
       <div class="night-summary-bar">
@@ -3557,65 +3617,163 @@ function nightfallMarkup() {
         <span><small>Morale</small><strong>${campMoraleLabel()}</strong></span>
       </div>
       <div class="night-command-strip">
-        <article><small>Risk</small><strong>${currentPlan.risk}</strong><p>${escapeHtml(currentPlan.waveBias)}</p></article>
-        <article><small>Reward</small><strong>${escapeHtml(nightRewardHeadline(currentPlanId))}</strong><p>${escapeHtml(currentPlan.reward)}</p></article>
+        <article><small>Risk</small><strong>${currentPlan.risk}</strong><p>${escapeHtml(nightPlanRiskShort(currentPlanId))}</p></article>
+        <article><small>Reward</small><strong>${escapeHtml(nightRewardHeadline(currentPlanId))}</strong><p>${escapeHtml(nightPlanRewardShort(currentPlanId))}</p></article>
         <article><small>Streak</small><strong>${state.nightStreak || 0} nights</strong><p>${escapeHtml(nightStreakBonusText())}</p></article>
       </div>
-      <div class="night-step-callout">
-        <span>1</span>
-        <strong>Choose your night tactic</strong>
-        <small>${escapeHtml(nightTacticShortText(currentPlanId))}</small>
+      <div class="night-stepper" role="tablist" aria-label="Night watch steps">
+        ${steps.map((step, index) => `
+          <button
+            type="button"
+            class="night-stepper-tab ${step.id === currentStep.id ? "active" : ""} ${step.complete ? "complete" : ""}"
+            data-night-step="${step.id}"
+            ${index > currentIndex + 1 || !step.unlocked ? "disabled" : ""}
+            aria-selected="${step.id === currentStep.id ? "true" : "false"}"
+          >
+            <span>${index + 1}</span>
+            <strong>${escapeHtml(step.label)}</strong>
+          </button>
+        `).join("")}
       </div>
-      <div class="night-section">
-        <div class="night-section-head">
-          <h3>Tactics</h3>
-          <p class="night-section-note">Tap a card. Only one tactic runs tonight.</p>
-        </div>
-        <div class="camp-upgrade-list night-plan-list">${Object.entries(nightPlanDefinitions).map(([id, plan]) => nightPlanCard(id, plan, currentPlanId)).join("")}</div>
+      <div class="night-step-callout ${currentStep.optional ? "optional" : ""}">
+        <span>${currentIndex + 1}</span>
+        <strong>${escapeHtml(currentStep.title)}</strong>
+        <small>${escapeHtml(currentStep.note)}</small>
       </div>
-      ${event ? `
-        <div class="night-step-callout">
-          <span>2</span>
-          <strong>Resolve camp event</strong>
-          <small>${activeNight?.campEventResolved ? escapeHtml(report?.eventChoiceLabel ? `${report.eventChoiceLabel}: ${report.eventOutcome}` : "Event resolved.") : "Make one tradeoff before the first horn sounds."}</small>
+      ${currentStep.id === "plan" ? `
+        <div class="night-section">
+          <div class="night-section-head">
+            <h3>Tactics</h3>
+            <p class="night-section-note">Pick one. We move on.</p>
+          </div>
+          ${nightRecommendationBanner()}
+          <div class="camp-upgrade-list night-plan-list">${Object.entries(nightPlanDefinitions).map(([id, plan]) => nightPlanCard(id, plan, currentPlanId)).join("")}</div>
         </div>
+      ` : ""}
+      ${currentStep.id === "event" ? `
         <div class="night-section">
           <div class="night-section-head">
             <h3>Camp Event</h3>
-            <p class="night-section-note">Small choices make the night feel alive and change this watch immediately.</p>
+            <p class="night-section-note">One choice. One tradeoff.</p>
           </div>
           ${campEventMarkup(event)}
         </div>
       ` : ""}
-      <div class="night-step-callout">
-        <span>3</span>
-        <strong>Read incoming waves</strong>
-        <small>${state.campUpgrades?.watchtower ? "The watchtower identifies the threats before they arrive." : "Without a watchtower you still see threat levels, but not every detail."}</small>
-      </div>
-      <div class="night-section">
-        <div class="night-section-head">
-          <h3>Wave Forecast</h3>
-          <p class="night-section-note">Threat, silhouettes, and a recommended tactic before the watch begins.</p>
+      ${currentStep.id === "forecast" ? `
+        <div class="night-section">
+          <div class="night-section-head">
+            <h3>Tonight</h3>
+            <p class="night-section-note">${state.campUpgrades?.watchtower ? "Full read ready." : "Threat read only."}</p>
+          </div>
+          ${nightForecastSummaryMarkup()}
+          ${nightCampLineMarkup()}
+          <details class="night-forecast-details">
+            <summary>${state.campUpgrades?.watchtower ? "View wave details" : "View threat details"}</summary>
+            <div class="night-preview-grid">${nightWavePreviewCards(activeNight.encounters).join("")}</div>
+          </details>
+          <div class="night-defense-strip night-active-effects">
+            ${effects.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+          </div>
         </div>
-        <div class="night-preview-grid">${nightWavePreviewCards(activeNight.encounters).join("")}</div>
-      </div>
-      <div class="night-defense-strip night-active-effects">
-        ${effects.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
-      </div>
-      <div class="night-step-callout optional">
-        <span>4</span>
-        <strong>Optional camp prep</strong>
-        <small>${campBuilt.length ? `${escapeHtml(campBuilt.join(", "))} ready.` : "Build only if you want to spend gold before the waves."}</small>
-      </div>
-      <div class="night-section">
-        <div class="night-section-head">
-          <h3>Camp Prep</h3>
-          <p class="night-section-note">Permanent upgrades. Skip them and press Start Night Watch if you are ready.</p>
+      ` : ""}
+      ${currentStep.id === "prep" ? `
+        <div class="night-section">
+          <div class="night-section-head">
+            <h3>Camp Prep</h3>
+            <p class="night-section-note">Optional builds.</p>
+          </div>
+          ${nightCampLineMarkup(true)}
+          <div class="camp-upgrade-list">${Object.entries(campUpgradeDefinitions).map(([id, upgrade]) => campUpgradeCard(id, upgrade)).join("")}</div>
         </div>
-        <div class="camp-upgrade-list">${Object.entries(campUpgradeDefinitions).map(([id, upgrade]) => campUpgradeCard(id, upgrade)).join("")}</div>
+      ` : ""}
+      <div class="night-step-footer">
+        <button type="button" class="secondary" data-night-nav="prev"${currentIndex <= 0 ? " disabled" : ""}>Previous</button>
+        <div class="night-step-progress">
+          <strong>Step ${currentIndex + 1} of ${steps.length}</strong>
+          <span>${currentStep.id === "prep"
+            ? escapeHtml(campBuilt.length ? `${campBuilt.join(", ")} ready.` : "No optional camp builds yet.")
+            : currentStep.id === "forecast"
+              ? "Start here if you're ready. Prep is optional."
+              : currentStep.id === "event"
+                ? escapeHtml(activeNight?.campEventResolved ? (report?.eventChoiceLabel ? `${report.eventChoiceLabel}: ${nightEventOutcomeShort(report)}` : "Event resolved.") : "Resolve this choice to continue.")
+                : escapeHtml(nightTacticShortText(currentPlanId))
+          }</span>
+        </div>
+        <button type="button" data-night-nav="next"${currentIndex >= steps.length - 1 || !currentStep.canAdvance ? " disabled" : ""}>${currentStep.id === "forecast" ? "Prep Camp" : "Next Step"}</button>
       </div>
     </div>
   `;
+}
+
+function nightCommandSteps() {
+  const steps = [
+    {
+      id: "plan",
+      label: "Tactic",
+      title: "Choose tactic",
+      note: nightTacticShortText(currentNightPlanId()),
+      complete: true,
+      unlocked: true,
+      canAdvance: true,
+    },
+  ];
+  if (activeNight?.campEvent) {
+    steps.push({
+      id: "event",
+      label: "Event",
+      title: "Resolve event",
+      note: activeNight?.campEventResolved
+        ? (activeNight?.report?.eventChoiceLabel ? `${activeNight.report.eventChoiceLabel}: ${nightEventOutcomeShort(activeNight.report)}` : "Event resolved.")
+        : "Pick the tradeoff.",
+      complete: Boolean(activeNight?.campEventResolved),
+      unlocked: true,
+      canAdvance: Boolean(activeNight?.campEventResolved),
+    });
+  }
+  steps.push({
+    id: "forecast",
+    label: "Forecast",
+    title: "Review tonight",
+    note: state.campUpgrades?.watchtower
+      ? "Waves, event impact, and threat."
+      : "Waves, event impact, and rough threat.",
+    complete: false,
+    unlocked: !activeNight?.campEvent || Boolean(activeNight?.campEventResolved),
+    canAdvance: !activeNight?.campEvent || Boolean(activeNight?.campEventResolved),
+  });
+  steps.push({
+    id: "prep",
+    label: "Prep",
+    title: "Optional prep",
+    note: Object.keys(state.campUpgrades || {}).length
+      ? "Build more if you want."
+      : "Skip if ready.",
+    complete: false,
+    unlocked: !activeNight?.campEvent || Boolean(activeNight?.campEventResolved),
+    canAdvance: true,
+    optional: true,
+  });
+  return steps;
+}
+
+function currentNightCommandStep() {
+  const steps = nightCommandSteps();
+  const ids = steps.map((step) => step.id);
+  if (ids.includes(activeNight?.commandStep)) return activeNight.commandStep;
+  return steps[0]?.id || "plan";
+}
+
+function setNightCommandStep(stepId) {
+  if (!activeNight) return;
+  const steps = nightCommandSteps();
+  const targetIndex = steps.findIndex((step) => step.id === stepId);
+  if (targetIndex === -1) return;
+  const currentIndex = steps.findIndex((step) => step.id === currentNightCommandStep());
+  const target = steps[targetIndex];
+  if (!target.unlocked) return;
+  if (targetIndex > currentIndex + 1) return;
+  activeNight.commandStep = target.id;
+  beginNight();
 }
 
 function nightPlanCard(id, plan, currentPlanId = currentNightPlanId()) {
@@ -3636,10 +3794,18 @@ function nightPlanCard(id, plan, currentPlanId = currentNightPlanId()) {
 
 function nightTacticShortText(id) {
   return {
-    holdfast: "Safer camp: fewer waves, steadier recovery, lower payout.",
-    nightRaid: "Riskier camp: harder waves, stronger payout, item chance.",
-    scoutLines: "Balanced camp: normal pressure and a marked lead at dawn.",
+    holdfast: "Safer. Fewer waves. Lower payout.",
+    nightRaid: "Riskier. Bigger payout. Item chance.",
+    scoutLines: "Balanced. Normal waves. Scout lead.",
   }[id] || nightPlanDefinitions[id]?.text || "";
+}
+
+function nightPlanRiskShort(id) {
+  return {
+    holdfast: "Fewer waves",
+    nightRaid: "Harder waves",
+    scoutLines: "Even pressure",
+  }[id] || "";
 }
 
 function campUpgradeSummary() {
@@ -3669,8 +3835,11 @@ function campEventMarkup(event) {
     return `
       <article class="camp-event-card resolved">
         <strong>${escapeHtml(event.title)}</strong>
-        <p>${escapeHtml(activeNight?.report?.eventOutcome || event.text)}</p>
-        <div class="night-defense-strip"><span>${escapeHtml(activeNight?.report?.eventChoiceLabel || "Resolved")}</span></div>
+        <p>${escapeHtml(nightEventOutcomeShort(activeNight?.report) || activeNight?.report?.eventOutcome || event.text)}</p>
+        <div class="night-defense-strip">
+          <span>${escapeHtml(activeNight?.report?.eventChoiceLabel || "Resolved")}</span>
+          ${nightEventImpactPills(activeNight?.report).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+        </div>
       </article>
     `;
   }
@@ -3696,6 +3865,7 @@ function resolveNightCampEvent(choiceId) {
   activeNight.campEventResolved = true;
   activeNight.encounters = buildNightEncounters(activeNight.plan);
   report.wavesPlanned = activeNight.encounters.length;
+  activeNight.commandStep = "forecast";
   setMessage(`Camp event resolved: ${choice.label}.`);
   beginNight();
 }
@@ -3709,14 +3879,43 @@ function campMoraleLabel() {
 
 function nightStreakBonusText() {
   const streak = state.nightStreak || 0;
-  if (!streak) return "No bonus yet. Survive nights to build momentum.";
-  return `Current watch bonus: +${streak * 4} gold and +${streak * 2} XP per night wave.`;
+  if (!streak) return "No bonus yet.";
+  return `+${streak * 4} gold, +${streak * 2} XP per wave.`;
 }
 
 function nightRewardHeadline(planId) {
-  if (planId === "nightRaid") return "High gold, XP, and item chance";
-  if (planId === "scoutLines") return "Balanced payout and map lead";
-  return "Lower payout, higher recovery";
+  if (planId === "nightRaid") return "High gold and XP";
+  if (planId === "scoutLines") return "Balanced payout";
+  return "Safer recovery";
+}
+
+function nightPlanRewardShort(planId) {
+  if (planId === "nightRaid") return "Gold, XP, item chance";
+  if (planId === "scoutLines") return "Gold, XP, scout lead";
+  return "Recovery and safety";
+}
+
+function recommendedNightPlan() {
+  const morale = state.campMorale || 0;
+  if (morale <= 1 || state.hero.hp < Math.round(state.hero.maxHp * 0.6)) {
+    return { id: "holdfast", reason: "Low morale or a hurt party favors safer sustain." };
+  }
+  if (state.campUpgrades?.watchtower && state.campUpgrades?.traps) {
+    return { id: "nightRaid", reason: "Your camp can handle pressure and cash in on a harder night." };
+  }
+  return { id: "scoutLines", reason: "Balanced watch is the default when no crisis is pushing you." };
+}
+
+function nightRecommendationBanner() {
+  const recommended = recommendedNightPlan();
+  const plan = nightPlanDefinitions[recommended.id];
+  if (!plan) return "";
+  return `
+    <div class="night-plan-banner">
+      <strong>Suggested: ${escapeHtml(plan.name)}</strong>
+      <span>${escapeHtml(recommended.reason)}</span>
+    </div>
+  `;
 }
 
 function nightWaveThreatLabel(enemy) {
@@ -3743,10 +3942,69 @@ function nightWavePreviewCards(encounters) {
         </div>
         <b>${escapeHtml(title)}</b>
         <div class="enemy-icon-row night-preview-icons">${icons}</div>
-        <p><strong>Recommended tactic</strong>: ${escapeHtml(trait)}</p>
+        <p><strong>Tactic</strong>: ${escapeHtml(trait)}</p>
       </article>
     `;
   });
+}
+
+function nightEventImpactPills(report) {
+  if (!report) return [];
+  const pills = [];
+  if (report.eventMoraleDelta > 0) pills.push(`+${report.eventMoraleDelta} morale`);
+  if (report.eventGoldDelta > 0) pills.push(`+${report.eventGoldDelta} gold`);
+  if (report.eventGoldDelta < 0) pills.push(`${report.eventGoldDelta} gold`);
+  if (report.eventHealingPenalty > 0) pills.push(`-${report.eventHealingPenalty} dawn heal`);
+  if (report.eventPreWaveRecovery > 0) pills.push(`+${report.eventPreWaveRecovery} pre-wave heal`);
+  if (report.eventDifficultyBias > 0) pills.push("Harder waves");
+  if (report.eventFirstWaveThreat > 0) pills.push("Rough first wave");
+  if (report.scoutingTarget?.label) pills.push(`Lead: ${report.scoutingTarget.label}`);
+  return pills;
+}
+
+function nightEventOutcomeShort(report) {
+  const pills = nightEventImpactPills(report);
+  if (pills.length) return pills.join(", ");
+  return report?.eventOutcome || "Event resolved.";
+}
+
+function nightForecastSummaryMarkup() {
+  const encounters = activeNight?.encounters || [];
+  const first = encounters[0];
+  const report = activeNight?.report;
+  const known = Boolean(state.campUpgrades?.watchtower);
+  const eventPills = nightEventImpactPills(report);
+  const recommended = recommendedNightPlan();
+  return `
+    <div class="night-command-strip night-forecast-strip">
+      <article><small>Waves</small><strong>${encounters.length}</strong><p>${encounters.length === 1 ? "Short watch." : `${encounters.length} checks before dawn.`}</p></article>
+      <article><small>First Threat</small><strong>${first ? nightWaveThreatLabel(first) : "Unknown"}</strong><p>${known && first ? escapeHtml(first.name.replace(/ Night Raid$/, "")) : "Exact enemy hidden."}</p></article>
+      <article><small>Event Impact</small><strong>${eventPills.length ? escapeHtml(eventPills[0]) : "None"}</strong><p>${escapeHtml(eventPills.slice(1, 3).join(" • ") || "No extra shift to tonight's watch.")}</p></article>
+      <article><small>Suggested</small><strong>${escapeHtml(nightPlanDefinitions[recommended.id]?.name || currentNightPlan().name)}</strong><p>${escapeHtml(recommended.id === currentNightPlanId() ? "Matches your current tactic." : "Quick fallback if you want the safer call.")}</p></article>
+    </div>
+  `;
+}
+
+function nightCampLineMarkup(prep = false) {
+  const pieces = [
+    { id: "watchtower", label: "Tower", built: Boolean(state.campUpgrades?.watchtower) },
+    { id: "traps", label: "Traps", built: Boolean(state.campUpgrades?.traps) },
+    { id: "healerFire", label: "Fire", built: Boolean(state.campUpgrades?.healerFire) },
+    { id: "betterTent", label: "Tent", built: Boolean(state.campUpgrades?.betterTent) },
+  ];
+  return `
+    <div class="night-camp-line ${prep ? "prep" : ""}">
+      <strong>${prep ? "Camp Line" : "Defenses Ready"}</strong>
+      <div class="night-camp-line-scene">
+        ${pieces.map((piece) => `
+          <span class="night-camp-piece ${piece.id} ${piece.built ? "built" : "missing"}" title="${escapeHtml(piece.label)}">
+            <i aria-hidden="true"></i>
+            <b>${escapeHtml(piece.label)}</b>
+          </span>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function nightDefenseEffectPills() {
@@ -3782,10 +4040,10 @@ function campUpgradeCard(id, upgrade) {
 
 function campUpgradeShortText(id) {
   return {
-    betterTent: "Stronger dawn recovery for the whole party.",
-    watchtower: "Shows incoming threats and can trim a wave.",
-    traps: "First attacker arrives pre-damaged every wave.",
-    healerFire: "Restores the party before each wave.",
+    betterTent: "More dawn recovery.",
+    watchtower: "Shows threats early.",
+    traps: "First raider starts hurt.",
+    healerFire: "Heal before each wave.",
   }[id] || "";
 }
 
@@ -3808,7 +4066,26 @@ function campUpgradeEffectTags(id) {
 
 function bindNightfallModal() {
   const startButton = modalActions.querySelector("button");
-  if (startButton) startButton.disabled = Boolean(activeNight?.campEvent && !activeNight?.campEventResolved);
+  const steps = nightCommandSteps();
+  const finalStepId = steps[steps.length - 1]?.id || "prep";
+  if (startButton) {
+    const readyStep = ["forecast", finalStepId].includes(currentNightCommandStep());
+    const ready = readyStep && (!activeNight?.campEvent || activeNight?.campEventResolved);
+    startButton.disabled = !ready;
+    startButton.textContent = ready ? "Start Night Watch" : "Finish Steps First";
+  }
+  modalText.querySelectorAll("[data-night-step]").forEach((button) => {
+    button.addEventListener("click", () => setNightCommandStep(button.dataset.nightStep));
+  });
+  modalText.querySelectorAll("[data-night-nav]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const stepList = nightCommandSteps();
+      const currentIndex = Math.max(0, stepList.findIndex((step) => step.id === currentNightCommandStep()));
+      const nextIndex = button.dataset.nightNav === "prev" ? currentIndex - 1 : currentIndex + 1;
+      if (nextIndex < 0 || nextIndex >= stepList.length) return;
+      setNightCommandStep(stepList[nextIndex].id);
+    });
+  });
   modalText.querySelectorAll("[data-night-plan-card]").forEach((card) => {
     const choose = () => {
       const { nightPlanCard } = card.dataset;
@@ -3853,13 +4130,16 @@ function buildCampUpgrade(id) {
   if (!upgrade) return beginNight();
   if (state.gold < upgrade.cost) {
     setMessage(`${upgrade.name} costs ${upgrade.cost} gold.`);
-    activeNight = null;
     return beginNight();
   }
   state.gold -= upgrade.cost;
   state.campUpgrades ??= {};
   state.campUpgrades[id] = true;
-  activeNight = null;
+  if (activeNight) {
+    activeNight.encounters = buildNightEncounters(activeNight.plan);
+    if (activeNight.report) activeNight.report.wavesPlanned = activeNight.encounters.length;
+    activeNight.commandStep = "prep";
+  }
   setMessage(`${upgrade.name} built. Tonight's camp is now better prepared.`);
   renderAll();
   beginNight();
@@ -4081,6 +4361,9 @@ function eventLabel(event) {
 }
 
 function landmarkFlavor(event) {
+  if (event.title === "High March Road") {
+    return "The road marker warns that the Black Gate Warden holds the pass ahead and Orius waits beyond the fortress road. The seal is still a rumor, but the boss is not.";
+  }
   if (event.landmark === "signpost") return `${event.title || "The signpost"} points the way ahead. Fresh paint marks the safer road and warns that the darker trail leads toward trouble.`;
   if (event.landmark === "ruins") return `${event.title || "The ruins"} still watch the road. Broken stone and old ash suggest this route has been contested for years.`;
   if (event.landmark === "camp") return `${event.title || "The camp"} is warm but abandoned. The embers are recent enough to suggest travelers or raiders passed through not long ago.`;
@@ -4092,6 +4375,7 @@ function landmarkFlavor(event) {
 function landmarkEvent(key, event) {
   const firstVisit = !state.visited[key];
   state.visited[key] = true;
+  if (key === "57,12") revealGateIntel("high_march");
   const rewardText = firstVisit ? applyLandmarkReward(event) : "";
   setMessage(firstVisit ? `Discovered ${event.title || "a landmark"}.` : `${event.title || "This landmark"} is familiar now.`);
   openModal(event.title || "Landmark", landmarkMarkup(event, rewardText, firstVisit), [
@@ -5902,6 +6186,7 @@ function unequipInventoryItem(id) {
 
 function battleEvent(key, event) {
   if (event.gate && !fortressGateRequirements().ready) {
+    revealGateRequirements();
     setMessage(fortressGateRequirementText());
     openModal("Black Gate Sealed", gateSealedMarkup(), [
       { label: "Continue", action: () => renderAll() },
@@ -5986,7 +6271,12 @@ function enemyPreviewIconMarkup(enemy) {
 }
 
 function passReadinessText(event) {
-  if (event.gate) return fortressGateRequirements().ready ? "Fortress gate requirements met: 4 relics recovered and 8 outposts cleared. This is the threshold boss before the final fortress fight." : fortressGateRequirementText();
+  if (event.gate) {
+    if (fortressGateRequirements().ready) return "Fortress gate requirements met. The road to Orius is almost open.";
+    return gateRequirementsKnown()
+      ? fortressGateRequirementText()
+      : "High March scouts confirm one thing: the Black Gate Warden must fall before you can reach Orius.";
+  }
   if (!event.passName) return "";
   if (event.passName === "Ashbell Ridge") {
     return "Recommended before crossing: champion level 2, one recruited creature, one Healing Draught, and at least one mine or shrine reward. Dawnhaven and Ashbell notice jobs point you toward those prep steps.";
@@ -6290,6 +6580,7 @@ function startBattle(key, event, enemyInput) {
     positions,
     enemyPositions,
     floaters: [],
+    effects: [],
     log: [`${enemyNames} engage your party.${trapLine}`],
     bossState: createBossBattleState(event),
     usedSpecials: {},
@@ -6439,6 +6730,7 @@ function battleMarkup() {
     .join("");
   const cells = battleCellsMarkup();
   const floaters = battleFloatersMarkup();
+  const effects = battleEffectsMarkup();
   const log = activeBattle.log.slice(-5).map((line) => `<li>${line}</li>`).join("");
   const order = activeBattle.queue.map((actor, index) => `<span class="${index === activeBattle.queueIndex - 1 ? "active" : ""}">${actor.name} ${actor.speed}</span>`).join("");
   return `
@@ -6448,13 +6740,25 @@ function battleMarkup() {
       <div class="turn-order"><b>Turn order</b>${order}</div>
       <div class="battle-layout">
         <div class="battle-arena" aria-label="Battle arena">
-          <div class="battle-grid">${cells}${teamRows}${enemyRows}${floaters}</div>
+          ${battleCampSceneMarkup()}
+          <div class="battle-grid">${cells}${teamRows}${enemyRows}${effects}${floaters}</div>
         </div>
         <div class="battle-roster">${battleRosterMarkup()}</div>
       </div>
       <ol class="battle-log">${log}</ol>
     </div>
   `;
+}
+
+function battleCampSceneMarkup() {
+  if (activeBattle?.event?.type !== "night") return "";
+  const props = [];
+  if (state.campUpgrades?.watchtower) props.push(`<span class="battle-camp-prop tower" aria-hidden="true"></span>`);
+  if (state.campUpgrades?.betterTent) props.push(`<span class="battle-camp-prop tent" aria-hidden="true"></span>`);
+  if (state.campUpgrades?.healerFire) props.push(`<span class="battle-camp-prop fire" aria-hidden="true"></span>`);
+  if (state.campUpgrades?.traps) props.push(`<span class="battle-camp-prop stakes" aria-hidden="true"></span>`);
+  if (!props.length) return `<div class="battle-camp-scene base-only" aria-hidden="true"><span class="battle-camp-prop embers"></span></div>`;
+  return `<div class="battle-camp-scene" aria-hidden="true">${props.join("")}</div>`;
 }
 
 function battleIntroHintMarkup() {
@@ -6559,6 +6863,37 @@ function battleFloatersMarkup() {
   `).join("");
 }
 
+function battleEffectsMarkup() {
+  return (activeBattle.effects || []).map((effect) => {
+    if (effect.kind === "slash" || effect.kind === "impact") {
+      const target = effect.to || effect.from;
+      if (!target) return "";
+      const left = ((target.x + 0.5) / BATTLE_COLS) * 100;
+      const top = ((target.y + 0.5) / BATTLE_ROWS) * 100;
+      return `<span class="battle-effect ${effect.kind}" style="left:${left}%;top:${top}%;--battle-layer:8;">
+        <img class="battle-effect-sprite melee" src="assets/vfx-melee-slash.svg" alt="" />
+        <b></b>
+      </span>`;
+    }
+    const from = effect.from;
+    const to = effect.to;
+    if (!from || !to) return "";
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy);
+    const angle = Math.atan2(dy, dx);
+    const left = ((from.x + 0.5) / BATTLE_COLS) * 100;
+    const top = ((from.y + 0.5) / BATTLE_ROWS) * 100;
+    const width = (length / BATTLE_COLS) * 100;
+    const sprite = effect.kind === "spell" ? "assets/vfx-spell-orb.svg" : "assets/vfx-ranged-bolt.svg";
+    return `<span class="battle-effect ${effect.kind}" style="left:${left}%;top:${top}%;width:${Math.max(width, 4)}%;--angle:${angle}rad;--battle-layer:8;">
+      <i class="trail"></i>
+      <img class="battle-effect-sprite projectile ${effect.kind}" src="${sprite}" alt="" />
+      <b class="impact"></b>
+    </span>`;
+  }).join("");
+}
+
 function randomBattleQuip(kind) {
   const lines = battleQuips[kind] || [];
   return lines[Math.floor(Math.random() * lines.length)] || "";
@@ -6567,6 +6902,43 @@ function randomBattleQuip(kind) {
 function addBattleFloater(x, y, text, kind = "") {
   if (!activeBattle) return;
   activeBattle.floaters = (activeBattle.floaters || []).concat({ x, y, text, kind }).slice(-4);
+}
+
+function queueBattleEffect(kind, from, to, duration = 340) {
+  if (!activeBattle) return;
+  battleEffectId += 1;
+  const id = battleEffectId;
+  activeBattle.effects = (activeBattle.effects || []).concat([{ id, kind, from, to }]).slice(-8);
+  renderBattle();
+  window.setTimeout(() => {
+    if (!activeBattle?.effects?.length) return;
+    activeBattle.effects = activeBattle.effects.filter((effect) => effect.id !== id);
+    if (activeBattle) renderBattle();
+  }, duration);
+}
+
+function queueBattleAttackEffect(attacker, from, to, styleOverride = "") {
+  if (!from || !to) return;
+  const mode = styleOverride || battleAttackEffectKind(attacker);
+  queueBattleEffect(mode, from, to, mode === "slash" ? 620 : 780);
+}
+
+function battleAttackEffectKind(attacker) {
+  if (!attacker) return "impact";
+  if (attacker.attackType === "ranged") {
+    return (attacker.power || 0) >= 7 ? "spell" : "shot";
+  }
+  return "slash";
+}
+
+function battleAttackFeedbackStyle(attacker, override = "") {
+  if (override === "spell") return "spell";
+  if (override === "shot") return "ranged";
+  if (override === "slash") return "melee";
+  if (!attacker) return "melee";
+  return attacker.attackType === "ranged"
+    ? ((attacker.power || 0) >= 7 ? "spell" : "ranged")
+    : "melee";
 }
 
 function clearBattleFloaters() {
@@ -6667,9 +7039,9 @@ function battleEnemyMarkup(enemy, index) {
   const defeated = enemy.hp <= 0;
   const attackable = !defeated && canActiveUnitAttackEnemy(index);
   const visual = enemyVisualForEnemy(enemy);
-  const sourceFacingClass = visual?.source === "enemy" && !visual.flipInBattle ? " enemy-source-left" : "";
+  const spriteFacingClass = visual?.source === "enemy" && !visual.flipInBattle ? " enemy-faces-left" : " enemy-faces-right";
   const sprite = portrait
-    ? `<img class="battle-sprite-img enemy${sourceFacingClass}" src="${portrait}" alt="" />`
+    ? `<img class="battle-sprite-img enemy${spriteFacingClass}" src="${portrait}" alt="" />`
     : `<div class="battle-token enemy sprite-${visual?.id || "enemy"}" style="--unit-color:${enemy.color || "#d95d5d"}"></div>`;
   const pos = activeBattle.enemyPositions[index];
   const selected = !defeated && activeBattle.selectedEnemyIndex === index;
@@ -6910,17 +7282,20 @@ function usePlayerSpecial(unitIndex) {
   const defense = special.type === "pierce" ? Math.floor((enemy.def || 0) * 0.45) : Math.floor((enemy.def || 0) * 0.75);
   const damage = Math.max(3, unit.atk + bonus + (unit.level || 1) - defense - penalty);
   enemy.hp = Math.max(0, enemy.hp - damage);
-  activeBattle.feedback = { type: "hit", unitIndex, enemyIndex: targetIndex, target: "enemy" };
+  const effectStyle = special.type === "magic" ? "spell" : special.type === "pierce" ? "shot" : "";
+  activeBattle.feedback = { type: "hit", unitIndex, enemyIndex: targetIndex, target: "enemy", style: battleAttackFeedbackStyle(unit, effectStyle) };
+  queueBattleAttackEffect(unit, pos, enemyPos, effectStyle);
   addBattleFloater(enemyPos.x, enemyPos.y, `-${damage}`, special.type === "magic" ? "magic" : "damage");
-  playSfx(special.type === "magic" ? "guard" : "hit");
+  playSfx(special.type === "magic" ? "spell" : special.type === "pierce" ? "shot" : "slash");
   activeBattle.log.push(`${unit.name} uses ${special.name} on ${enemy.name} for ${damage}.`);
   if (enemy.hp <= 0) {
     enemy.hp = 0;
     activeBattle.log.push(`${enemy.name} falls.`);
     normalizeSelectedBattleEnemy();
   }
-  if (!livingEnemies().length) return finishBattle(true);
-  finishBattleUnitAction();
+  renderBattle();
+  if (!livingEnemies().length) return queueBattleFollowthrough(() => finishBattle(true));
+  queueBattleFollowthrough(() => finishBattleUnitAction());
 }
 
 function useSupportSpecial(unit, unitIndex, special) {
@@ -6971,7 +7346,11 @@ function battleFeedbackClassForUnit(index) {
   if (feedback.type === "move") return "battle-feedback-move";
   if (feedback.type === "guard") return "battle-feedback-guard";
   if (feedback.type === "hit" && feedback.target === "unit") return "battle-feedback-damage";
-  if (feedback.type === "hit") return "battle-feedback-attack";
+  if (feedback.type === "hit") {
+    if (feedback.style === "spell") return "battle-feedback-spell";
+    if (feedback.style === "ranged") return "battle-feedback-ranged";
+    return "battle-feedback-attack";
+  }
   return "";
 }
 
@@ -7237,6 +7616,13 @@ function finishBattleUnitAction() {
   renderBattle();
 }
 
+function queueBattleFollowthrough(callback, delay = BATTLE_HIT_PAUSE_MS) {
+  window.setTimeout(() => {
+    if (!activeBattle) return;
+    callback();
+  }, delay);
+}
+
 function playerBattleAction(attackerIndex, enemyIndex) {
   const attacker = [state.hero, ...state.party][attackerIndex];
   const enemy = activeBattle?.enemies[enemyIndex];
@@ -7266,10 +7652,12 @@ function playerBattleAction(attackerIndex, enemyIndex) {
     bossNote = ` Moon ward absorbs ${absorbed} before shattering.`;
     addBattleFloater(enemyPos.x, enemyPos.y, "Ward", "guard");
   }
-  activeBattle.feedback = { type: "hit", unitIndex: attackerIndex, enemyIndex, target: "enemy" };
+  const effectStyle = battleAttackFeedbackStyle(attacker);
+  activeBattle.feedback = { type: "hit", unitIndex: attackerIndex, enemyIndex, target: "enemy", style: effectStyle };
+  queueBattleAttackEffect(attacker, attackerPos, enemyPos);
   enemy.hp -= damage;
   addBattleFloater(enemyPos.x, enemyPos.y, `-${damage}`, "damage");
-  playSfx("hit");
+  playSfx(effectStyle === "spell" ? "spell" : effectStyle === "ranged" ? "shot" : "slash");
   activeBattle.log.push(`${attacker.name} hits ${enemy.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}.${bossNote} ${randomBattleQuip("playerHit")}`);
   if (enemy.hp > 0) maybeTriggerBossPhase(enemyIndex);
   if (enemy.hp <= 0) {
@@ -7277,8 +7665,9 @@ function playerBattleAction(attackerIndex, enemyIndex) {
     activeBattle.log.push(`${enemy.name} falls. ${randomBattleQuip("enemyDown")}`);
     normalizeSelectedBattleEnemy();
   }
-  if (!livingEnemies().length) return finishBattle(true);
-  finishBattleUnitAction();
+  renderBattle();
+  if (!livingEnemies().length) return queueBattleFollowthrough(() => finishBattle(true));
+  queueBattleFollowthrough(() => finishBattleUnitAction());
 }
 
 function maybeTriggerBossPhase(enemyIndex) {
@@ -7409,6 +7798,7 @@ function performOriusBarrage(enemyIndex) {
     const targetIndex = [state.hero, ...state.party].indexOf(unit);
     const targetPos = activeBattle.positions[targetIndex];
     const damage = Math.max(2, Math.round(enemy.power * 0.7 + activeBattle.round - (unit.def || 0) * 0.35));
+    if (enemyPos && targetPos) queueBattleEffect("spell", enemyPos, targetPos, 420);
     unit.hp = Math.max(0, unit.hp - damage);
     if (targetPos) addBattleFloater(targetPos.x, targetPos.y, `-${damage}`, "damage");
     if (unit.hp <= 0) activeBattle.log.push(`${unit.name} is blasted down by the barrage.`);
@@ -7416,9 +7806,12 @@ function performOriusBarrage(enemyIndex) {
   if (enemyPos) addBattleFloater(enemyPos.x, enemyPos.y, "Burst", "attack");
   playSfx("hit");
   activeBattle.guarding = false;
-  if (!livingTeam().length) return finishBattle(false);
-  advanceBattleTurn();
   renderBattle();
+  if (!livingTeam().length) return queueBattleFollowthrough(() => finishBattle(false));
+  queueBattleFollowthrough(() => {
+    advanceBattleTurn();
+    renderBattle();
+  });
 }
 
 function shouldUseEnemySpecial(enemy, enemyIndex) {
@@ -7452,6 +7845,7 @@ function enemyAreaSpell(enemyIndex, name, powerScale) {
     const pos = activeBattle.positions[targetIndex];
     const ward = consumeTeamWard();
     const damage = Math.max(2, Math.round((enemy.power || 4) * powerScale + activeBattle.round - (unit.def || 0) * 0.25 - ward));
+    if (enemyPos && pos) queueBattleEffect(enemy.sourceEncounter === "raiders" ? "shot" : "spell", enemyPos, pos, 400);
     unit.hp = Math.max(0, unit.hp - damage);
     if (pos) addBattleFloater(pos.x, pos.y, `-${damage}`, "magic");
     if (unit.hp <= 0) activeBattle.log.push(`${unit.name} falls to ${name}.`);
@@ -7459,9 +7853,12 @@ function enemyAreaSpell(enemyIndex, name, powerScale) {
   if (enemyPos) addBattleFloater(enemyPos.x, enemyPos.y, "Spell", "magic");
   playSfx("hit");
   activeBattle.guarding = false;
-  if (!livingTeam().length) return finishBattle(false);
-  advanceBattleTurn();
   renderBattle();
+  if (!livingTeam().length) return queueBattleFollowthrough(() => finishBattle(false));
+  queueBattleFollowthrough(() => {
+    advanceBattleTurn();
+    renderBattle();
+  });
 }
 
 function enemySingleSpecial(enemyIndex, name, bonusDamage, note) {
@@ -7536,17 +7933,24 @@ function resolveEnemyAttack(enemyIndex, targetIndex) {
   activeBattle.enemySpecial = null;
   const ward = consumeTeamWard();
   const damage = Math.max(1, enemy.atk - (resolvedTarget.def || 1) - guardReduction - partyCourage - ward - penalty * 2 + (gatekeeperCrush ? 3 : 0) + (passBossCrush ? 2 : 0) + trait.damage + special.bonusDamage + Math.floor(Math.random() * 3));
-  activeBattle.feedback = { type: "hit", unitIndex: targetIndex, target: "unit" };
+  const effectStyle = special.note.includes("fangs") || special.note.includes("dive") || gatekeeperCrush || passBossCrush
+    ? "slash"
+    : battleAttackEffectKind(enemy);
+  activeBattle.feedback = { type: "hit", unitIndex: targetIndex, enemyIndex, target: "unit", style: battleAttackFeedbackStyle(enemy, effectStyle) };
+  queueBattleAttackEffect(enemy, enemyPos, targetPos, effectStyle);
   resolvedTarget.hp -= damage;
   if (resolvedTarget.hp <= 0) resolvedTarget.hp = 0;
   addBattleFloater(targetPos.x, targetPos.y, `-${damage}`, "damage");
-  playSfx("hit");
+  playSfx(effectStyle === "spell" ? "spell" : effectStyle === "shot" ? "shot" : "slash");
   activeBattle.log.push(`${enemy.name} ${gatekeeperCrush || passBossCrush ? "crushes" : "strikes"} ${resolvedTarget.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}${trait.note}${special.note}${ward ? " (warded)" : ""}. ${randomBattleQuip("enemyHit")}`);
   if (resolvedTarget.hp <= 0) activeBattle.log.push(`${resolvedTarget.name} falls.`);
   activeBattle.guarding = false;
-  if (!livingTeam().length) return finishBattle(false);
-  advanceBattleTurn();
   renderBattle();
+  if (!livingTeam().length) return queueBattleFollowthrough(() => finishBattle(false));
+  queueBattleFollowthrough(() => {
+    advanceBattleTurn();
+    renderBattle();
+  });
 }
 
 function enemyAttackTraitBonus(enemy, targetIndex) {
@@ -8032,10 +8436,35 @@ function campaignMainObjective() {
   if (state.day === 1 && !state.nightReady) return "Prepare for your first nightfall";
   if (state.nightReady) return "Make camp and survive the night";
   const gate = fortressGateRequirements();
-  if (!gate.ready) return `Open Black Gate: ${gate.relicCount}/${gate.relicTarget} relics, ${gate.outpostCount}/${gate.outpostTarget} outposts`;
+  if (!gateIntelKnown()) return "Push northeast and ask around High March";
+  if (!gate.ready) {
+    return gateRequirementsKnown()
+      ? `Open Black Gate: ${gate.relicCount}/${gate.relicTarget} relics, ${gate.outpostCount}/${gate.outpostTarget} outposts`
+      : "The Black Gate Warden bars the road to Orius";
+  }
   if (!finalGateCleared()) return "Push northeast and defeat the Black Gate Warden";
   if (!state.won) return "Fortress open: enter the heart and defeat Orius";
   return "Realm secured: explore remaining roads or finish cleanup";
+}
+
+function campaignMainObjectiveShort() {
+  if (state.won) return "Finish cleanup";
+  if (!state.hero.nameChosen) return "Choose a champion";
+  if (state.party.length < 2) return "Recruit one unit";
+  const mineCount = countVisitedEvents("mine");
+  if (mineCount < 1) return "Claim a mine";
+  const elderStatus = state.quests?.elder || "new";
+  if (elderStatus === "new") return "Meet Elder Mira";
+  const townCount = ownedTownEntries().length;
+  if (townCount < 2) return "Claim another town";
+  if (state.day === 1 && !state.nightReady) return "Prepare for nightfall";
+  if (state.nightReady) return "Start night watch";
+  const gate = fortressGateRequirements();
+  if (!gateIntelKnown()) return "Reach High March";
+  if (!gate.ready) return gateRequirementsKnown() ? "Open Black Gate" : "Learn how to break the Black Gate";
+  if (!finalGateCleared()) return "Defeat the gate warden";
+  if (!state.won) return "Defeat Orius";
+  return "Finish cleanup";
 }
 
 function campaignSideObjective() {
@@ -8046,9 +8475,26 @@ function campaignSideObjective() {
   const activeNpcQuest = Object.entries(npcQuests).find(([id]) => state.quests?.[id] === "accepted" && !npcQuests[id].complete());
   if (activeNpcQuest) return `Side objective: ${activeNpcQuest[1].title} (${activeNpcQuest[1].objective})`;
   const gate = fortressGateRequirements();
+  if (!gateIntelKnown()) return scoutingHintText();
+  if (gateIntelKnown() && !gateRequirementsKnown()) return "Side objective: scout High March for a way past the warden";
   if (gate.relicCount < gate.relicTarget) return `Side objective: recover relic chests (${gate.relicCount}/${gate.relicTarget})`;
   if (gate.outpostCount < gate.outpostTarget) return `Side objective: clear outposts (${gate.outpostCount}/${gate.outpostTarget})`;
   return scoutingHintText();
+}
+
+function campaignSideObjectiveShort() {
+  if (state.won) return postVictoryCleanupObjective().replace(/^Cleanup:\s*/i, "");
+  if (!state.hero.nameChosen) return "";
+  const unclaimedQuest = Object.entries(npcQuests).find(([id, quest]) => !state.quests?.[id] && npcQuestAvailable(id, quest) && npcQuestDiscovered(id));
+  if (unclaimedQuest) return `Meet ${unclaimedQuest[1].name}`;
+  const activeNpcQuest = Object.entries(npcQuests).find(([id]) => state.quests?.[id] === "accepted" && !npcQuests[id].complete());
+  if (activeNpcQuest) return activeNpcQuest[1].title;
+  const gate = fortressGateRequirements();
+  if (!gateIntelKnown()) return "Follow scout lead";
+  if (gateIntelKnown() && !gateRequirementsKnown()) return "Scout High March";
+  if (gate.relicCount < gate.relicTarget) return `Recover relics ${gate.relicCount}/${gate.relicTarget}`;
+  if (gate.outpostCount < gate.outpostTarget) return `Clear outposts ${gate.outpostCount}/${gate.outpostTarget}`;
+  return "Follow scout lead";
 }
 
 function postVictoryCleanupObjective() {
@@ -8065,9 +8511,8 @@ function postVictoryCleanupObjective() {
 }
 
 function campaignHint() {
-  const main = campaignMainObjective();
-  const side = campaignSideObjective();
-  return side ? `You ${coordText(state.x, state.y)} | Main: ${main} | ${side}` : `You ${coordText(state.x, state.y)} | Main: ${main}`;
+  const focus = activeFocusObjective();
+  return focus.detail ? `Next: ${focus.title} | ${focus.detail}` : `Next: ${focus.title}`;
 }
 
 function coordText(x, y) {
@@ -8133,7 +8578,7 @@ function regionFlavorText(regionId) {
   return {
     dawnhaven_march: "Soft roads, small banners, and early patrol routes make this the safest part of the realm.",
     central_kingdom: "Trade roads and broken outposts cross here. The realm opens up and so do the risks.",
-    high_march: "The air thins and the road hardens. Every mile northeast feels closer to the fortress war.",
+    high_march: "The air thins and the road hardens. Rumors here all point to a Black Gate Warden blocking the road to Orius.",
     low_roads: "Merchants, scouts, and raiders all cut through these lower roads. Wealth and danger travel together here.",
     southern_wilds: "Sparse banners and long distances turn the south into a harsher frontier.",
     black_gate_approach: "The mountains choke the road into a killing pass. The fortress is no longer a rumor.",
@@ -8145,6 +8590,7 @@ function checkRegionDiscovery() {
   const regionId = currentRegionId();
   if (state.discoveredRegions[regionId]) return;
   state.discoveredRegions[regionId] = true;
+  if (regionId === "high_march" || regionId === "black_gate_approach") revealGateIntel("high_march");
   if (modalOpen) return;
   const name = currentRegionName();
   setMessage(`Entered ${name}.`);
@@ -10337,6 +10783,7 @@ function countEvents(type) {
 }
 
 function renderSidebar() {
+  const questData = buildQuestCollections();
   const mineCount = countVisitedEvents("mine");
   const battleCount = countVisitedEvents("battle");
   const mineTarget = countEvents("mine");
@@ -10346,29 +10793,6 @@ function renderSidebar() {
   const relicCount = uniqueRelicCount();
   const incomePreview = townEconomyPreview().total;
   const formation = partyCompositionSummary();
-  const immediateRows = state.won
-    ? [
-        { text: "Campaign complete: Orius defeated", done: true },
-        { text: postVictoryCleanupObjective(), done: postVictoryCleanupObjective().includes("fully secured") },
-      ]
-    : [
-        { text: `Main objective: ${campaignMainObjective()}`, done: false },
-        { text: campaignSideObjective() || "Side objective: none", done: false },
-      ];
-  const npcQuestRows = Object.entries(npcQuests).filter(([id]) => (state.quests?.[id] || "new") !== "new").map(([id, quest]) => {
-    const status = state.quests?.[id] || "new";
-    const ready = status === "accepted" && quest.complete();
-    const done = status === "claimed";
-    const label = done ? "Done" : ready ? "Return for reward" : status === "accepted" ? quest.objective : "Talk to NPC";
-    return { text: `${quest.title}: ${label}`, done, trackType: "npc", trackId: id, trackLabel: questTrackLabel("npc", id) };
-  });
-  const townQuestRows = Object.entries(townCommissionDefinitions).filter(([id]) => (state.quests?.[id] || "new") !== "new").map(([id, quest]) => {
-    const status = state.quests?.[id] || "new";
-    const ready = status === "accepted" && quest.complete();
-    const done = status === "claimed";
-    const label = done ? "Done" : ready ? "Claim at town" : status === "accepted" ? quest.objective : "Accept at town notice board";
-    return { text: `${quest.title}: ${label}`, done, trackType: "town", trackId: id, trackLabel: questTrackLabel("town", id) };
-  });
   heroStats.innerHTML =
     statSection("Champion") +
     stat("Name", championName()) +
@@ -10393,31 +10817,126 @@ function renderSidebar() {
     stat("Skills", state.hero.skills?.length ? state.hero.skills.join(", ") : "None");
   partyList.innerHTML = `<div class="unit"><div><div class="unit-name"><span>Warband Readout</span><span>${state.party.length + 1} units</span></div><div class="unit-stats">${formation.strengths}</div><div class="unit-skill">${formation.advice}</div></div></div>` + renderUnit(state.hero, -1) + state.party.map((unit, index) => renderUnit(unit, index)).join("");
   renderInventory();
+  questLog.innerHTML =
+    activeFocusMarkup(questData.focus) +
+    questSection("Now", questData.nowRows, "priority") +
+    questSection("Soon", questData.soonRows, "compact") +
+    questSection("Done", questData.doneRows, "compact");
+  renderMinimap();
+}
+
+function buildQuestCollections() {
+  const mineCount = countVisitedEvents("mine");
+  const battleCount = countVisitedEvents("battle");
+  const mineTarget = countEvents("mine");
+  const battleTarget = countEvents("battle");
+  const townCount = ownedTownEntries().length;
+  const townTarget = countEvents("town");
   const gate = fortressGateRequirements();
-  const storyQuests = [
-    { text: `Build a four-unit warband (${state.party.length}/4)`, done: state.party.length >= 4, trackType: "story", trackId: "warband", trackLabel: questTrackLabel("story", "warband") },
-    { text: `Bring ${townTarget} towns under your banner`, done: townCount >= townTarget, trackType: "story", trackId: "towns", trackLabel: questTrackLabel("story", "towns") },
+  const immediateRows = state.won
+    ? [
+        { text: "Orius defeated", done: true, tag: "Win" },
+        { text: postVictoryCleanupObjective().replace(/^Cleanup:\s*/i, ""), done: postVictoryCleanupObjective().includes("fully secured"), tag: "Cleanup" },
+      ]
+    : [
+        { text: campaignMainObjectiveShort(), detail: campaignMainObjective(), done: false, tag: "Main" },
+        ...(campaignSideObjectiveShort() ? [{ text: campaignSideObjectiveShort(), detail: campaignSideObjective(), done: false, tag: "Side" }] : []),
+      ];
+  const npcQuestRows = Object.entries(npcQuests)
+    .filter(([id]) => (state.quests?.[id] || "new") !== "new")
+    .map(([id, quest]) => {
+      const status = state.quests?.[id] || "new";
+      const ready = status === "accepted" && quest.complete();
+      const done = status === "claimed";
+      const label = done ? "Done" : ready ? "Turn in" : status === "accepted" ? quest.objective : "Talk to NPC";
+      return { text: quest.title, detail: label, done, tag: done ? "Done" : ready ? "Ready" : "Quest", trackType: "npc", trackId: id, trackLabel: questTrackLabel("npc", id) };
+    });
+  const townQuestRows = Object.entries(townCommissionDefinitions)
+    .filter(([id]) => (state.quests?.[id] || "new") !== "new")
+    .map(([id, quest]) => {
+      const status = state.quests?.[id] || "new";
+      const ready = status === "accepted" && quest.complete();
+      const done = status === "claimed";
+      const label = done ? "Done" : ready ? "Claim at town" : status === "accepted" ? quest.objective : "Accept at notice board";
+      return { text: quest.title, detail: label, done, tag: done ? "Done" : ready ? "Ready" : "Quest", trackType: "town", trackId: id, trackLabel: questTrackLabel("town", id) };
+    });
+  const storyRows = [
+    { text: "Build a four-unit warband", detail: `${state.party.length}/4 ready`, done: state.party.length >= 4, tag: "Story", trackType: "story", trackId: "warband", trackLabel: questTrackLabel("story", "warband") },
+    { text: "Claim towns", detail: `${townCount}/${townTarget}`, done: townCount >= townTarget, tag: "Story", trackType: "story", trackId: "towns", trackLabel: questTrackLabel("story", "towns") },
     ...(townCount >= 2 || mineCount >= 2 || battleCount >= 1 ? [
-      { text: `Secure ${mineTarget} mines`, done: mineCount >= mineTarget, trackType: "story", trackId: "mines", trackLabel: questTrackLabel("story", "mines") },
-      { text: `Break all known outposts (${battleCount}/${battleTarget})`, done: battleCount >= battleTarget, trackType: "story", trackId: "outposts", trackLabel: questTrackLabel("story", "outposts") },
+      { text: "Secure mines", detail: `${mineCount}/${mineTarget}`, done: mineCount >= mineTarget, tag: "Story", trackType: "story", trackId: "mines", trackLabel: questTrackLabel("story", "mines") },
+      { text: "Clear outposts", detail: `${battleCount}/${battleTarget}`, done: battleCount >= battleTarget, tag: "Story", trackType: "story", trackId: "outposts", trackLabel: questTrackLabel("story", "outposts") },
     ] : []),
   ];
-  const winRows = victoryConditions().map((condition) => ({ text: condition.text, done: condition.done || (state.won && state.victoryType === condition.id) }));
   const gateRows = [
-    { text: `Recover 4 relics (${gate.relicCount}/${gate.relicTarget})`, done: gate.relicCount >= gate.relicTarget, trackType: "story", trackId: "relics", trackLabel: questTrackLabel("story", "relics") },
-    { text: `Clear 8 outposts (${gate.outpostCount}/${gate.outpostTarget})`, done: gate.outpostCount >= gate.outpostTarget, trackType: "story", trackId: "outposts", trackLabel: questTrackLabel("story", "outposts") },
-    { text: finalGateCleared() ? "Black Gate Warden defeated" : gate.ready ? "Challenge the Black Gate Warden" : "Black Gate Warden remains sealed", done: finalGateCleared(), trackType: "story", trackId: "blackGate", trackLabel: questTrackLabel("story", "blackGate") },
-    { text: state.won ? "Fortress claimed from Orius" : finalGateCleared() ? "Enter the fortress heart" : "Fortress heart locked", done: state.won, trackType: "story", trackId: "fortress", trackLabel: questTrackLabel("story", "fortress") },
+    { text: gateRequirementsKnown() ? "Recover relics" : "Learn the seal", detail: gateRequirementsKnown() ? `${gate.relicCount}/${gate.relicTarget}` : "High March rumors point northeast", done: gateRequirementsKnown() ? gate.relicCount >= gate.relicTarget : false, tag: "Gate", trackType: "story", trackId: "relics", trackLabel: questTrackLabel("story", "relics") },
+    { text: gateRequirementsKnown() ? "Clear outposts" : "Break the warden", detail: gateRequirementsKnown() ? `${gate.outpostCount}/${gate.outpostTarget}` : "The Black Gate Warden bars Orius's road", done: gateRequirementsKnown() ? gate.outpostCount >= gate.outpostTarget : false, tag: "Gate", trackType: "story", trackId: "outposts", trackLabel: questTrackLabel("story", "outposts") },
+    { text: finalGateCleared() ? "Gate warden defeated" : gate.ready ? "Challenge gate warden" : gateIntelKnown() ? "Gate remains sealed" : "Fortress rumor", detail: "", done: finalGateCleared(), tag: "Gate", trackType: "story", trackId: "blackGate", trackLabel: questTrackLabel("story", "blackGate") },
+    { text: state.won ? "Fortress claimed" : finalGateCleared() ? "Enter fortress heart" : "Fortress locked", detail: "", done: state.won, tag: "Gate", trackType: "story", trackId: "fortress", trackLabel: questTrackLabel("story", "fortress") },
   ];
-  const showGateRows = gate.relicCount > 0 || gate.outpostCount >= 3 || state.day >= 4 || finalGateCleared();
-  questLog.innerHTML =
-    questSection("Immediate Goals", immediateRows, "priority") +
-    questSection("Victory Condition", winRows) +
-    (showGateRows ? questSection("Black Gate Requirements", gateRows) : "") +
-    questSection("Story Goals", storyQuests, "compact") +
-    questSection("NPC Quests", npcQuestRows, "compact") +
-    questSection("Town Commissions", townQuestRows, "compact");
-  renderMinimap();
+  const showGateRows = gateIntelKnown() || gateRequirementsKnown() || finalGateCleared();
+  const readyRows = [...npcQuestRows, ...townQuestRows].filter((row) => !row.done && row.tag === "Ready");
+  const nowRows = [
+    ...immediateRows,
+    ...readyRows,
+  ];
+  const soonRows = [
+    ...storyRows.filter((row) => !row.done),
+    ...(showGateRows ? gateRows.filter((row) => !row.done) : []),
+    ...npcQuestRows.filter((row) => !row.done && row.tag !== "Ready"),
+    ...townQuestRows.filter((row) => !row.done && row.tag !== "Ready"),
+  ];
+  const doneRows = [
+    ...storyRows.filter((row) => row.done),
+    ...(showGateRows ? gateRows.filter((row) => row.done) : []),
+    ...npcQuestRows.filter((row) => row.done),
+    ...townQuestRows.filter((row) => row.done),
+  ];
+  return {
+    focus: activeFocusObjective(nowRows, soonRows),
+    nowRows,
+    soonRows,
+    doneRows,
+  };
+}
+
+function activeFocusObjective(nowRows = [], soonRows = []) {
+  const actionable = [...nowRows, ...soonRows].find((row) => !row.done && row.text);
+  if (actionable) {
+    return {
+      title: actionable.text,
+      detail: actionable.detail || "",
+      tag: actionable.tag || "Focus",
+      trackType: actionable.trackType || "",
+      trackId: actionable.trackId || "",
+      trackLabel: actionable.trackLabel || "",
+    };
+  }
+  return {
+    title: campaignMainObjectiveShort(),
+    detail: campaignSideObjectiveShort(),
+    tag: "Focus",
+    trackType: "",
+    trackId: "",
+    trackLabel: "",
+  };
+}
+
+function activeFocusMarkup(focus) {
+  if (!focus?.title) return "";
+  const trackButton = focus.trackType && focus.trackId && focus.trackLabel
+    ? `<button type="button" class="quest-track active-focus-track" data-track-quest="${focus.trackType}:${focus.trackId}" title="Mark ${escapeHtml(focus.trackLabel)} on the minimap">Track</button>`
+    : "";
+  return `
+    <section class="quest-focus-card">
+      <div class="quest-focus-head">
+        <span>${escapeHtml(focus.tag || "Focus")}</span>
+        ${trackButton}
+      </div>
+      <strong>${escapeHtml(focus.title)}</strong>
+      ${focus.detail ? `<small>${escapeHtml(focus.detail)}</small>` : ""}
+    </section>
+  `;
 }
 
 function questSection(title, rows, variant = "") {
@@ -10448,7 +10967,7 @@ function questRowMarkup(quest) {
   const trackButton = !quest.done && quest.trackType && quest.trackId && quest.trackLabel
     ? `<button type="button" class="quest-track ${active ? "active" : ""}" data-track-quest="${quest.trackType}:${quest.trackId}" title="Mark ${escapeHtml(quest.trackLabel)} on the minimap">${active ? "Tracking" : "Track"}</button>`
     : "";
-  return `<li class="${quest.done ? "done" : ""} ${active ? "tracked" : ""}"><span>${escapeHtml(quest.text)}</span>${trackButton}</li>`;
+  return `<li class="${quest.done ? "done" : ""} ${active ? "tracked" : ""}">${quest.tag ? `<em class="quest-chip">${escapeHtml(quest.tag)}</em>` : ""}<span><b>${escapeHtml(quest.text)}</b>${quest.detail ? `<small>${escapeHtml(quest.detail)}</small>` : ""}</span>${trackButton}</li>`;
 }
 
 function uniqueRelicCount() {
@@ -10599,8 +11118,17 @@ function drawMinimapCoordinates(scaleX, scaleY) {
     minimapCtx.fillText(String(y), 2, py + 2);
   }
   minimapCtx.fillStyle = "#ffffff";
-  minimapCtx.fillText("N", minimap.width - 14, 5);
-  minimapCtx.fillText("E", minimap.width - 14, 17);
+  minimapCtx.textAlign = "center";
+  minimapCtx.fillText("N", Math.floor(minimap.width / 2), 2);
+  minimapCtx.textAlign = "right";
+  minimapCtx.textBaseline = "middle";
+  minimapCtx.fillText("E", minimap.width - 3, Math.floor(minimap.height / 2));
+  minimapCtx.textAlign = "center";
+  minimapCtx.textBaseline = "bottom";
+  minimapCtx.fillText("S", Math.floor(minimap.width / 2), minimap.height - 2);
+  minimapCtx.textAlign = "left";
+  minimapCtx.textBaseline = "middle";
+  minimapCtx.fillText("W", 3, Math.floor(minimap.height / 2));
   minimapCtx.restore();
 }
 
