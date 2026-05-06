@@ -1094,6 +1094,7 @@ h2 {
 dialog {
   width: min(760px, calc(100% - 24px));
   max-height: calc(100dvh - 20px);
+  box-sizing: border-box;
   padding: 0;
   border: 3px solid #0f1219;
   color: var(--ink);
@@ -1105,6 +1106,7 @@ dialog::backdrop {
 }
 
 .modal-card {
+  box-sizing: border-box;
   max-height: calc(100dvh - 20px);
   overflow: auto;
   padding: 18px;
@@ -1174,8 +1176,19 @@ dialog.battle-modal {
 
 @media (min-width: 760px) {
   dialog.battle-modal .modal-card {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     max-height: calc(100dvh - 16px);
     overflow: hidden;
+  }
+
+  dialog.battle-modal .modal-text {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  dialog.battle-modal .modal-actions {
+    margin-top: 10px;
   }
 
   dialog.town-modal {
@@ -6240,6 +6253,56 @@ dialog.notice-modal .modal-card {
     overflow: hidden;
   }
 
+  dialog.battle-modal .modal-text {
+    padding: 8px 10px;
+  }
+
+  dialog.battle-modal .modal-actions {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    max-height: 18dvh;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  }
+
+  dialog.battle-modal .battle-tutorial-hint {
+    display: none;
+  }
+
+  dialog.battle-modal .battle-focus {
+    gap: 6px;
+  }
+
+  dialog.battle-modal .battle-focus article {
+    min-height: 0;
+    padding: 7px;
+  }
+
+  dialog.battle-modal .battle-action {
+    grid-template-columns: 1fr;
+    grid-template-rows: 28px auto;
+    justify-items: center;
+    min-height: 44px;
+    padding: 4px;
+    text-align: center;
+    row-gap: 2px;
+  }
+
+  dialog.battle-modal .battle-action-icon {
+    grid-column: 1;
+    grid-row: 1;
+    width: 28px;
+    height: 28px;
+  }
+
+  dialog.battle-modal .battle-action span {
+    display: none;
+  }
+
+  dialog.battle-modal .battle-action b {
+    grid-column: 1;
+    font-size: 0.68rem;
+    line-height: 1.05;
+  }
+
   dialog.victory-modal .modal-card {
     text-align: left;
   }
@@ -6255,7 +6318,6 @@ dialog.notice-modal .modal-card {
   }
 
   .town-info {
-    order: -1;
     gap: 7px;
   }
 
@@ -6800,7 +6862,7 @@ dialog.notice-modal .modal-card {
 
   html.mobile-touch .modal-actions {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     max-height: 26dvh;
     overflow: auto;
     margin-top: 0;
@@ -6818,6 +6880,42 @@ dialog.notice-modal .modal-card {
     font-size: 0.78rem;
   }
 
+  html.mobile-touch dialog.battle-modal .modal-text {
+    padding: 6px 8px;
+  }
+
+  html.mobile-touch dialog.battle-modal .battle-tutorial-hint {
+    display: none;
+  }
+
+  html.mobile-touch dialog.battle-modal .battle-focus {
+    gap: 4px;
+    margin-bottom: 5px;
+  }
+
+  html.mobile-touch dialog.battle-modal .battle-focus article {
+    min-height: 0;
+    padding: 6px 7px;
+  }
+
+  html.mobile-touch dialog.battle-modal .battle-focus small {
+    margin-bottom: 2px;
+    font-size: 0.58rem;
+  }
+
+  html.mobile-touch dialog.battle-modal .battle-focus strong {
+    font-size: 0.76rem;
+  }
+
+  html.mobile-touch dialog.battle-modal .battle-focus span {
+    font-size: 0.64rem;
+    line-height: 1.15;
+  }
+
+  html.mobile-touch dialog.battle-modal .turn-order {
+    margin-bottom: 5px;
+  }
+
   html.mobile-touch .modal-actions button:only-child {
     grid-column: 1 / -1;
   }
@@ -6833,7 +6931,7 @@ dialog.notice-modal .modal-card {
   }
 
   html.mobile-touch .battle-arena {
-    min-height: 150px;
+    min-height: 168px;
     overflow: visible;
   }
 
@@ -6904,19 +7002,19 @@ dialog.notice-modal .modal-card {
 
   html.mobile-touch .battle-action {
     grid-template-columns: 1fr;
-    grid-template-rows: 32px auto;
+    grid-template-rows: 26px auto;
     justify-items: center;
     text-align: center;
     row-gap: 2px;
-    min-height: 48px;
-    padding: 5px 6px;
+    min-height: 42px;
+    padding: 4px 4px;
   }
 
   html.mobile-touch .battle-action-icon {
     grid-row: 1;
     grid-column: 1;
-    width: 30px;
-    height: 30px;
+    width: 26px;
+    height: 26px;
   }
 
   html.mobile-touch .battle-action span {
@@ -6927,10 +7025,6 @@ dialog.notice-modal .modal-card {
     grid-column: 1;
     font-size: 0.72rem;
     line-height: 1.05;
-  }
-
-  html.mobile-touch .town-info {
-    order: -1;
   }
 
   html.mobile-touch .town-view .town-overview {

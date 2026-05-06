@@ -2,7 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const root = process.cwd();
+const root = path.resolve(process.cwd());
 const types = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -15,8 +15,8 @@ http
   .createServer((req, res) => {
     let urlPath = decodeURIComponent(req.url.split("?")[0]);
     if (urlPath === "/") urlPath = "/index.html";
-    const file = path.join(root, urlPath);
-    if (!file.startsWith(root)) {
+    const file = path.resolve(root, "." + urlPath);
+    if (file !== root && !file.startsWith(root + path.sep)) {
       res.writeHead(403);
       res.end("Forbidden");
       return;

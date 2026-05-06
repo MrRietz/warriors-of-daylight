@@ -1464,6 +1464,7 @@ let musicMode = "field";
 let musicTransitionTimer = 0;
 let autoBattleTimer = 0;
 let battleEffectId = 0;
+let battleFloaterId = 0;
 let lastStepSoundAt = 0;
 let lastSnackbarText = "";
 let lastSnackbarAt = 0;
@@ -1484,6 +1485,7 @@ const keyMap = {
 const heldKeys = new Set();
 const heldPadDirections = new Set();
 let heldMovementTimer = 0;
+let lastBlockedMoveKey = "";
 const padDirectionMap = {
   up: [0, -1],
   down: [0, 1],
@@ -1654,7 +1656,7 @@ function resetGame() {
   visual = { x: state.x, y: state.y, fromX: state.x, fromY: state.y, toX: state.x, toY: state.y, moving: false, startedAt: 0, progress: 0 };
   terrainCache = null;
   camera = { x: 0, y: 0, originX: 0, originY: 0, key: "" };
-  heldKeys.clear();
+  clearHeldMovementInput();
   localStorage.removeItem(SAVE_KEY);
   setMessage("A fresh campaign begins.");
   renderAll();
@@ -2981,20 +2983,21 @@ function move(dx, dy) {
   const ny = state.y + dy;
   facing = dx < 0 ? "left" : dx > 0 ? "right" : dy < 0 ? "up" : "down";
   if (isBlocked(nx, ny)) {
-    setMessage("Impassable terrain blocks the route.");
+    setBlockedMoveMessage(`${nx},${ny}:terrain`, "Impassable terrain blocks the route.");
     renderMinimap();
     return;
   }
   if (blocksBiomePassageMove(ox, oy, nx, ny)) {
-    setMessage(`${blockingBiomePassageName(ox, oy, nx, ny)} is guarded. Defeat the pass guardian before crossing this biome boundary.`);
+    setBlockedMoveMessage(`${nx},${ny}:pass`, `${blockingBiomePassageName(ox, oy, nx, ny)} is guarded. Defeat the pass guardian before crossing this biome boundary.`);
     renderMinimap();
     return;
   }
   if (nx === finalFortressAnchor.x && ny === finalFortressAnchor.y && !finalGateCleared()) {
-    setMessage("The mountain pass is still guarded. Defeat the warden in the gap before entering the fortress.");
+    setBlockedMoveMessage(`${nx},${ny}:fortress`, "The mountain pass is still guarded. Defeat the warden in the gap before entering the fortress.");
     renderMinimap();
     return;
   }
+  lastBlockedMoveKey = "";
   state.lastTravelPosition = { x: ox, y: oy };
   state.x = nx;
   state.y = ny;
@@ -3005,6 +3008,12 @@ function move(dx, dy) {
   playSfx("step");
   startMoveAnimation(ox, oy, nx, ny);
   renderAll();
+}
+
+function setBlockedMoveMessage(key, text) {
+  if (lastBlockedMoveKey === key) return;
+  lastBlockedMoveKey = key;
+  setMessage(text);
 }
 
 function tileKey(x, y) {
@@ -3125,6 +3134,14 @@ function stopHeldMovementLoop() {
   if (!heldMovementTimer) return;
   window.clearInterval(heldMovementTimer);
   heldMovementTimer = 0;
+}
+
+function clearHeldMovementInput() {
+  heldKeys.clear();
+  heldPadDirections.clear();
+  document.querySelectorAll("[data-move].pressed").forEach((button) => button.classList.remove("pressed"));
+  stopHeldMovementLoop();
+  lastBlockedMoveKey = "";
 }
 
 function getHeldDirection() {
@@ -6550,6 +6567,7 @@ function createBossBattleState(event) {
 }
 
 function startBattle(key, event, enemyInput) {
+  clearHeldMovementInput();
   const team = [state.hero, ...state.party];
   const positions = team.map((unit, index) => ({ x: index >= BATTLE_ROWS ? 0 : 1, y: index % BATTLE_ROWS, acted: unit.hp <= 0 }));
   const enemies = Array.isArray(enemyInput) ? enemyInput.map((enemy) => normalizeEnemyUnit(enemy)) : createEnemyParty(event.encounter, enemyInput);
@@ -6645,8 +6663,8 @@ function renderBattle() {
   modalOpen = true;
   modalTitle.textContent = `Battle: ${battleEnemyTitle()}`;
   modalText.innerHTML = battleMarkup();
-  clearBattleFloaters();
   modalActions.innerHTML = "";
+  modalActions.hidden = false;
   bindBattleBoard();
 
   if (activeBattle.turn === "player") {
@@ -6878,16 +6896,15 @@ function battleEffectsMarkup() {
     const from = effect.from;
     const to = effect.to;
     if (!from || !to) return "";
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
+    const dx = (to.x - from.x) * (100 / BATTLE_COLS);
+    const dy = (to.y - from.y) * (100 / BATTLE_ROWS);
     const length = Math.hypot(dx, dy);
     const angle = Math.atan2(dy, dx);
     const left = ((from.x + 0.5) / BATTLE_COLS) * 100;
     const top = ((from.y + 0.5) / BATTLE_ROWS) * 100;
-    const width = (length / BATTLE_COLS) * 100;
     const sprite = effect.kind === "spell" ? "assets/vfx-spell-orb.svg" : "assets/vfx-ranged-bolt.svg";
     const projectileClass = effect.kind === "shot" || effect.kind === "spell" ? "projectile" : "";
-    return `<span class="battle-effect ${effect.kind} ${projectileClass}" style="left:${left}%;top:${top}%;width:${Math.max(width, 4)}%;--angle:${angle}rad;--battle-layer:8;">
+    return `<span class="battle-effect ${effect.kind} ${projectileClass}" style="left:${left}%;top:${top}%;width:${Math.max(length, 4)}%;--angle:${angle}rad;--battle-layer:8;">
       <i class="trail"></i>
       <img class="battle-effect-sprite projectile ${effect.kind}" src="${sprite}" alt="" />
       <b class="impact"></b>
@@ -6902,7 +6919,15 @@ function randomBattleQuip(kind) {
 
 function addBattleFloater(x, y, text, kind = "") {
   if (!activeBattle) return;
-  activeBattle.floaters = (activeBattle.floaters || []).concat({ x, y, text, kind }).slice(-4);
+  battleFloaterId += 1;
+  const id = battleFloaterId;
+  activeBattle.floaters = (activeBattle.floaters || []).concat({ id, x, y, text, kind }).slice(-6);
+  renderBattle();
+  window.setTimeout(() => {
+    if (!activeBattle?.floaters?.length) return;
+    activeBattle.floaters = activeBattle.floaters.filter((floater) => floater.id !== id);
+    if (activeBattle) renderBattle();
+  }, 860);
 }
 
 function battleEffectDuration(kind, requestedDuration = 0) {
@@ -6952,11 +6977,6 @@ function battleSpecialEffectKind(special, unit) {
   if (special.type === "magic" || special.type === "hex") return "spell";
   if (special.type === "pierce") return "shot";
   return battleAttackEffectKind(unit);
-}
-
-function clearBattleFloaters() {
-  if (!activeBattle?.floaters?.length) return;
-  activeBattle.floaters = [];
 }
 
 function battleCellsMarkup() {
@@ -7153,7 +7173,7 @@ function runAutoBattleAction() {
     return;
   }
   if (autoSpecial) {
-    usePlayerSpecial(activeIndex);
+    usePlayerSpecial(activeIndex, chooseAutoBattleTarget(activeIndex));
     return;
   }
   const targetIndex = chooseAutoBattleTarget(activeIndex);
@@ -7211,19 +7231,23 @@ function expectedPlayerSpecialDamage(unit, enemy, fromPos, enemyPos, special) {
 
 function shouldAutoUsePlayerSpecial(unit, unitIndex) {
   const special = playerSpecialDefinition(unit, unitIndex);
-  if (!special || !canUsePlayerSpecial(unit, unitIndex)) return false;
+  const pos = activeBattle?.positions?.[unitIndex];
+  if (!special || !activeBattle || activeBattle.turn !== "player" || activeBattle.activeActor?.index !== unitIndex || !unit || unit.hp <= 0 || !pos || pos.acted || specialUsed(battleUnitKey(unitIndex))) return false;
   if (special.type === "heal") {
+    if (!canUsePlayerSpecial(unit, unitIndex)) return false;
     const missing = partyMissingHp();
     return missing >= Math.max(10, Math.round(totalPartyMaxHp() * 0.22))
       || [state.hero, ...state.party].some((member) => member.hp > 0 && member.hp / member.maxHp <= 0.42);
   }
   if (special.type === "guard") {
+    if (!canUsePlayerSpecial(unit, unitIndex)) return false;
     return battleHasBoss()
       || activeBattle.round >= 2 && livingEnemies().length >= 3
       || [state.hero, ...state.party].some((member) => member.hp > 0 && member.hp / member.maxHp <= 0.38);
   }
   const targetIndex = chooseAutoBattleTarget(unitIndex);
   if (targetIndex < 0) return false;
+  if (!canUsePlayerSpecial(unit, unitIndex, targetIndex)) return false;
   const enemy = activeBattle.enemies[targetIndex];
   const enemyPos = activeBattle.enemyPositions[targetIndex];
   const fromPos = attackPositionForTarget(unit, unitIndex, enemyPos) || activeBattle.positions[unitIndex];
@@ -7259,25 +7283,39 @@ function playerSpecialDefinition(unit, unitIndex) {
   return definitions[id] || null;
 }
 
-function canUsePlayerSpecial(unit, unitIndex) {
+function canUsePlayerSpecial(unit, unitIndex, preferredTargetIndex = currentBattleTargetIndex()) {
   if (!activeBattle || activeBattle.turn !== "player" || activeBattle.activeActor?.index !== unitIndex) return false;
   const pos = activeBattle.positions[unitIndex];
   if (!unit || unit.hp <= 0 || !pos || pos.acted || specialUsed(battleUnitKey(unitIndex))) return false;
   const special = playerSpecialDefinition(unit, unitIndex);
   if (!special) return false;
   if (special.type === "heal" || special.type === "guard") return true;
-  return chooseAutoBattleTarget(unitIndex) >= 0;
+  return playerSpecialTargetIndex(unit, unitIndex, preferredTargetIndex) >= 0;
 }
 
-function usePlayerSpecial(unitIndex) {
+function playerSpecialTargetIndex(unit, unitIndex, preferredTargetIndex = currentBattleTargetIndex()) {
+  if (!activeBattle || !unit) return -1;
+  const targetIndex = Number.isInteger(preferredTargetIndex) ? livingEnemyIndex(preferredTargetIndex) : -1;
+  const targetPos = activeBattle.enemyPositions[targetIndex];
+  if (targetIndex >= 0 && targetPos && attackPositionForTarget(unit, unitIndex, targetPos)) return targetIndex;
+  return -1;
+}
+
+function usePlayerSpecial(unitIndex, preferredTargetIndex = currentBattleTargetIndex()) {
   const unit = [state.hero, ...state.party][unitIndex];
   const special = playerSpecialDefinition(unit, unitIndex);
-  if (!canUsePlayerSpecial(unit, unitIndex) || !special) return renderBattle();
-  markSpecialUsed(battleUnitKey(unitIndex));
-  if (special.type === "heal") return useSupportSpecial(unit, unitIndex, special);
-  if (special.type === "guard") return useGuardSpecial(unit, unitIndex, special);
-  const targetIndex = chooseAutoBattleTarget(unitIndex);
+  if (!canUsePlayerSpecial(unit, unitIndex, preferredTargetIndex) || !special) return renderBattle();
+  if (special.type === "heal") {
+    markSpecialUsed(battleUnitKey(unitIndex));
+    return useSupportSpecial(unit, unitIndex, special);
+  }
+  if (special.type === "guard") {
+    markSpecialUsed(battleUnitKey(unitIndex));
+    return useGuardSpecial(unit, unitIndex, special);
+  }
+  const targetIndex = playerSpecialTargetIndex(unit, unitIndex, preferredTargetIndex);
   if (targetIndex < 0) return renderBattle();
+  markSpecialUsed(battleUnitKey(unitIndex));
   activeBattle.selectedEnemyIndex = targetIndex;
   const enemy = activeBattle.enemies[targetIndex];
   const enemyPos = activeBattle.enemyPositions[targetIndex];
@@ -8342,6 +8380,7 @@ function heroSkillChoicesForLevel() {
 }
 
 function openModal(title, text, actions, options = {}) {
+  clearHeldMovementInput();
   const alreadyOpen = modal.open;
   modalOpen = true;
   modal.className = "";
@@ -11302,9 +11341,7 @@ document.addEventListener("keyup", (event) => {
 });
 
 window.addEventListener("blur", () => {
-  heldKeys.clear();
-  clearHeldPadDirections();
-  stopHeldMovementLoop();
+  clearHeldMovementInput();
 });
 
 document.querySelectorAll("[data-move]").forEach((button) => {
