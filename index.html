@@ -23,6 +23,11 @@
           </div>
           <div class="controls">
             <button id="musicBtn" type="button" title="Toggle music">Music</button>
+            <label class="volume-control" for="musicVolume" title="Music volume">
+              <span>Vol</span>
+              <input id="musicVolume" type="range" min="0" max="100" step="1" value="58" aria-label="Music volume" />
+              <strong id="musicVolumeValue">58%</strong>
+            </label>
             <button id="saveBtn" type="button" title="Save game">Save</button>
             <button id="resetBtn" type="button" title="Reset game">Reset</button>
           </div>

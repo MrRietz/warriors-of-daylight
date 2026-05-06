@@ -258,6 +258,42 @@ h2 {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.volume-control {
+  display: inline-grid;
+  grid-template-columns: auto minmax(84px, 108px) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 4px 8px;
+  border: 2px solid #0f1219;
+  border-radius: 4px;
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(111, 180, 215, 0.16), rgba(31, 36, 48, 0.96));
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.2), inset 2px 2px 0 rgba(255, 255, 255, 0.06);
+}
+
+.volume-control span,
+.volume-control strong {
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.volume-control strong {
+  color: #d7ecff;
+  min-width: 34px;
+  text-align: right;
+}
+
+.volume-control input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--button-secondary);
 }
 
 .resource-bar {
@@ -1244,6 +1280,77 @@ dialog.night-modal {
 
 dialog.night-modal.battle-modal {
   width: min(1320px, calc(100% - 20px));
+}
+
+@media (min-width: 980px) {
+  dialog.night-modal {
+    width: min(1320px, calc(100% - 12px));
+  }
+
+  dialog.night-modal .modal-card {
+    max-height: calc(100dvh - 10px);
+    padding: 14px 16px;
+  }
+
+  dialog.night-modal .modal-text {
+    margin-top: 8px;
+  }
+
+  dialog.night-modal .night-wave {
+    gap: 6px;
+  }
+
+  dialog.night-modal .night-step-callout {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: 0 8px;
+    align-items: center;
+    padding: 6px 8px;
+  }
+
+  dialog.night-modal .night-step-callout span {
+    grid-row: auto;
+    width: 22px;
+    height: 22px;
+    font-size: 0.76rem;
+  }
+
+  dialog.night-modal .night-step-callout strong,
+  dialog.night-modal .night-step-callout small {
+    align-self: center;
+  }
+
+  dialog.night-modal .night-step-callout small {
+    font-size: 0.72rem;
+  }
+
+  dialog.night-modal .night-section {
+    gap: 4px;
+  }
+
+  dialog.night-modal .night-section-head {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: end;
+    gap: 8px;
+  }
+
+  dialog.night-modal .night-section-note {
+    text-align: right;
+  }
+
+  dialog.night-modal .night-command-strip article,
+  dialog.night-modal .night-preview-card,
+  dialog.night-modal .camp-event-card,
+  dialog.night-modal .camp-upgrade {
+    padding: 8px 9px;
+  }
+
+  dialog.night-modal .night-preview-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  dialog.night-modal .camp-upgrade-list:not(.night-plan-list) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 dialog.name-modal {
@@ -5278,6 +5385,18 @@ dialog.notice-modal .modal-card {
     gap: 4px;
   }
 
+  .volume-control {
+    grid-template-columns: auto minmax(60px, 74px) auto;
+    gap: 4px;
+    min-height: 31px;
+    padding: 3px 6px;
+  }
+
+  .volume-control span,
+  .volume-control strong {
+    font-size: 0.66rem;
+  }
+
   .controls button {
     min-height: 31px;
     padding: 4px 6px;
@@ -6220,6 +6339,18 @@ dialog.notice-modal .modal-card {
 
   html.mobile-touch .controls {
     gap: 4px;
+  }
+
+  html.mobile-touch .volume-control {
+    grid-template-columns: auto minmax(56px, 68px) auto;
+    gap: 4px;
+    min-height: 30px;
+    padding: 3px 5px;
+  }
+
+  html.mobile-touch .volume-control span,
+  html.mobile-touch .volume-control strong {
+    font-size: 0.64rem;
   }
 
   html.mobile-touch .controls button {

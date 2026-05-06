@@ -21,11 +21,14 @@ const modalText = document.getElementById("modalText");
 const modalActions = document.getElementById("modalActions");
 const snackbarStack = document.getElementById("snackbarStack");
 const musicBtn = document.getElementById("musicBtn");
+const musicVolumeSlider = document.getElementById("musicVolume");
+const musicVolumeValue = document.getElementById("musicVolumeValue");
 
 const TILE = 32;
 const VIEW_W = 24;
 const VIEW_H = 16;
 const SAVE_KEY = "heroes-robin-era-save-v1";
+const AUDIO_SETTINGS_KEY = "heroes-robin-era-audio-v1";
 const HERO_WORLD_HEIGHT = 54;
 const NPC_WORLD_HEIGHT = 52;
 const BATTLE_COLS = 9;
@@ -1428,6 +1431,7 @@ const defaultState = () => ({
 });
 
 const loadedState = loadGame();
+const loadedAudioSettings = loadAudioSettings();
 let state = loadedState || defaultState();
 revealAroundPlayer();
 let message = "Explore the realm and build your party.";
@@ -1444,6 +1448,7 @@ let barracksFeedback = { text: "", type: "info" };
 let camera = { x: 0, y: 0, originX: 0, originY: 0, key: "" };
 let audioContext = null;
 let musicEnabled = false;
+let musicVolume = loadedAudioSettings.musicVolume;
 let musicTimer = 0;
 let musicStep = 0;
 let musicGain = null;
@@ -1514,6 +1519,24 @@ function loadGame() {
   } catch {
     return null;
   }
+}
+
+function loadAudioSettings() {
+  try {
+    const raw = localStorage.getItem(AUDIO_SETTINGS_KEY);
+    if (!raw) return { musicVolume: 0.58 };
+    const parsed = JSON.parse(raw);
+    const musicVolumeValue = Number(parsed?.musicVolume);
+    return {
+      musicVolume: Number.isFinite(musicVolumeValue) ? Math.max(0, Math.min(1, musicVolumeValue)) : 0.58,
+    };
+  } catch {
+    return { musicVolume: 0.58 };
+  }
+}
+
+function saveAudioSettings() {
+  localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify({ musicVolume }));
 }
 
 function normalizeState(saved) {
@@ -1686,6 +1709,40 @@ function ensureAudioContext() {
   return audioContext;
 }
 
+function musicRoleLevel(role = "lead", mode = musicMode) {
+  const battle = mode.startsWith("battle");
+  if (role === "bass") return battle ? 0.74 : 0.78;
+  if (role === "bassPulse") return battle ? 0.7 : 0.74;
+  if (role === "pad") return 0.88;
+  if (role === "accent") return battle ? 0.8 : 0.84;
+  if (role === "spark") return 0.66;
+  if (role === "turnaround") return 0.8;
+  if (role === "cue") return 0.62;
+  return battle ? 0.9 : 0.94;
+}
+
+function musicNoiseLevel(mode = musicMode, filterType = "bandpass") {
+  let level = mode.startsWith("battle") ? 0.74 : 0.78;
+  if (filterType === "highpass") level *= 0.78;
+  if (mode.startsWith("modal:caravan")) level *= 0.86;
+  return level;
+}
+
+function updateMusicVolumeUi() {
+  const percent = Math.round(musicVolume * 100);
+  if (musicVolumeSlider) musicVolumeSlider.value = String(percent);
+  if (musicVolumeValue) musicVolumeValue.textContent = `${percent}%`;
+}
+
+function setMusicVolume(value, persist = true) {
+  const nextValue = Math.max(0, Math.min(1, Number(value)));
+  musicVolume = Number.isFinite(nextValue) ? nextValue : 0.58;
+  updateMusicVolumeUi();
+  updateMusicButton();
+  if (persist) saveAudioSettings();
+  if (musicEnabled && musicGain && audioContext) applyMusicGain(currentMusicMode(), currentMusicState(currentMusicMode()), true);
+}
+
 function playTone(frequency, duration = 0.1, type = "square", volume = 0.05, destination = null, options = {}) {
   const ctxAudio = ensureAudioContext();
   if (!ctxAudio) return;
@@ -1749,7 +1806,8 @@ function playNoise(duration = 0.06, volume = 0.03, destination = null, filterFre
   filter.type = filterType;
   filter.frequency.value = filterFrequency;
   filter.Q.value = options.filterQ || 0.6;
-  gain.gain.setValueAtTime(volume, ctxAudio.currentTime);
+  const peak = destination === musicGain ? Math.max(0.0001, volume * musicNoiseLevel(musicMode, filterType)) : volume;
+  gain.gain.setValueAtTime(peak, ctxAudio.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.0001, ctxAudio.currentTime + duration);
   source.connect(filter);
   filter.connect(gain);
@@ -1798,7 +1856,7 @@ function setMusicEnabled(enabled) {
 }
 
 function startMusicFromFirstGesture(event) {
-  if (event?.target?.closest?.("#musicBtn")) return;
+  if (event?.target?.closest?.("#musicBtn, #musicVolume")) return;
   if (!musicEnabled) setMusicEnabled(true);
 }
 
@@ -1847,17 +1905,18 @@ function currentMusicState(mode = currentMusicMode()) {
 
 function targetMusicGainForMode(mode, musicState = currentMusicState(mode)) {
   const base = mode.startsWith("battle")
-    ? 0.205
+    ? 0.17
     : mode.startsWith("modal:caravan")
-      ? 0.17
+      ? 0.14
       : mode.startsWith("modal:")
-        ? 0.16
+        ? 0.135
         : mode === "night"
-          ? 0.19
+          ? 0.155
           : mode === "victory"
-            ? 0.22
-            : 0.2;
-  return Math.max(0.09, base + musicState.lift * 0.018 - musicState.tension * (mode.startsWith("modal:") ? 0.01 : 0.015));
+            ? 0.18
+            : 0.16;
+  const leveled = Math.max(0.035, base + musicState.lift * 0.012 - musicState.tension * (mode.startsWith("modal:") ? 0.008 : 0.012));
+  return Math.max(0.0001, leveled * musicVolume);
 }
 
 function applyMusicGain(mode, musicState = currentMusicState(mode), quick = false) {
@@ -1926,7 +1985,7 @@ function musicRoleShape(role = "lead", mode = "field", options = {}) {
 
 function playMusicVoice(frequency, duration, wave, volume, role = "lead", options = {}) {
   const shape = musicRoleShape(role, options.mode || musicMode, options);
-  playTone(frequency, duration, wave, volume, musicGain, shape);
+  playTone(frequency, duration, wave, volume * musicRoleLevel(role, options.mode || musicMode), musicGain, shape);
 }
 
 function scheduleMusicBeat() {
@@ -2716,6 +2775,7 @@ function updateMusicButton() {
   if (!musicBtn) return;
   musicBtn.textContent = musicEnabled ? "Music On" : "Music";
   musicBtn.classList.toggle("active", musicEnabled);
+  musicBtn.title = `Toggle music (${Math.round(musicVolume * 100)}%)`;
 }
 
 function championName() {
@@ -10755,6 +10815,7 @@ function clearHeldPadDirections() {
 document.getElementById("saveBtn").addEventListener("click", saveGame);
 document.getElementById("resetBtn").addEventListener("click", resetGame);
 musicBtn?.addEventListener("click", toggleMusic);
+musicVolumeSlider?.addEventListener("input", () => setMusicVolume(Number(musicVolumeSlider.value) / 100));
 document.addEventListener("pointerdown", startMusicFromFirstGesture, { once: true });
 document.addEventListener("keydown", startMusicFromFirstGesture, { once: true });
 modal.addEventListener("cancel", (event) => {
@@ -10794,6 +10855,7 @@ questLog?.addEventListener("click", (event) => {
   setActiveQuest(type, id);
 });
 
+updateMusicVolumeUi();
 renderAll();
 window.setTimeout(openNamePrompt, 0);
 requestAnimationFrame(animationLoop);
