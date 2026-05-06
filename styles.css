@@ -2560,6 +2560,117 @@ dialog.notice-modal .modal-card {
   font-size: 0.9rem;
 }
 
+.night-command-strip,
+.night-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.night-command-strip article,
+.night-preview-card,
+.camp-event-card {
+  display: grid;
+  gap: 5px;
+  padding: 10px 11px;
+  border: 2px solid rgba(87, 96, 113, 0.62);
+  border-radius: 6px;
+  background:
+    linear-gradient(145deg, rgba(21, 26, 36, 0.96), rgba(15, 18, 25, 0.98));
+}
+
+.night-command-strip small,
+.night-preview-topline span {
+  color: #bcae94;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.night-command-strip p,
+.night-preview-card p,
+.camp-event-card p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.night-preview-card.known {
+  border-color: rgba(102, 167, 216, 0.56);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(102, 167, 216, 0.16), transparent 28%),
+    linear-gradient(145deg, rgba(21, 26, 36, 0.96), rgba(15, 18, 25, 0.98));
+}
+
+.night-preview-card.fogged {
+  border-style: dashed;
+  opacity: 0.92;
+}
+
+.night-preview-topline {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.night-preview-card b {
+  color: #fff2b6;
+  font-size: 0.9rem;
+}
+
+.night-preview-icons {
+  min-height: 38px;
+}
+
+.camp-event-card {
+  border-color: rgba(240, 193, 91, 0.5);
+  background:
+    radial-gradient(circle at 14% 16%, rgba(240, 193, 91, 0.16), transparent 26%),
+    linear-gradient(145deg, rgba(21, 26, 36, 0.96), rgba(15, 18, 25, 0.98));
+}
+
+.camp-event-card.resolved {
+  border-color: rgba(104, 179, 107, 0.62);
+}
+
+.camp-event-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.camp-event-button {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 2px solid rgba(240, 193, 91, 0.32);
+  border-radius: 6px;
+  color: #f4ead7;
+  background:
+    linear-gradient(180deg, rgba(240, 193, 91, 0.12), rgba(36, 48, 64, 0.9));
+  text-align: left;
+  cursor: pointer;
+}
+
+.camp-event-button strong {
+  color: #fff2b6;
+  font-size: 0.82rem;
+}
+
+.camp-event-button span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.camp-event-button:hover,
+.camp-event-button:focus-visible {
+  border-color: rgba(255, 242, 182, 0.82);
+  outline: 2px solid rgba(255, 242, 182, 0.28);
+}
+
 .night-step-callout {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -3296,31 +3407,6 @@ dialog.notice-modal .modal-card {
     linear-gradient(145deg, rgba(102, 167, 216, 0.12), rgba(21, 26, 36, 0.92)),
     #151a24;
   outline: 2px solid rgba(255, 242, 182, 0.35);
-}
-
-.night-plan-card.selected::after {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  content: "✓";
-  border: 2px solid #244b2a;
-  border-radius: 50%;
-  color: #10180f;
-  background: linear-gradient(180deg, #b9efaa, #68b36b);
-  font-size: 0.78rem;
-  font-weight: 900;
-}
-
-.night-plan-card.selected::after {
-  content: "";
-  background:
-    linear-gradient(45deg, transparent 42%, #10180f 43% 54%, transparent 55%),
-    linear-gradient(135deg, transparent 45%, #10180f 46% 57%, transparent 58%),
-    linear-gradient(180deg, #b9efaa, #68b36b);
 }
 
 .night-card-main {
@@ -5511,6 +5597,12 @@ dialog.notice-modal .modal-card {
   }
 
   .night-plan-list {
+    grid-template-columns: 1fr;
+  }
+
+  .night-command-strip,
+  .night-preview-grid,
+  .camp-event-options {
     grid-template-columns: 1fr;
   }
 

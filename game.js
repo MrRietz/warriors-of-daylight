@@ -323,6 +323,8 @@ const roamingHeroDefinitions = {
   sableKnight: { name: "Sable Knight", encounter: "knight", x: 18, y: 13, patrol: [[18, 13], [23, 13], [23, 17], [18, 17]], reward: 75 },
   cinderDuke: { name: "Cinder Duke", encounter: "raiders", x: 41, y: 9, patrol: [[41, 9], [46, 9], [46, 13], [41, 13]], reward: 90 },
   moonRider: { name: "Moon Rider", encounter: "warlock", x: 62, y: 21, patrol: [[62, 21], [69, 21], [69, 28], [62, 28]], reward: 120 },
+  roadMarshal: { name: "Road Marshal", encounter: "knight", x: 32, y: 17, patrol: [[32, 17], [37, 17], [37, 22], [32, 22]], reward: 85, chaseRadius: 6 },
+  gravewing: { name: "Gravewing", encounter: "wyvern", x: 39, y: 34, patrol: [[39, 34], [45, 34], [45, 38], [39, 38]], reward: 115, chaseRadius: 6 },
 };
 
 const nightEncounterPool = ["goblin", "basilisk", "raiders", "wyvern", "knight", "warlock"];
@@ -360,9 +362,9 @@ const npcQuests = {
     name: "Elder Mira",
     title: "Elder's Request",
     dialogue: "The roads are waking, but our scouts need proof you can hold them. Claim two mines and I will fund your march.",
-    objective: "Claim 2 mines",
+    objective: "After accepting: claim 2 new mines",
     rewardText: "90 gold and a Healing Draught",
-    complete: () => countVisitedEvents("mine") >= 2,
+    complete: () => questMinesClaimedSince("elder", 2),
     reward: () => {
       state.gold += 90;
       addInventoryItem("healingDraught", 1);
@@ -372,9 +374,9 @@ const npcQuests = {
     name: "Ranger Sol",
     title: "Road Patrol",
     dialogue: "Bandits shadow every road marker. Clear three outposts and the rangers will teach your army field tactics.",
-    objective: "Clear 3 outposts",
+    objective: "After accepting: clear 3 new outposts",
     rewardText: "60 gold and +1 attack",
-    complete: () => countVisitedEvents("battle") >= 3,
+    complete: () => questBattlesClearedSince("ranger", 3),
     reward: () => {
       state.gold += 60;
       state.hero.atk += 1;
@@ -384,9 +386,9 @@ const npcQuests = {
     name: "Archivist Nara",
     title: "Relic Ledger",
     dialogue: "Bring me two true relics from the old chests. I can identify which banners still hold power.",
-    objective: "Find 2 relics",
+    objective: "After accepting: recover 1 new relic",
     rewardText: "120 gold and +1 defense",
-    complete: () => uniqueRelicCount() >= 2,
+    complete: () => questRelicsFoundSince("archivist", 1),
     reward: () => {
       state.gold += 120;
       state.hero.def += 1;
@@ -396,9 +398,9 @@ const npcQuests = {
     name: "Wayfinder Toma",
     title: "Southern Survey",
     dialogue: "The southern road is mapped in guesses and old rumors. Raise banners over four landmarks down there and I will open our reserve stores.",
-    objective: "Secure 4 southern landmarks",
+    objective: "After accepting: visit 2 southern landmarks",
     rewardText: "140 gold and +1 speed",
-    complete: () => ["9,31", "6,33", "13,36", "43,36", "19,31", "36,37"].filter((key) => state.visited[key]).length >= 4,
+    complete: () => questVisitedSince("wayfinder", ["41,21", "60,30", "67,17", "33,34"], 2),
     reward: () => {
       state.gold += 140;
       state.hero.speed += 1;
@@ -729,14 +731,21 @@ function countVisitedKeys(keys) {
   return keys.filter((key) => state.visited?.[key]).length;
 }
 
-function startTownCommission(id) {
+function startQuestSnapshot(id) {
   state.questStarts ??= {};
   state.questStarts[id] = {
     visited: Object.keys(state.visited || {}).filter((key) => state.visited[key]),
     partyLength: state.party.length,
     townCount: ownedTownEntries().length,
     caravanPostCount: caravanPostCount(),
+    mineCount: countVisitedEvents("mine"),
+    battleCount: countVisitedEvents("battle"),
+    relicCount: uniqueRelicCount(),
   };
+}
+
+function startTownCommission(id) {
+  startQuestSnapshot(id);
 }
 
 function questStart(id) {
@@ -765,31 +774,151 @@ function questCaravanPostsBuiltSince(id, required = 1) {
   return Boolean(start && caravanPostCount() - (start.caravanPostCount || 0) >= required);
 }
 
+function questMinesClaimedSince(id, required = 1) {
+  const start = questStart(id);
+  return Boolean(start && countVisitedEvents("mine") - (start.mineCount || 0) >= required);
+}
+
+function questBattlesClearedSince(id, required = 1) {
+  const start = questStart(id);
+  return Boolean(start && countVisitedEvents("battle") - (start.battleCount || 0) >= required);
+}
+
+function questRelicsFoundSince(id, required = 1) {
+  const start = questStart(id);
+  return Boolean(start && uniqueRelicCount() - (start.relicCount || 0) >= required);
+}
+
 function caravanPostCount() {
   return ownedTownEntries().filter(([, town]) => town.buildings.includes("caravanPost")).length;
 }
 
 const campUpgradeDefinitions = {
-  betterTent: { name: "Better Tent", cost: 120, text: "Restores more HP at dawn and makes camp feel safer." },
-  watchtower: { name: "Watchtower", cost: 160, text: "Spots raiders early. Reduces night waves by one when possible." },
-  traps: { name: "Stake Traps", cost: 140, text: "Weakens the first unit in every night wave." },
-  healerFire: { name: "Healer Fire", cost: 180, text: "Restores the party before each wave reaches camp." },
+  betterTent: { name: "Better Tent", cost: 120, text: "Turns dawn into a real recovery window with stronger healing after the watch." },
+  watchtower: { name: "Watchtower", cost: 160, text: "Reveals incoming wave details before battle and can cut one wave when the camp spots a weak flank." },
+  traps: { name: "Stake Traps", cost: 140, text: "The first enemy in every wave reaches camp already bloodied by hidden stakes." },
+  healerFire: { name: "Healer Fire", cost: 180, text: "Restores the party before each wave so a rough first fight does not snowball." },
 };
 
 const nightPlanDefinitions = {
   holdfast: {
     name: "Hold Fast",
     text: "Safer rest. Fewer risks, steadier recovery, and slightly weaker night waves.",
+    risk: "Low",
+    reward: "Lower gold and XP, but the safest sustain.",
+    waveBias: "Usually 1-2 lighter waves.",
+    tacticalAsk: "Play compact and let sustain win the night.",
   },
   nightRaid: {
     name: "Night Raid",
     text: "Press the dark for extra dawn gold, but draw a harder night response.",
+    risk: "High",
+    reward: "More gold, more XP, and a chance to recover an item.",
+    waveBias: "Usually 2-3 harder waves.",
+    tacticalAsk: "Bring burst damage and do not let ranged threats live.",
   },
   scoutLines: {
     name: "Scout Lines",
     text: "Keep outriders moving. Dawn reveals the next major target on the overworld.",
+    risk: "Medium",
+    reward: "Balanced payout and a marked lead for the next day.",
+    waveBias: "Usually 1-2 standard waves.",
+    tacticalAsk: "Stable all-round defense works best here.",
   },
 };
+
+const nightCampEvents = [
+  {
+    id: "woundedTrader",
+    title: "A wounded trader reaches camp.",
+    text: "His cart is broken, but his satchel still holds route notes and a little medicine.",
+    options: [
+      {
+        id: "aid",
+        label: "Treat his wounds",
+        summary: "+1 camp morale, but less dawn healing.",
+        apply: (report) => {
+          state.campMorale = Math.min(5, (state.campMorale || 0) + 1);
+          report.eventOutcome = "The trader spreads word that your camp protects the road.";
+          report.eventMoraleDelta = 1;
+          report.eventHealingPenalty = 5;
+        },
+      },
+      {
+        id: "keepSupplies",
+        label: "Keep your stores",
+        summary: "+25 gold and no healing penalty.",
+        apply: (report) => {
+          state.gold += 25;
+          report.eventOutcome = "The quartermaster keeps every bandage and the camp stays materially stronger.";
+          report.eventGoldDelta = 25;
+        },
+      },
+    ],
+  },
+  {
+    id: "strangeTracks",
+    title: "Scouts find fresh tracks past the firelight.",
+    text: "Something is circling wide around camp and could either be bait or a hidden approach.",
+    options: [
+      {
+        id: "sendRiders",
+        label: "Send riders out",
+        summary: "Reveal the next target now, but face a harsher response.",
+        apply: (report) => {
+          const target = nearestScoutingTarget();
+          if (target) {
+            state.scoutMarker = target.key;
+            report.scoutingTarget = { key: target.key, label: scoutingTargetLabel(target), x: target.x, y: target.y };
+            report.scoutingText = `Night scouts already marked ${report.scoutingTarget.label} at ${target.x},${target.y}.`;
+          }
+          report.eventOutcome = "The riders return with a route sketch, but the enemy now knows your camp is alert.";
+          report.eventDifficultyBias = 0.35;
+        },
+      },
+      {
+        id: "pullBack",
+        label: "Pull them back",
+        summary: "Safer watch and a little pre-wave recovery.",
+        apply: (report) => {
+          report.eventOutcome = "The outriders stay close and the camp settles into a more disciplined perimeter.";
+          report.eventPreWaveRecovery = 6;
+        },
+      },
+    ],
+  },
+  {
+    id: "embersLow",
+    title: "The healer fire burns low in the wind.",
+    text: "You can feed it precious supplies or save the fuel and accept a dimmer camp.",
+    options: [
+      {
+        id: "feedFire",
+        label: "Feed the fire",
+        summary: "Spend 20 gold for stronger pre-wave healing.",
+        apply: (report) => {
+          if (state.gold >= 20) {
+            state.gold -= 20;
+            report.eventOutcome = "The fire burns high and the healers work in clear light.";
+            report.eventGoldDelta = -20;
+            report.eventPreWaveRecovery = 10;
+          } else {
+            report.eventOutcome = "There was not enough coin to buy extra fuel, so the camp keeps watch the hard way.";
+          }
+        },
+      },
+      {
+        id: "saveFuel",
+        label: "Save the fuel",
+        summary: "No cost, but the first wave hits harder.",
+        apply: (report) => {
+          report.eventOutcome = "The camp saves its stores, but the dark gives the first attackers better cover.";
+          report.eventFirstWaveThreat = 1;
+        },
+      },
+    ],
+  },
+];
 
 const itemDefinitions = {
   healingDraught: {
@@ -1279,12 +1408,15 @@ const defaultState = () => ({
   questStarts: {},
   tradeLedger: [],
   campUpgrades: {},
+  campMorale: 0,
+  nightStreak: 0,
   won: false,
   visited: {},
   revealed: {},
   discoveredRegions: {},
   chestRolls: {},
   lastTravelPosition: null,
+  lastRespawn: { key: "3,2", x: 3, y: 2, name: "Dawnhaven" },
   scoutMarker: "",
   activeQuest: "",
   tutorial: {},
@@ -1366,6 +1498,10 @@ function createDefaultEnemyHeroes() {
     y: definition.y,
     facing: "left",
     patrolIndex: 0,
+    mode: "patrol",
+    pauseLeft: definition.pauseTurns ?? 0,
+    lastSeenX: definition.x,
+    lastSeenY: definition.y,
     defeated: false,
   }));
 }
@@ -1389,6 +1525,9 @@ function normalizeState(saved) {
   saved.lastTravelPosition = saved.lastTravelPosition && Number.isFinite(saved.lastTravelPosition.x) && Number.isFinite(saved.lastTravelPosition.y)
     ? { x: saved.lastTravelPosition.x, y: saved.lastTravelPosition.y }
     : null;
+  saved.lastRespawn = saved.lastRespawn && Number.isFinite(saved.lastRespawn.x) && Number.isFinite(saved.lastRespawn.y)
+    ? { key: saved.lastRespawn.key || tileKey(saved.lastRespawn.x, saved.lastRespawn.y), x: saved.lastRespawn.x, y: saved.lastRespawn.y, name: saved.lastRespawn.name || "Dawnhaven" }
+    : { key: "3,2", x: 3, y: 2, name: "Dawnhaven" };
   saved.inventory = normalizeInventory(saved.inventory ?? saved.relics);
   saved.equipped ??= {};
   saved.towns ??= { "3,2": { owner: "player", buildings: ["market"] } };
@@ -1402,6 +1541,8 @@ function normalizeState(saved) {
   saved.campUpgrades = saved.campUpgrades && typeof saved.campUpgrades === "object" ? saved.campUpgrades : {};
   if (saved.campUpgrades.stakeTraps && saved.campUpgrades.traps == null) saved.campUpgrades.traps = true;
   delete saved.campUpgrades.stakeTraps;
+  saved.campMorale = Number.isFinite(saved.campMorale) ? Math.max(0, Math.min(5, saved.campMorale)) : 0;
+  saved.nightStreak = Number.isFinite(saved.nightStreak) ? Math.max(0, saved.nightStreak) : 0;
   saved.revealed = saved.revealed && typeof saved.revealed === "object" ? saved.revealed : {};
   saved.discoveredRegions = saved.discoveredRegions && typeof saved.discoveredRegions === "object" ? saved.discoveredRegions : {};
   saved.scoutMarker = typeof saved.scoutMarker === "string" ? saved.scoutMarker : "";
@@ -1443,6 +1584,10 @@ function normalizeEnemyHeroes(enemyHeroes) {
       y: Number.isFinite(saved.y) ? saved.y : hero.y,
       facing: saved.facing || hero.facing,
       patrolIndex: Number.isFinite(saved.patrolIndex) ? saved.patrolIndex : 0,
+      mode: saved.mode || hero.mode,
+      pauseLeft: Number.isFinite(saved.pauseLeft) ? saved.pauseLeft : hero.pauseLeft,
+      lastSeenX: Number.isFinite(saved.lastSeenX) ? saved.lastSeenX : hero.lastSeenX,
+      lastSeenY: Number.isFinite(saved.lastSeenY) ? saved.lastSeenY : hero.lastSeenY,
       defeated: Boolean(saved.defeated),
     };
   });
@@ -2393,6 +2538,24 @@ function tileKey(x, y) {
   return `${x},${y}`;
 }
 
+function rememberRespawnPoint(key, event) {
+  if (!event || event.type !== "town") return;
+  const point = pointFromKeyString(key);
+  if (!point) return;
+  state.lastRespawn = { key, x: point.x, y: point.y, name: event.name || "Town" };
+}
+
+function currentRespawnPoint() {
+  const saved = state.lastRespawn;
+  if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) return saved;
+  const owned = ownedTownEntries()
+    .map(([key, town, event]) => ({ key, event, point: pointFromKeyString(key) }))
+    .filter((item) => item.point)
+    .sort((a, b) => Math.abs(a.point.x - state.x) + Math.abs(a.point.y - state.y) - (Math.abs(b.point.x - state.x) + Math.abs(b.point.y - state.y)))[0];
+  if (owned) return { key: owned.key, x: owned.point.x, y: owned.point.y, name: owned.event?.name || "Town" };
+  return { key: "3,2", x: 3, y: 2, name: "Dawnhaven" };
+}
+
 function revealAroundPlayer(radius = 4) {
   state.revealed ??= {};
   revealAround(state.x, state.y, radius);
@@ -2549,17 +2712,39 @@ function advanceRoamingHeroes() {
   state.enemyHeroes.forEach((hero) => {
     const definition = roamingHeroDefinitions[hero.id];
     if (!definition || hero.defeated) return;
+    const chaseRadius = definition.chaseRadius || 5;
     const distance = Math.abs(hero.x - state.x) + Math.abs(hero.y - state.y);
-    if (distance <= 5) {
+    if (distance <= chaseRadius) {
+      hero.mode = "hunt";
+      hero.lastSeenX = state.x;
+      hero.lastSeenY = state.y;
       stepRoamingHeroToward(hero, state.x, state.y);
+      return;
+    }
+    if (hero.mode === "hunt") hero.mode = "search";
+    if (hero.mode === "search") {
+      if (hero.x === hero.lastSeenX && hero.y === hero.lastSeenY) {
+        hero.mode = "patrol";
+        hero.pauseLeft = Math.max(hero.pauseLeft || 0, definition.pauseTurns ?? 1);
+      } else if (stepRoamingHeroToward(hero, hero.lastSeenX, hero.lastSeenY)) {
+        return;
+      } else {
+        hero.mode = "patrol";
+      }
+    }
+    if ((hero.pauseLeft || 0) > 0) {
+      hero.pauseLeft -= 1;
       return;
     }
     const patrol = definition.patrol || [[definition.x, definition.y]];
     const target = patrol[hero.patrolIndex % patrol.length];
     if (hero.x === target[0] && hero.y === target[1]) {
       hero.patrolIndex = (hero.patrolIndex + 1) % patrol.length;
+      hero.pauseLeft = definition.pauseTurns ?? 1;
+      return;
     }
     const next = patrol[hero.patrolIndex % patrol.length];
+    hero.mode = "patrol";
     stepRoamingHeroToward(hero, next[0], next[1]);
   });
 }
@@ -2573,14 +2758,16 @@ function stepRoamingHeroToward(hero, targetX, targetY) {
   for (const [dx, dy] of options.filter(([dx, dy]) => dx || dy)) {
     const nx = hero.x + dx;
     const ny = hero.y + dy;
-    if (!isBlocked(nx, ny) && !events.has(`${nx},${ny}`)) {
+    const occupiedByRoamer = state.enemyHeroes?.some((other) => other !== hero && !other.defeated && other.x === nx && other.y === ny);
+    if (!occupiedByRoamer && !isBlocked(nx, ny) && !events.has(`${nx},${ny}`)) {
       if (dx < 0) hero.facing = "left";
       if (dx > 0) hero.facing = "right";
       hero.x = nx;
       hero.y = ny;
-      return;
+      return true;
     }
   }
+  return false;
 }
 
 function checkRoamingHeroContact() {
@@ -2653,6 +2840,14 @@ function npcEvent(key, event) {
   if (!quest) return;
   state.quests ??= {};
   const status = state.quests[event.quest] || "new";
+  if (status === "accepted" && !questStart(event.quest)) startQuestSnapshot(event.quest);
+  if (status === "new" && !npcQuestAvailable(event.quest, quest)) {
+    setMessage(`${quest.name} is still gathering a better lead for you.`);
+    openModal(quest.name, npcQuestLockedText(event.quest, quest), [
+      { label: "Continue", action: () => renderAll() },
+    ]);
+    return;
+  }
   if (status === "claimed") {
     setMessage(`${quest.name}: The realm remembers your help.`);
     openModal(quest.name, `"You have already done more than I asked. Keep the daylight moving."`, [
@@ -2681,6 +2876,7 @@ function npcEvent(key, event) {
       label: "Accept Quest",
       action: () => {
         state.quests[event.quest] = "accepted";
+        startQuestSnapshot(event.quest);
         setMessage(`${quest.title} accepted: ${quest.objective}.`);
         renderAll();
       },
@@ -2703,13 +2899,17 @@ function beginNight() {
 
 function createNightState(plan = "holdfast") {
   const encounters = buildNightEncounters(plan);
+  const report = createNightReport(plan, encounters);
+  const campEvent = createNightCampEvent(report);
   return {
     day: state.day,
     plan,
     encounters,
     index: 0,
     awaitingResult: false,
-    report: createNightReport(plan, encounters),
+    report,
+    campEvent,
+    campEventResolved: false,
   };
 }
 
@@ -2740,6 +2940,22 @@ function createNightReport(planId, encounters) {
     scoutingTarget: null,
     scoutingText: "",
     todayLead: "",
+    eventTitle: "",
+    eventChoiceLabel: "",
+    eventOutcome: "",
+    eventGoldDelta: 0,
+    eventMoraleDelta: 0,
+    eventHealingPenalty: 0,
+    eventPreWaveRecovery: 0,
+    eventDifficultyBias: 0,
+    eventFirstWaveThreat: 0,
+    streakBefore: state.nightStreak || 0,
+    streakAfter: state.nightStreak || 0,
+    moraleBefore: state.campMorale || 0,
+    moraleAfter: state.campMorale || 0,
+    itemDrop: "",
+    nightRewardGold: 0,
+    nightRewardXp: 0,
   };
 }
 
@@ -2764,11 +2980,17 @@ function buildNightEncounters(planId = currentNightPlanId()) {
   const watchtowerReduction = state.campUpgrades?.watchtower ? 1 : 0;
   const nightRaid = planId === "nightRaid" ? 1 : 0;
   const holdfastReduction = planId === "holdfast" ? 1 : 0;
-  const count = Math.max(1, Math.min(4, NIGHT_ENCOUNTER_MIN + Math.floor(Math.random() * (NIGHT_ENCOUNTER_MAX - NIGHT_ENCOUNTER_MIN + 1)) + (tier.rank >= 2 ? 1 : 0) + nightRaid - watchtowerReduction - holdfastReduction));
+  const waveCap = planId === "nightRaid" ? 3 : 2;
+  const latePressure = tier.rank >= 2 && state.day >= 5 && planId !== "holdfast" ? 1 : 0;
+  const count = Math.max(1, Math.min(waveCap, NIGHT_ENCOUNTER_MIN + Math.floor(Math.random() * (NIGHT_ENCOUNTER_MAX - NIGHT_ENCOUNTER_MIN + 1)) + latePressure + nightRaid - watchtowerReduction - holdfastReduction));
   const partyLevel = averagePartyLevel();
   return Array.from({ length: count }, (_, index) => {
-    const difficulty = partyLevel + Math.floor((state.day - 1) / 2) + index + (planId === "nightRaid" ? 1 : 0) - (planId === "holdfast" ? 1 : 0);
-    const poolIndex = Math.min(nightEncounterPool.length - 1, Math.max(0, Math.floor(difficulty / 2) + Math.floor(Math.random() * 2)));
+    const eventBias = activeNight?.report?.eventDifficultyBias || 0;
+    const firstWaveThreat = index === 0 ? activeNight?.report?.eventFirstWaveThreat || 0 : 0;
+    const difficulty = partyLevel + Math.floor((state.day - 1) / 3) * 0.65 + tier.rank * 0.75 + index * 0.55 + (planId === "nightRaid" ? 0.75 : 0) - (planId === "holdfast" ? 0.75 : 0) + eventBias + firstWaveThreat;
+    const level = Math.max(1, Math.round(difficulty));
+    const maxPoolByTier = tier.rank <= 0 ? 1 : tier.rank === 1 ? 3 : nightEncounterPool.length - 1;
+    const poolIndex = Math.min(maxPoolByTier, nightEncounterPool.length - 1, Math.max(0, Math.floor((level - 1) / 2.5) + (Math.random() < 0.3 ? 1 : 0)));
     const encounterId = nightEncounterPool[poolIndex];
     return scaledNightEnemy(encounterId, difficulty, index);
   });
@@ -2784,20 +3006,20 @@ function scaledNightEnemy(encounterId, difficulty, index) {
   const tier = campaignDifficultyTier();
   const level = Math.max(1, Math.round(difficulty));
   const scale = Math.max(0, level - 1);
-  const hp = base.hp + scale * 5 + index * 3;
+  const hp = base.hp + scale * 3 + index * 2;
   return {
     ...base,
     name: `${base.name} Night Raid`,
     hp,
     maxHp: hp,
-    atk: base.atk + Math.floor(scale * 0.85),
-    def: base.def + Math.floor(scale * 0.45),
+    atk: base.atk + Math.floor(scale * 0.55),
+    def: base.def + Math.floor(scale * 0.3),
     speed: base.speed + Math.floor(scale * 0.2),
-    power: (base.power ?? 3) + Math.floor(scale * 0.4),
+    power: (base.power ?? 3) + Math.floor(scale * 0.3),
     morale: (base.morale ?? 4) + Math.floor(scale * 0.25),
     reward: Math.round(base.reward * 0.45 + level * 6),
     nightLevel: level,
-    partySize: desiredEnemyPartySize(encounterId, { night: true, tier }),
+    partySize: desiredEnemyPartySize(encounterId, { night: true, tier, nightPlan: currentNightPlanId() }),
     difficultyTier: tier,
     sourceEncounter: encounterId,
   };
@@ -2805,6 +3027,10 @@ function scaledNightEnemy(encounterId, difficulty, index) {
 
 function startNextNightEncounter() {
   if (!activeNight) return beginNight();
+  if (!activeNight.campEventResolved) {
+    setMessage("Resolve the camp event before starting the watch.");
+    return beginNight();
+  }
   const enemy = activeNight.encounters[activeNight.index];
   if (!enemy) return finishNight();
   return openNightWaveModal(enemy);
@@ -2837,6 +3063,11 @@ function launchNightBattle(enemy) {
   if (state.campUpgrades?.healerFire) {
     const restored = recoverPartyDetailed(Math.max(6, Math.round(state.hero.maxHp * 0.16)));
     if (activeNight?.report) activeNight.report.healerFireRecovery += restored;
+  }
+  if (activeNight?.report?.eventPreWaveRecovery) {
+    const restored = recoverPartyDetailed(activeNight.report.eventPreWaveRecovery);
+    activeNight.report.healerFireRecovery += restored;
+    activeNight.report.eventPreWaveRecovery = 0;
   }
   if (activeNight?.plan === "holdfast") {
     const restored = recoverPartyDetailed(Math.max(4, Math.round(state.hero.maxHp * 0.08)));
@@ -2889,19 +3120,26 @@ function nightfallMarkup() {
   const currentPlan = currentNightPlan();
   const campBuilt = Object.entries(campUpgradeDefinitions).filter(([id]) => state.campUpgrades?.[id]).map(([, upgrade]) => upgrade.name);
   const effects = nightDefenseEffectPills();
+  const event = activeNight?.campEvent;
+  const report = activeNight?.report;
   return `
     <div class="night-wave">
       <div class="nightfall-head">
         <div class="night-watch-crest" aria-hidden="true"><i></i></div>
         <div>
-          <strong>Night Watch</strong>
-          <p>Pick one tactic, optionally build camp prep, then start the watch.</p>
+          <strong>Camp Command</strong>
+          <p>Pick a night plan, resolve the camp event, read the incoming waves, then start the watch.</p>
         </div>
       </div>
       <div class="night-summary-bar">
         <span><small>Waves</small><strong>${activeNight.encounters.length}</strong></span>
         <span><small>Chosen</small><strong>${currentPlan.name}</strong></span>
-        <span><small>Camp</small><strong>${campBuilt.length ? campBuilt.length : "Basic"}</strong></span>
+        <span><small>Morale</small><strong>${campMoraleLabel()}</strong></span>
+      </div>
+      <div class="night-command-strip">
+        <article><small>Risk</small><strong>${currentPlan.risk}</strong><p>${escapeHtml(currentPlan.waveBias)}</p></article>
+        <article><small>Reward</small><strong>${escapeHtml(nightRewardHeadline(currentPlanId))}</strong><p>${escapeHtml(currentPlan.reward)}</p></article>
+        <article><small>Streak</small><strong>${state.nightStreak || 0} nights</strong><p>${escapeHtml(nightStreakBonusText())}</p></article>
       </div>
       <div class="night-step-callout">
         <span>1</span>
@@ -2915,11 +3153,37 @@ function nightfallMarkup() {
         </div>
         <div class="camp-upgrade-list night-plan-list">${Object.entries(nightPlanDefinitions).map(([id, plan]) => nightPlanCard(id, plan, currentPlanId)).join("")}</div>
       </div>
+      ${event ? `
+        <div class="night-step-callout">
+          <span>2</span>
+          <strong>Resolve camp event</strong>
+          <small>${activeNight?.campEventResolved ? escapeHtml(report?.eventChoiceLabel ? `${report.eventChoiceLabel}: ${report.eventOutcome}` : "Event resolved.") : "Make one tradeoff before the first horn sounds."}</small>
+        </div>
+        <div class="night-section">
+          <div class="night-section-head">
+            <h3>Camp Event</h3>
+            <p class="night-section-note">Small choices make the night feel alive and change this watch immediately.</p>
+          </div>
+          ${campEventMarkup(event)}
+        </div>
+      ` : ""}
+      <div class="night-step-callout">
+        <span>3</span>
+        <strong>Read incoming waves</strong>
+        <small>${state.campUpgrades?.watchtower ? "The watchtower identifies the threats before they arrive." : "Without a watchtower you still see threat levels, but not every detail."}</small>
+      </div>
+      <div class="night-section">
+        <div class="night-section-head">
+          <h3>Wave Forecast</h3>
+          <p class="night-section-note">Threat, silhouettes, and a recommended tactic before the watch begins.</p>
+        </div>
+        <div class="night-preview-grid">${nightWavePreviewCards(activeNight.encounters).join("")}</div>
+      </div>
       <div class="night-defense-strip night-active-effects">
         ${effects.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
       </div>
       <div class="night-step-callout optional">
-        <span>2</span>
+        <span>4</span>
         <strong>Optional camp prep</strong>
         <small>${campBuilt.length ? `${escapeHtml(campBuilt.join(", "))} ready.` : "Build only if you want to spend gold before the waves."}</small>
       </div>
@@ -2941,19 +3205,20 @@ function nightPlanCard(id, plan, currentPlanId = currentNightPlanId()) {
       <div class="night-card-icon plan-${id}" aria-hidden="true"><i></i></div>
       <div class="camp-upgrade-topline">
         <strong>${plan.name}</strong>
-        <span>${selected ? "Selected" : "Tactic"}</span>
+        <span>${selected ? "Current tactic" : `${plan.risk} risk`}</span>
       </div>
     </div>
     <p>${nightTacticShortText(id)}</p>
-    <button type="button" class="night-card-button ${selected ? "selected" : ""}" data-night-plan="${id}"${selected ? " disabled" : ""}>${selected ? "Current" : "Select"}</button>
+    <div class="night-card-tags">${nightPlanEffectTags(id).map((tag) => `<em>${escapeHtml(tag)}</em>`).join("")}</div>
+    <button type="button" class="night-card-button ${selected ? "selected" : ""}" data-night-plan="${id}"${selected ? " disabled" : ""}>${selected ? "Selected" : "Select"}</button>
   </article>`;
 }
 
 function nightTacticShortText(id) {
   return {
-    holdfast: "Safer camp: fewer waves and more healing.",
-    nightRaid: "Riskier camp: harder waves, more dawn gold.",
-    scoutLines: "Balanced camp: marks a useful target at dawn.",
+    holdfast: "Safer camp: fewer waves, steadier recovery, lower payout.",
+    nightRaid: "Riskier camp: harder waves, stronger payout, item chance.",
+    scoutLines: "Balanced camp: normal pressure and a marked lead at dawn.",
   }[id] || nightPlanDefinitions[id]?.text || "";
 }
 
@@ -2970,17 +3235,112 @@ function nightWavePlanLead(planId) {
   }[planId] || currentNightPlan().text;
 }
 
+function createNightCampEvent(report) {
+  const seed = (state.day + (state.nightStreak || 0) + Math.max(0, state.gold % 3)) % nightCampEvents.length;
+  const template = nightCampEvents[seed];
+  if (!template) return null;
+  report.eventTitle = template.title;
+  return template;
+}
+
+function campEventMarkup(event) {
+  if (!event) return "";
+  if (activeNight?.campEventResolved) {
+    return `
+      <article class="camp-event-card resolved">
+        <strong>${escapeHtml(event.title)}</strong>
+        <p>${escapeHtml(activeNight?.report?.eventOutcome || event.text)}</p>
+        <div class="night-defense-strip"><span>${escapeHtml(activeNight?.report?.eventChoiceLabel || "Resolved")}</span></div>
+      </article>
+    `;
+  }
+  return `
+    <article class="camp-event-card">
+      <strong>${escapeHtml(event.title)}</strong>
+      <p>${escapeHtml(event.text)}</p>
+      <div class="camp-event-options">
+        ${event.options.map((option) => `<button type="button" class="camp-event-button" data-camp-event-choice="${option.id}"><strong>${escapeHtml(option.label)}</strong><span>${escapeHtml(option.summary)}</span></button>`).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function resolveNightCampEvent(choiceId) {
+  const event = activeNight?.campEvent;
+  const report = activeNight?.report;
+  if (!event || !report || activeNight?.campEventResolved) return;
+  const choice = event.options.find((option) => option.id === choiceId);
+  if (!choice) return;
+  report.eventChoiceLabel = choice.label;
+  choice.apply(report);
+  activeNight.campEventResolved = true;
+  activeNight.encounters = buildNightEncounters(activeNight.plan);
+  report.wavesPlanned = activeNight.encounters.length;
+  setMessage(`Camp event resolved: ${choice.label}.`);
+  beginNight();
+}
+
+function campMoraleLabel() {
+  const morale = state.campMorale || 0;
+  if (morale >= 4) return `High ${morale}`;
+  if (morale >= 2) return `Steady ${morale}`;
+  return `Low ${morale}`;
+}
+
+function nightStreakBonusText() {
+  const streak = state.nightStreak || 0;
+  if (!streak) return "No bonus yet. Survive nights to build momentum.";
+  return `Current watch bonus: +${streak * 4} gold and +${streak * 2} XP per night wave.`;
+}
+
+function nightRewardHeadline(planId) {
+  if (planId === "nightRaid") return "High gold, XP, and item chance";
+  if (planId === "scoutLines") return "Balanced payout and map lead";
+  return "Lower payout, higher recovery";
+}
+
+function nightWaveThreatLabel(enemy) {
+  const level = enemy?.nightLevel || 1;
+  if (level >= 7) return "Severe";
+  if (level >= 5) return "High";
+  if (level >= 3) return "Medium";
+  return "Low";
+}
+
+function nightWavePreviewCards(encounters) {
+  return encounters.map((enemy, index) => {
+    const known = Boolean(state.campUpgrades?.watchtower);
+    const title = known ? enemy.name.replace(/ Night Raid$/, "") : `Unknown raiders ${index + 1}`;
+    const trait = known ? enemyTraitText(enemy.sourceEncounter) : "Build a watchtower to identify exact wave types before the fight starts.";
+    const icons = Array.from({ length: Math.min(3, enemy.partySize || 1) }, () => known
+      ? enemyPreviewIconMarkup(enemy)
+      : `<span class="enemy-icon melee" title="Unknown threat">?</span>`).join("");
+    return `
+      <article class="night-preview-card ${known ? "known" : "fogged"}">
+        <div class="night-preview-topline">
+          <strong>Wave ${index + 1}</strong>
+          <span>${nightWaveThreatLabel(enemy)} threat</span>
+        </div>
+        <b>${escapeHtml(title)}</b>
+        <div class="enemy-icon-row night-preview-icons">${icons}</div>
+        <p><strong>Recommended tactic</strong>: ${escapeHtml(trait)}</p>
+      </article>
+    `;
+  });
+}
+
 function nightDefenseEffectPills() {
   const pills = [];
   if (currentNightPlanId() === "holdfast") pills.push("Hold Fast: extra recovery before battle");
-  if (currentNightPlanId() === "nightRaid") pills.push("Night Raid: bonus dawn gold if camp holds");
+  if (currentNightPlanId() === "nightRaid") pills.push("Night Raid: extra gold, XP, and item chance");
   if (currentNightPlanId() === "scoutLines") pills.push("Scout Lines: dawn reveals the next target");
-  if (state.campUpgrades?.watchtower) pills.push("Watchtower: one fewer wave when possible");
-  if (state.campUpgrades?.traps) pills.push("Stake Traps: first raider weakened");
+  if (state.campUpgrades?.watchtower) pills.push("Watchtower: identifies wave threats and may cut one wave");
+  if (state.campUpgrades?.traps) pills.push("Stake Traps: first raider starts damaged");
   if (state.campUpgrades?.healerFire) pills.push("Healer Fire: party restored before each wave");
   if (state.campUpgrades?.betterTent) pills.push("Better Tent: stronger dawn recovery");
+  if (state.nightStreak) pills.push(`Night Streak: +${state.nightStreak * 4} gold on night wins`);
   if (!pills.length) pills.push("Basic camp: no extra defenses");
-  return pills.slice(0, 4);
+  return pills.slice(0, 5);
 }
 
 function campUpgradeCard(id, upgrade) {
@@ -2995,37 +3355,40 @@ function campUpgradeCard(id, upgrade) {
       </div>
     </div>
     <small class="night-upgrade-effect">${campUpgradeShortText(id)}</small>
+    <div class="night-card-tags">${campUpgradeEffectTags(id).map((tag) => `<em>${escapeHtml(tag)}</em>`).join("")}</div>
     <button type="button" class="night-card-button" data-camp-upgrade="${id}"${owned || !affordable ? " disabled" : ""}>${owned ? "Built" : affordable ? "Build" : `Need ${upgrade.cost}`}</button>
   </div>`;
 }
 
 function campUpgradeShortText(id) {
   return {
-    betterTent: "More recovery at dawn.",
-    watchtower: "Reduces night waves.",
-    traps: "Weakens the first raider.",
-    healerFire: "Heals before each wave.",
+    betterTent: "Stronger dawn recovery for the whole party.",
+    watchtower: "Shows incoming threats and can trim a wave.",
+    traps: "First attacker arrives pre-damaged every wave.",
+    healerFire: "Restores the party before each wave.",
   }[id] || "";
 }
 
 function nightPlanEffectTags(id) {
   return {
-    holdfast: ["Safer rest", "Fewer waves", "Steadier recovery"],
-    nightRaid: ["Harder waves", "Bonus dawn gold", "High pressure"],
-    scoutLines: ["Balanced defense", "Dawn scouting", "Target revealed"],
+    holdfast: ["Low risk", "Safer sustain", "Fewer waves"],
+    nightRaid: ["High risk", "Extra gold and XP", "Item chance"],
+    scoutLines: ["Medium risk", "Balanced payout", "Scout marker"],
   }[id] || [];
 }
 
 function campUpgradeEffectTags(id) {
   return {
-    betterTent: ["More dawn healing", "Safer camp"],
-    watchtower: ["One fewer wave", "Early warning"],
-    traps: ["Weakens first raider", "Every wave"],
+    betterTent: ["More dawn healing", "Recovery spike"],
+    watchtower: ["Wave forecast", "Possible wave cut"],
+    traps: ["Damaged opener", "Every wave"],
     healerFire: ["Pre-wave healing", "Party sustain"],
   }[id] || [];
 }
 
 function bindNightfallModal() {
+  const startButton = modalActions.querySelector("button");
+  if (startButton) startButton.disabled = Boolean(activeNight?.campEvent && !activeNight?.campEventResolved);
   modalText.querySelectorAll("[data-night-plan-card]").forEach((card) => {
     const choose = () => {
       const { nightPlanCard } = card.dataset;
@@ -3054,6 +3417,13 @@ function bindNightfallModal() {
       const { campUpgrade } = button.dataset;
       if (!campUpgrade || button.disabled) return;
       buildCampUpgrade(campUpgrade);
+    });
+  });
+  modalText.querySelectorAll("[data-camp-event-choice]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const { campEventChoice } = button.dataset;
+      if (!campEventChoice || button.disabled) return;
+      resolveNightCampEvent(campEventChoice);
     });
   });
 }
@@ -3100,7 +3470,11 @@ function finishNight() {
   state.nightReady = false;
   const economy = collectTownIncome();
   report.income = { total: economy.total || 0, mines: economy.mines || 0, towns: economy.towns || 0, routes: economy.routes || 0, text: economy.text || "" };
-  const dawnRecovery = Math.max(8, Math.round(state.hero.maxHp * (planId === "holdfast" ? 0.47 : 0.35)));
+  state.nightStreak = (state.nightStreak || 0) + 1;
+  state.campMorale = Math.min(5, (state.campMorale || 0) + 1);
+  report.streakAfter = state.nightStreak;
+  report.moraleAfter = state.campMorale;
+  const dawnRecovery = Math.max(4, Math.max(8, Math.round(state.hero.maxHp * (planId === "holdfast" ? 0.47 : 0.35))) + (state.campUpgrades?.betterTent ? 4 : 0) - (report.eventHealingPenalty || 0));
   report.dawnRecovery = dawnRecovery;
   report.dawnHealing = recoverPartyDetailed(dawnRecovery);
   if (planId === "nightRaid") {
@@ -3151,7 +3525,7 @@ function dawnMarkup(report) {
       <div class="night-summary-bar dawn-summary-bar">
         <span><small>Waves Held</small><strong>${report.wavesCleared}/${report.wavesPlanned}</strong></span>
         <span><small>Plan</small><strong>${escapeHtml(report.planName)}</strong></span>
-        <span><small>Camp Status</small><strong>${campNames.length ? "Standing" : "Basic"}</strong></span>
+        <span><small>Streak</small><strong>${report.streakAfter}</strong></span>
       </div>
       <div class="dawn-outcome-panel">
         <strong>What changed overnight</strong>
@@ -3176,6 +3550,7 @@ function dawnMarkup(report) {
           ${(campNames.length ? campNames : ["Basic Tent"]).map((name) => `<span>${escapeHtml(name)}</span>`).join("")}
         </div>
       </div>
+      ${report.eventTitle ? `<div class="dawn-scouting"><strong>Camp Event</strong><p>${escapeHtml(`${report.eventTitle}: ${report.eventChoiceLabel}. ${report.eventOutcome}`)}</p></div>` : ""}
       ${report.scoutingText ? `<div class="dawn-scouting"><strong>Scouting</strong><p>${escapeHtml(report.scoutingText)}</p></div>` : ""}
       <div class="dawn-scouting dawn-today-lead"><strong>Today's Lead</strong><p>${escapeHtml(report.todayLead)}</p></div>
       <p class="dawn-footer-state"><strong>Sunrise state</strong>: ${report.postDawnGold} gold, ${report.postDawnMissingHp} missing party HP.</p>
@@ -3257,13 +3632,15 @@ function dawnLeadLine(report) {
 }
 
 function dawnPlanPayoffMarkup(report) {
-  if (report.planId === "nightRaid") return report.raidBonus ? `Night Raid paid off with <strong>${report.raidBonus} bonus gold</strong> after the camp held.` : "Night Raid drew pressure, but no extra spoils arrived.";
+  if (report.planId === "nightRaid") return report.raidBonus ? `Night Raid paid off with <strong>${report.raidBonus} bonus gold</strong>${report.itemDrop ? ` and <strong>${escapeHtml(report.itemDrop)}</strong>` : ""} after the camp held.` : "Night Raid drew pressure, but no extra spoils arrived.";
   if (report.planId === "scoutLines") return escapeHtml(report.scoutingText || "Scout Lines kept the roads watched, but no clear target stood out.");
   if (report.planId === "holdfast") return `Hold Fast restored <strong>${report.holdfastRecovery}</strong> HP before the waves and <strong>${report.dawnHealing}</strong> more at dawn.`;
   return "The camp plan carried the warband safely into the next day.";
 }
 
 function abandonNightAfterDefeat() {
+  state.nightStreak = 0;
+  state.campMorale = Math.max(0, (state.campMorale || 0) - 1);
   activeNight = null;
   state.day += 1;
   state.dayProgress = 0;
@@ -3406,6 +3783,7 @@ function townGuardEncounter(event) {
 
 function townEvent(key, event) {
   const town = getTownState(key);
+  if (town.owner === "player") rememberRespawnPoint(key, event);
   const creature = creatureBook[event.creature];
   const owned = recruitableUnitsForTown(event).some((id) => state.party.some((unit) => unit.id === id));
   const cost = recruitCostForTown(event.creature, event);
@@ -3423,6 +3801,7 @@ function townEvent(key, event) {
         state.gold -= claimCost;
         town.owner = "player";
         state.visited[key] = true;
+        rememberRespawnPoint(key, event);
         setMessage(`${event.name} accepts your charter for ${claimCost} gold.`);
         renderAll();
         reopenTownModal(key, event);
@@ -3502,6 +3881,25 @@ function townCommissionAvailable(id, quest) {
   if (!targets.length) return true;
   const required = quest.requiredTargets || 1;
   return countVisitedKeys(targets) <= targets.length - required;
+}
+
+function npcQuestAvailable(id, quest = npcQuests[id]) {
+  if (!quest) return false;
+  const status = state.quests?.[id] || "new";
+  if (status !== "new") return true;
+  if (id === "elder") return true;
+  if (id === "ranger") return countVisitedEvents("mine") >= 1 || ownedTownEntries().length >= 2;
+  if (id === "archivist") return countVisitedEvents("battle") >= 2 || uniqueRelicCount() >= 1 || currentRegionId() !== "dawnhaven_march";
+  if (id === "wayfinder") return ownedTownEntries().length >= 4 || countVisitedEvents("mine") >= 3 || ["low_roads", "southern_wilds"].includes(currentRegionId());
+  return true;
+}
+
+function npcQuestLockedText(id, quest = npcQuests[id]) {
+  if (!quest) return "No work is ready yet.";
+  if (id === "ranger") return `${quest.name} studies the roads, then shakes his head. "Claim another mine or secure a second town first. I need proof your banner can hold ground before I hand out patrol work."`;
+  if (id === "archivist") return `${quest.name} closes the ledger. "Bring me signs of real war first. Clear a few outposts or recover a relic, then we can talk about deeper banners."`;
+  if (id === "wayfinder") return `${quest.name} watches the southern dust. "You are not deep enough into the lower roads yet. Secure more territory before I ask you to map the south for me."`;
+  return `${quest.name} is not ready to offer new work yet.`;
 }
 
 function townNoticeBoardMarkup(event, entries) {
@@ -3818,6 +4216,13 @@ const npcQuestTargets = {
   wayfinder: { new: "28,38", accepted: "9,31" },
 };
 
+const npcQuestSourceKeys = {
+  elder: "5,3",
+  ranger: "18,7",
+  archivist: "39,14",
+  wayfinder: "28,38",
+};
+
 const townQuestTargets = {
   dawnhavenPatrol: "7,7",
   dawnRoadSurvey: "8,5",
@@ -3851,6 +4256,7 @@ const townQuestTargets = {
 function questTrackTarget(type, id) {
   if (type === "npc") {
     const status = state.quests?.[id] || "new";
+    if (status === "new" && !npcQuestDiscovered(id)) return null;
     const target = npcQuestTargets[id];
     if (!target) return null;
     return target[status] || target.accepted || target.new || null;
@@ -3910,6 +4316,12 @@ function setActiveQuest(type, id) {
   state.scoutMarker = target;
   setMessage(`Tracking ${questTrackLabel(type, id)}.`);
   renderAll();
+}
+
+function npcQuestDiscovered(id) {
+  if (id === "elder") return true;
+  const key = npcQuestSourceKeys[id];
+  return Boolean(key && state.revealed?.[key]);
 }
 
 function townFactionActionId(event) {
@@ -5178,6 +5590,12 @@ function enemyTraitText(encounterId) {
 
 function battleGoldReward(event, enemies) {
   const base = enemies.reduce((sum, enemy) => sum + (enemy.reward || 0), 0);
+  if (event.type === "night") {
+    const streakBonus = (state.nightStreak || 0) * 4;
+    const moraleBonus = (state.campMorale || 0) * 3;
+    const planBonus = activeNight?.plan === "nightRaid" ? 14 : activeNight?.plan === "holdfast" ? -6 : 4;
+    return Math.max(12, base + streakBonus + moraleBonus + planBonus);
+  }
   if (event.type === "final") return base + 80;
   if (event.gate) return base + 45;
   if (event.passName) return base + 48;
@@ -5188,7 +5606,12 @@ function battleGoldReward(event, enemies) {
 }
 
 function battleXpReward(event, leader, enemies) {
-  if (event.type === "night") return Math.max(18, 18 + (leader.nightLevel || state.hero.level) * 4);
+  if (event.type === "night") {
+    const streakBonus = (state.nightStreak || 0) * 2;
+    const moraleBonus = state.campMorale || 0;
+    const planBonus = activeNight?.plan === "nightRaid" ? 8 : activeNight?.plan === "holdfast" ? -4 : 2;
+    return Math.max(18, 18 + (leader.nightLevel || state.hero.level) * 4 + streakBonus + moraleBonus + planBonus);
+  }
   if (event.type === "final") return 80;
   if (event.gate) return 64;
   const tier = leader?.difficultyTier === "Hard" ? 2 : leader?.difficultyTier === "Medium" ? 1 : campaignDifficultyTier().rank;
@@ -5365,6 +5788,12 @@ function desiredEnemyPartySize(encounterId, options = {}) {
   const tier = options.tier || campaignDifficultyTier();
   const base = { goblin: 2, basilisk: 2, raiders: 3, wyvern: 2, knight: 2, warlock: 2, tideGuard: 2, gatekeeper: 4, rival: 5 }[encounterId] || 2;
   const armyPressure = Math.max(0, Math.floor((state.party.length - 1) / 2));
+  if (options.night) {
+    const planId = options.nightPlan || currentNightPlanId();
+    const nightBonus = planId === "nightRaid" ? 1 : 0;
+    const nightCap = planId === "holdfast" ? 2 : planId === "nightRaid" ? Math.min(4, 2 + tier.rank) : Math.min(3, 2 + tier.rank);
+    return Math.max(1, Math.min(BATTLE_ROWS, nightCap, base + Math.min(1, tier.rank) + Math.min(1, armyPressure) + nightBonus - 1));
+  }
   const nightBonus = options.night ? 1 : 0;
   const cap = encounterId === "rival" || encounterId === "gatekeeper" ? 5 : tier.rank === 0 ? 3 : tier.rank === 1 ? 4 : 5;
   return Math.max(1, Math.min(BATTLE_ROWS, cap, base + tier.rank + armyPressure + nightBonus));
@@ -6793,6 +7222,7 @@ function finishBattle(wonBattle) {
       const town = getTownState(event.townKey);
       town.owner = "player";
       state.visited[event.townKey] = true;
+      rememberRespawnPoint(event.townKey, events.get(event.townKey) || { type: "town", name: event.townName });
       setMessage(`${event.townName || "The town"} is claimed after battle.`);
       openModal("Town Claimed", `${event.townName || "The town"} raises your banner. Reward: ${reward} gold and ${xpReport.amount} XP.`, [{ label: "Enter Town", action: () => resolvePostBattleProgression(() => reopenTownModal(event.townKey, events.get(event.townKey) || event)) }]);
       return renderAll();
@@ -6827,9 +7257,15 @@ function finishBattle(wonBattle) {
         { label: "Continue", action: () => resolvePostBattleProgression() },
       ], { html: true, className: "boss-aftermath-modal" });
     } else if (event.type === "night") {
+      if (activeNight?.report) {
+        activeNight.report.nightRewardGold += reward;
+        activeNight.report.nightRewardXp += xpReport.amount;
+      }
+      const lootDrop = maybeGrantNightRaidLoot();
+      const holdText = lootDrop ? `The party survives this night wave, keeps its supplies, and recovers ${lootDrop}.` : "The party survives this night wave and keeps its supplies.";
       setMessage(`${enemyLabel} defeated before dawn.`);
       openModal("Camp Defended", battleAftermathMarkup("Night Threat Broken", log, reward, xpReport.amount, [
-        ["Camp Holds", "The party survives this night wave and keeps its supplies."],
+        ["Camp Holds", holdText],
         ["Watch Continues", "Any remaining night threats still need to be handled before dawn."],
       ]), [{ label: "Continue Watch", action: () => resolvePostBattleProgression() }], { html: true, className: "boss-aftermath-modal" });
     } else {
@@ -6838,9 +7274,10 @@ function finishBattle(wonBattle) {
     }
   } else {
     const wasNightBattle = event.type === "night";
+    const respawn = currentRespawnPoint();
     state.gold = Math.max(0, state.gold - 30);
-    state.x = 2;
-    state.y = 2;
+    state.x = respawn.x;
+    state.y = respawn.y;
     revealAroundPlayer();
     visual = { x: state.x, y: state.y, fromX: state.x, fromY: state.y, toX: state.x, toY: state.y, moving: false, startedAt: 0, progress: 0 };
     terrainCache = null;
@@ -6848,10 +7285,19 @@ function finishBattle(wonBattle) {
     state.hero.hp = Math.ceil(state.hero.maxHp / 2);
     state.party.forEach((unit) => (unit.hp = Math.ceil(unit.maxHp / 2)));
     if (wasNightBattle) abandonNightAfterDefeat();
-    setMessage(wasNightBattle ? "Night defeat. You retreat to Dawnhaven by dawn and lose 30 gold." : "Defeat. You retreat to Dawnhaven and lose 30 gold.");
-    openModal("Defeat", wasNightBattle ? "Your camp breaks before dawn. The party retreats to Dawnhaven and loses 30 gold." : "Your party collapses and retreats to Dawnhaven. You lose 30 gold.", [{ label: "Recover", action: () => renderAll() }]);
+    setMessage(wasNightBattle ? `Night defeat. You retreat to ${respawn.name} by dawn and lose 30 gold.` : `Defeat. You retreat to ${respawn.name} and lose 30 gold.`);
+    openModal("Defeat", wasNightBattle ? `Your camp breaks before dawn. The party retreats to ${respawn.name} and loses 30 gold.` : `Your party collapses and retreats to ${respawn.name}. You lose 30 gold.`, [{ label: "Recover", action: () => renderAll() }]);
   }
   renderAll();
+}
+
+function maybeGrantNightRaidLoot() {
+  if (!activeNight || activeNight.plan !== "nightRaid") return "";
+  const chance = Math.min(0.45, 0.18 + (state.nightStreak || 0) * 0.05);
+  if (Math.random() > chance) return "";
+  addInventoryItem("healingDraught", 1);
+  if (activeNight.report && !activeNight.report.itemDrop) activeNight.report.itemDrop = "a Healing Draught";
+  return "a Healing Draught";
 }
 
 function battleChangeCards(event) {
@@ -7127,6 +7573,7 @@ function draw() {
   drawWorldAtmosphere();
   drawWorldReadabilityOverlays();
   drawWorldEntities();
+  drawLocationBanner();
   drawFogOfWar();
   ctx.restore();
   drawObjectiveHint();
@@ -7174,7 +7621,7 @@ function campaignMainObjective() {
 function campaignSideObjective() {
   if (state.won) return postVictoryCleanupObjective();
   if (!state.hero.nameChosen) return "";
-  const unclaimedQuest = Object.entries(npcQuests).find(([id]) => !state.quests?.[id]);
+  const unclaimedQuest = Object.entries(npcQuests).find(([id, quest]) => !state.quests?.[id] && npcQuestAvailable(id, quest) && npcQuestDiscovered(id));
   if (unclaimedQuest) return `Side objective: meet ${unclaimedQuest[1].name}`;
   const activeNpcQuest = Object.entries(npcQuests).find(([id]) => state.quests?.[id] === "accepted" && !npcQuests[id].complete());
   if (activeNpcQuest) return `Side objective: ${activeNpcQuest[1].title} (${activeNpcQuest[1].objective})`;
@@ -7290,7 +7737,6 @@ function drawWorldReadabilityOverlays() {
   drawTownInfluenceOverlays();
   drawThreatOverlays();
   drawScoutMarkerOverlay();
-  drawLocationBanner();
 }
 
 function factionOverlayColor(faction) {
@@ -9180,16 +9626,19 @@ function drawFinalFortress(px, py) {
   let painted = false;
 
   drawFinalFortressGround(px, py);
-  drawShadow(centerX, py + 80, 176, 18);
+  drawShadow(centerX, py + 91, 214, 24);
   ctx.save();
   ctx.fillStyle = "rgba(55, 49, 41, 0.18)";
   ctx.beginPath();
-  ctx.ellipse(centerX, py + 52, 84, 28, 0, 0, Math.PI * 2);
+  ctx.ellipse(centerX, py + 58, 102, 34, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = "rgba(255, 242, 182, 0.16)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
   ctx.restore();
 
-  painted = drawCastleCutout("keep", keepX, py + 58, { targetHeight: 94 }) || painted;
-  if (!painted) painted = drawAtlas("castle", px - 30, py - 48, 100, 82) || painted;
+  painted = drawCastleCutout("keep", keepX, py + 70, { targetHeight: 124 }) || painted;
+  if (!painted) painted = drawAtlas("castle", px - 46, py - 70, 132, 108) || painted;
   return painted;
 }
 
@@ -9486,14 +9935,14 @@ function renderSidebar() {
         { text: `Main objective: ${campaignMainObjective()}`, done: false },
         { text: campaignSideObjective() || "Side objective: none", done: false },
       ];
-  const npcQuestRows = Object.entries(npcQuests).map(([id, quest]) => {
+  const npcQuestRows = Object.entries(npcQuests).filter(([id]) => (state.quests?.[id] || "new") !== "new").map(([id, quest]) => {
     const status = state.quests?.[id] || "new";
     const ready = status === "accepted" && quest.complete();
     const done = status === "claimed";
     const label = done ? "Done" : ready ? "Return for reward" : status === "accepted" ? quest.objective : "Talk to NPC";
     return { text: `${quest.title}: ${label}`, done, trackType: "npc", trackId: id, trackLabel: questTrackLabel("npc", id) };
   });
-  const townQuestRows = Object.entries(townCommissionDefinitions).filter(([id, quest]) => townCommissionAvailable(id, quest)).map(([id, quest]) => {
+  const townQuestRows = Object.entries(townCommissionDefinitions).filter(([id]) => (state.quests?.[id] || "new") !== "new").map(([id, quest]) => {
     const status = state.quests?.[id] || "new";
     const ready = status === "accepted" && quest.complete();
     const done = status === "claimed";
@@ -9528,8 +9977,10 @@ function renderSidebar() {
   const storyQuests = [
     { text: `Build a four-unit warband (${state.party.length}/4)`, done: state.party.length >= 4, trackType: "story", trackId: "warband", trackLabel: questTrackLabel("story", "warband") },
     { text: `Bring ${townTarget} towns under your banner`, done: townCount >= townTarget, trackType: "story", trackId: "towns", trackLabel: questTrackLabel("story", "towns") },
-    { text: `Secure ${mineTarget} mines`, done: mineCount >= mineTarget, trackType: "story", trackId: "mines", trackLabel: questTrackLabel("story", "mines") },
-    { text: `Break all known outposts (${battleCount}/${battleTarget})`, done: battleCount >= battleTarget, trackType: "story", trackId: "outposts", trackLabel: questTrackLabel("story", "outposts") },
+    ...(townCount >= 2 || mineCount >= 2 || battleCount >= 1 ? [
+      { text: `Secure ${mineTarget} mines`, done: mineCount >= mineTarget, trackType: "story", trackId: "mines", trackLabel: questTrackLabel("story", "mines") },
+      { text: `Break all known outposts (${battleCount}/${battleTarget})`, done: battleCount >= battleTarget, trackType: "story", trackId: "outposts", trackLabel: questTrackLabel("story", "outposts") },
+    ] : []),
   ];
   const winRows = victoryConditions().map((condition) => ({ text: condition.text, done: condition.done || (state.won && state.victoryType === condition.id) }));
   const gateRows = [
@@ -9538,10 +9989,11 @@ function renderSidebar() {
     { text: finalGateCleared() ? "Black Gate Warden defeated" : gate.ready ? "Challenge the Black Gate Warden" : "Black Gate Warden remains sealed", done: finalGateCleared(), trackType: "story", trackId: "blackGate", trackLabel: questTrackLabel("story", "blackGate") },
     { text: state.won ? "Fortress claimed from Orius" : finalGateCleared() ? "Enter the fortress heart" : "Fortress heart locked", done: state.won, trackType: "story", trackId: "fortress", trackLabel: questTrackLabel("story", "fortress") },
   ];
+  const showGateRows = gate.relicCount > 0 || gate.outpostCount >= 3 || state.day >= 4 || finalGateCleared();
   questLog.innerHTML =
     questSection("Immediate Goals", immediateRows, "priority") +
     questSection("Victory Condition", winRows) +
-    questSection("Black Gate Requirements", gateRows) +
+    (showGateRows ? questSection("Black Gate Requirements", gateRows) : "") +
     questSection("Story Goals", storyQuests, "compact") +
     questSection("NPC Quests", npcQuestRows, "compact") +
     questSection("Town Commissions", townQuestRows, "compact");
@@ -9549,6 +10001,7 @@ function renderSidebar() {
 }
 
 function questSection(title, rows, variant = "") {
+  if (!rows.length) return "";
   if (variant === "compact") {
     const remaining = rows.filter((quest) => !quest.done).length;
     return `
