@@ -1448,6 +1448,7 @@ let musicTimer = 0;
 let musicStep = 0;
 let musicGain = null;
 let musicMode = "field";
+let musicTransitionTimer = 0;
 let autoBattleTimer = 0;
 let lastStepSoundAt = 0;
 let lastSnackbarText = "";
@@ -1680,28 +1681,60 @@ function ensureAudioContext() {
   if (!AudioCtx) return null;
   audioContext = new AudioCtx();
   musicGain = audioContext.createGain();
-  musicGain.gain.value = 0.22;
+  musicGain.gain.value = 0.0001;
   musicGain.connect(audioContext.destination);
   return audioContext;
 }
 
-function playTone(frequency, duration = 0.1, type = "square", volume = 0.05, destination = null) {
+function playTone(frequency, duration = 0.1, type = "square", volume = 0.05, destination = null, options = {}) {
   const ctxAudio = ensureAudioContext();
   if (!ctxAudio) return;
   const osc = ctxAudio.createOscillator();
+  const oscB = options.detuneCents ? ctxAudio.createOscillator() : null;
   const gain = ctxAudio.createGain();
+  const filter = options.filterType ? ctxAudio.createBiquadFilter() : null;
+  const pan = typeof options.pan === "number" && ctxAudio.createStereoPanner ? ctxAudio.createStereoPanner() : null;
+  const attack = options.attack ?? 0.012;
+  const release = options.release ?? duration;
+  const peak = Math.max(0.0001, volume);
   osc.type = type;
   osc.frequency.value = frequency;
+  if (options.detuneCents) osc.detune.value = -Math.abs(options.detuneCents) * 0.5;
   gain.gain.setValueAtTime(0.0001, ctxAudio.currentTime);
-  gain.gain.exponentialRampToValueAtTime(volume, ctxAudio.currentTime + 0.012);
-  gain.gain.exponentialRampToValueAtTime(0.0001, ctxAudio.currentTime + duration);
-  osc.connect(gain);
-  gain.connect(destination || ctxAudio.destination);
+  gain.gain.exponentialRampToValueAtTime(peak, ctxAudio.currentTime + Math.max(0.004, attack));
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctxAudio.currentTime + Math.max(attack + 0.02, release));
+  let node = gain;
+  if (filter) {
+    filter.type = options.filterType;
+    filter.frequency.value = options.filterFrequency || 1800;
+    filter.Q.value = options.filterQ || 0.7;
+    osc.connect(filter);
+    if (oscB) oscB.connect(filter);
+    filter.connect(gain);
+  } else {
+    osc.connect(gain);
+    if (oscB) oscB.connect(gain);
+  }
+  if (oscB) {
+    oscB.type = options.secondaryType || type;
+    oscB.frequency.value = frequency;
+    oscB.detune.value = Math.abs(options.detuneCents);
+  }
+  if (pan) {
+    pan.pan.value = Math.max(-1, Math.min(1, options.pan));
+    gain.connect(pan);
+    node = pan;
+  }
+  node.connect(destination || ctxAudio.destination);
   osc.start();
-  osc.stop(ctxAudio.currentTime + duration + 0.02);
+  osc.stop(ctxAudio.currentTime + Math.max(release, duration) + 0.02);
+  if (oscB) {
+    oscB.start();
+    oscB.stop(ctxAudio.currentTime + Math.max(release, duration) + 0.02);
+  }
 }
 
-function playNoise(duration = 0.06, volume = 0.03, destination = null, filterFrequency = 900, filterType = "bandpass") {
+function playNoise(duration = 0.06, volume = 0.03, destination = null, filterFrequency = 900, filterType = "bandpass", options = {}) {
   const ctxAudio = ensureAudioContext();
   if (!ctxAudio) return;
   const length = Math.max(1, Math.floor(ctxAudio.sampleRate * duration));
@@ -1711,14 +1744,22 @@ function playNoise(duration = 0.06, volume = 0.03, destination = null, filterFre
   const source = ctxAudio.createBufferSource();
   const filter = ctxAudio.createBiquadFilter();
   const gain = ctxAudio.createGain();
+  const pan = typeof options.pan === "number" && ctxAudio.createStereoPanner ? ctxAudio.createStereoPanner() : null;
   source.buffer = buffer;
   filter.type = filterType;
   filter.frequency.value = filterFrequency;
+  filter.Q.value = options.filterQ || 0.6;
   gain.gain.setValueAtTime(volume, ctxAudio.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.0001, ctxAudio.currentTime + duration);
   source.connect(filter);
   filter.connect(gain);
-  gain.connect(destination || ctxAudio.destination);
+  if (pan) {
+    pan.pan.value = Math.max(-1, Math.min(1, options.pan));
+    gain.connect(pan);
+    pan.connect(destination || ctxAudio.destination);
+  } else {
+    gain.connect(destination || ctxAudio.destination);
+  }
   source.start();
   source.stop(ctxAudio.currentTime + duration + 0.01);
 }
@@ -1765,23 +1806,139 @@ function startMusic() {
   stopMusic();
   musicStep = 0;
   musicMode = currentMusicMode();
+  primeMusicTransition(musicMode, true);
   scheduleMusicBeat();
 }
 
 function stopMusic() {
   if (musicTimer) window.clearTimeout(musicTimer);
   musicTimer = 0;
+  if (musicTransitionTimer) window.clearTimeout(musicTransitionTimer);
+  musicTransitionTimer = 0;
+  if (musicGain && audioContext) {
+    musicGain.gain.cancelScheduledValues(audioContext.currentTime);
+    musicGain.gain.setTargetAtTime(0.0001, audioContext.currentTime, 0.05);
+  }
+}
+
+function currentTownMusicFaction() {
+  const event = events.get(tileKey(state.x, state.y));
+  if (event?.type === "town") return event.faction || "";
+  return "";
+}
+
+function currentMusicState(mode = currentMusicMode()) {
+  const mineCount = countVisitedEvents("mine");
+  const townCount = ownedTownEntries().length;
+  const battleCount = countVisitedEvents("battle");
+  const prosperity = Math.min(1, (mineCount + townCount * 1.5) / 10);
+  const hpRatio = (state.hero.hp || 1) / Math.max(1, state.hero.maxHp || 1);
+  const danger = Math.min(1, Math.max((1 - hpRatio) * 0.8, regionalThreatRank() / 4, state.nightReady ? 0.4 : 0, mode.startsWith("battle") ? 0.55 : 0));
+  const moraleLift = Math.min(1, ((state.campMorale || 0) + (state.nightStreak || 0) * 0.5 + Math.max(0, state.hero.morale - 5) * 0.25) / 6);
+  const lift = Math.max(0, Math.min(1, prosperity * 0.45 + moraleLift * 0.55));
+  const panSeed = Math.sin((state.day + mineCount + battleCount) * 0.7) * 0.24;
+  return {
+    prosperity,
+    tension: danger,
+    lift,
+    panSeed,
+  };
+}
+
+function targetMusicGainForMode(mode, musicState = currentMusicState(mode)) {
+  const base = mode.startsWith("battle")
+    ? 0.205
+    : mode.startsWith("modal:caravan")
+      ? 0.17
+      : mode.startsWith("modal:")
+        ? 0.16
+        : mode === "night"
+          ? 0.19
+          : mode === "victory"
+            ? 0.22
+            : 0.2;
+  return Math.max(0.09, base + musicState.lift * 0.018 - musicState.tension * (mode.startsWith("modal:") ? 0.01 : 0.015));
+}
+
+function applyMusicGain(mode, musicState = currentMusicState(mode), quick = false) {
+  if (!musicGain || !audioContext) return;
+  const target = targetMusicGainForMode(mode, musicState);
+  musicGain.gain.cancelScheduledValues(audioContext.currentTime);
+  musicGain.gain.setTargetAtTime(target, audioContext.currentTime, quick ? 0.045 : 0.12);
+}
+
+function playMusicModeCue(mode) {
+  if (!musicGain || !audioContext) return;
+  if (mode.startsWith("modal:caravan")) {
+    playMusicVoice(294, 0.11, "triangle", 0.03, "cue", { mode, pan: -0.15 });
+    window.setTimeout(() => playMusicVoice(392, 0.14, "sine", 0.026, "cue", { mode, pan: 0.15 }), 65);
+    return;
+  }
+  if (mode.startsWith("modal:")) {
+    playMusicVoice(330, 0.08, "triangle", 0.026, "cue", { mode });
+    window.setTimeout(() => playMusicVoice(440, 0.1, "sine", 0.02, "cue", { mode }), 52);
+    return;
+  }
+  if (mode.startsWith("battle")) {
+    playMusicVoice(98, 0.12, "sawtooth", 0.05, "cue", { mode });
+    window.setTimeout(() => playMusicVoice(147, 0.08, "square", 0.028, "cue", { mode }), 58);
+    return;
+  }
+  if (mode === "night") {
+    playMusicVoice(165, 0.14, "sine", 0.028, "cue", { mode });
+    return;
+  }
+  playMusicVoice(262, 0.08, "triangle", 0.024, "cue", { mode });
+}
+
+function primeMusicTransition(mode, quick = false) {
+  if (!musicGain || !audioContext) {
+    musicMode = mode;
+    musicStep = 0;
+    return;
+  }
+  if (musicTransitionTimer) window.clearTimeout(musicTransitionTimer);
+  const now = audioContext.currentTime;
+  musicGain.gain.cancelScheduledValues(now);
+  musicGain.gain.setTargetAtTime(0.04, now, quick ? 0.03 : 0.06);
+  musicMode = mode;
+  musicStep = 0;
+  playMusicModeCue(mode);
+  musicTransitionTimer = window.setTimeout(() => {
+    applyMusicGain(mode, currentMusicState(mode), true);
+    musicTransitionTimer = 0;
+  }, quick ? 40 : 120);
+}
+
+function musicRoleShape(role = "lead", mode = "field", options = {}) {
+  const modal = mode.startsWith("modal:");
+  const battle = mode.startsWith("battle");
+  const caravan = mode.startsWith("modal:caravan");
+  if (role === "bass") return { attack: 0.01, release: 0.18, filterType: "lowpass", filterFrequency: battle ? 520 : caravan ? 760 : 680, detuneCents: battle ? 4 : 2, pan: options.pan ?? 0 };
+  if (role === "bassPulse") return { attack: 0.008, release: 0.14, filterType: "lowpass", filterFrequency: battle ? 460 : 620, pan: options.pan ?? 0 };
+  if (role === "pad") return { attack: 0.022, release: 0.24, filterType: "lowpass", filterFrequency: caravan ? 2100 : 1800, detuneCents: modal ? 3 : 5, pan: options.pan ?? 0 };
+  if (role === "accent") return { attack: 0.006, release: 0.11, filterType: "bandpass", filterFrequency: caravan ? 1850 : modal ? 2200 : 2600, pan: options.pan ?? 0.1 };
+  if (role === "spark") return { attack: 0.004, release: 0.08, filterType: "highpass", filterFrequency: modal ? 1800 : 2200, pan: options.pan ?? -0.1 };
+  if (role === "turnaround") return { attack: 0.008, release: 0.19, filterType: "bandpass", filterFrequency: battle ? 1100 : 1450, detuneCents: 4, pan: options.pan ?? 0 };
+  if (role === "cue") return { attack: 0.005, release: 0.12, filterType: "bandpass", filterFrequency: modal ? 1800 : 1400, pan: options.pan ?? 0 };
+  return { attack: 0.01, release: modal ? 0.12 : 0.15, filterType: modal ? "bandpass" : "lowpass", filterFrequency: battle ? 1600 : caravan ? 1850 : 2100, detuneCents: modal ? 2 : 4, pan: options.pan ?? 0 };
+}
+
+function playMusicVoice(frequency, duration, wave, volume, role = "lead", options = {}) {
+  const shape = musicRoleShape(role, options.mode || musicMode, options);
+  playTone(frequency, duration, wave, volume, musicGain, shape);
 }
 
 function scheduleMusicBeat() {
   if (!musicEnabled || !musicGain || !audioContext) return;
   const mode = currentMusicMode();
   if (mode !== musicMode) {
-    musicMode = mode;
-    musicStep = 0;
+    primeMusicTransition(mode);
   }
+  const musicState = currentMusicState(mode);
   const patterns = {
     field: {
+      intro: [196, 247, 294, 330, 392, 440, 494, 523],
       variations: [
         [294, 330, 392, 494, 440, 392, 330, 392, 294, 330, 392, 587, 523, 494, 440, 392, 330, 392, 440, 523, 587, 523, 494, 440, 392, 440, 494, 659, 587, 523, 494, 440],
         [247, 294, 330, 392, 494, 587, 494, 440, 392, 330, 294, 392, 440, 523, 494, 392, 330, 392, 494, 587, 659, 587, 523, 494, 440, 392, 330, 392, 494, 587, 523, 440],
@@ -1792,8 +1949,10 @@ function scheduleMusicBeat() {
       tempo: 0.22,
       delay: 240,
       sectionLength: 32,
+      turnaroundSteps: [15, 31],
     },
     night: {
+      intro: [147, 165, 196, 220, 247, 220, 196, 165],
       variations: [
         [147, 196, 220, 247, 294, 247, 220, 196, 165, 220, 247, 330, 294, 247, 220, 196, 147, 165, 196, 247, 294, 330, 294, 247, 220, 196, 165, 220, 247, 294, 247, 196],
         [165, 220, 247, 294, 330, 294, 247, 220, 196, 247, 294, 392, 330, 294, 247, 220, 185, 220, 247, 277, 330, 392, 330, 294, 247, 220, 196, 165, 196, 220, 247, 196],
@@ -1803,6 +1962,7 @@ function scheduleMusicBeat() {
       tempo: 0.27,
       delay: 300,
       sectionLength: 32,
+      turnaroundSteps: [15, 31],
     },
     victory: {
       variations: [
@@ -1830,6 +1990,62 @@ function scheduleMusicBeat() {
       accentWave: "sine",
       drumStyle: "town",
     },
+    "modal:town:grove": {
+      variations: [
+        [330, 392, 440, 494, 523, 494, 440, 392, 349, 440, 494, 587, 523, 494, 440, 392],
+        [392, 440, 494, 523, 587, 523, 494, 440, 392, 494, 523, 659, 587, 523, 494, 440],
+      ],
+      bass: [82, 82, 110, 110, 98, 98, 147, 110, 82, 82, 123, 123, 110, 147, 123, 98],
+      tempo: 0.25,
+      delay: 270,
+      sectionLength: 16,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "groveTown",
+      turnaroundSteps: [15],
+    },
+    "modal:town:forge": {
+      variations: [
+        [294, 330, 392, 440, 392, 330, 294, 262, 294, 349, 392, 494, 440, 392, 349, 294],
+        [330, 392, 440, 523, 494, 440, 392, 349, 330, 392, 494, 587, 523, 494, 440, 392],
+      ],
+      bass: [73, 73, 110, 110, 98, 98, 147, 110, 73, 73, 123, 123, 110, 147, 123, 98],
+      tempo: 0.23,
+      delay: 248,
+      sectionLength: 16,
+      wave: "square",
+      accentWave: "triangle",
+      drumStyle: "forgeTown",
+      turnaroundSteps: [15],
+    },
+    "modal:town:tide": {
+      variations: [
+        [349, 392, 440, 523, 587, 523, 440, 392, 370, 440, 494, 587, 659, 587, 494, 440],
+        [330, 392, 440, 494, 523, 494, 440, 392, 349, 392, 440, 523, 587, 523, 494, 440],
+      ],
+      bass: [82, 82, 123, 123, 110, 110, 165, 123, 98, 98, 147, 147, 123, 165, 147, 110],
+      tempo: 0.24,
+      delay: 262,
+      sectionLength: 16,
+      wave: "sine",
+      accentWave: "triangle",
+      drumStyle: "tideTown",
+      turnaroundSteps: [15],
+    },
+    "modal:town:dusk": {
+      variations: [
+        [294, 370, 440, 494, 554, 494, 440, 370, 311, 392, 466, 554, 622, 554, 466, 392],
+        [330, 392, 466, 554, 622, 554, 494, 392, 349, 440, 494, 587, 659, 587, 494, 440],
+      ],
+      bass: [69, 69, 104, 104, 93, 93, 139, 104, 83, 83, 124, 124, 104, 156, 124, 93],
+      tempo: 0.22,
+      delay: 245,
+      sectionLength: 16,
+      wave: "sine",
+      accentWave: "triangle",
+      drumStyle: "duskTown",
+      turnaroundSteps: [15],
+    },
     "modal:shop": {
       variations: [
         [392, 494, 587, 494, 659, 587, 494, 392, 440, 523, 659, 523, 740, 659, 523, 440],
@@ -1842,6 +2058,77 @@ function scheduleMusicBeat() {
       wave: "square",
       accentWave: "triangle",
       drumStyle: "shop",
+    },
+    "modal:caravan": {
+      intro: [247, 294, 330, 392, 440, 392, 330, 294],
+      variations: [
+        [294, 330, 392, 440, 392, 330, 294, 262, 294, 330, 392, 494, 440, 392, 330, 294, 262, 294, 330, 392, 440, 392, 330, 294],
+        [330, 392, 440, 494, 440, 392, 330, 294, 330, 392, 494, 587, 494, 440, 392, 330, 294, 330, 392, 440, 392, 330, 294, 262],
+      ],
+      bass: [73, 73, 98, 98, 82, 82, 110, 98, 73, 73, 123, 123, 98, 110, 98, 82, 73, 73, 98, 98, 82, 82, 110, 98],
+      tempo: 0.25,
+      delay: 275,
+      sectionLength: 24,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "caravan",
+      turnaroundSteps: [11, 23],
+    },
+    "modal:caravan:grove": {
+      variations: [
+        [330, 392, 440, 494, 440, 392, 330, 294, 330, 392, 494, 523, 494, 440, 392, 330, 294, 330, 392, 440, 392, 330, 294, 262],
+        [294, 330, 392, 440, 494, 440, 392, 330, 349, 392, 440, 523, 494, 440, 392, 330, 294, 330, 392, 494, 440, 392, 330, 294],
+      ],
+      bass: [82, 82, 110, 110, 98, 98, 147, 110, 82, 82, 123, 123, 110, 147, 123, 98, 82, 82, 110, 110, 98, 98, 123, 110],
+      tempo: 0.25,
+      delay: 278,
+      sectionLength: 24,
+      wave: "triangle",
+      accentWave: "sine",
+      drumStyle: "caravanGrove",
+      turnaroundSteps: [11, 23],
+    },
+    "modal:caravan:forge": {
+      variations: [
+        [262, 330, 392, 440, 392, 330, 294, 262, 294, 349, 392, 494, 440, 392, 349, 294, 262, 294, 330, 392, 349, 330, 294, 262],
+        [294, 349, 392, 494, 440, 392, 349, 294, 330, 392, 440, 523, 494, 440, 392, 349, 294, 330, 392, 440, 392, 349, 330, 294],
+      ],
+      bass: [65, 65, 98, 98, 82, 82, 123, 98, 73, 73, 110, 110, 98, 123, 110, 82, 65, 65, 98, 98, 82, 82, 110, 98],
+      tempo: 0.24,
+      delay: 266,
+      sectionLength: 24,
+      wave: "square",
+      accentWave: "triangle",
+      drumStyle: "caravanForge",
+      turnaroundSteps: [11, 23],
+    },
+    "modal:caravan:tide": {
+      variations: [
+        [349, 392, 440, 523, 494, 440, 392, 349, 392, 440, 494, 587, 523, 494, 440, 392, 349, 392, 440, 523, 494, 440, 392, 349],
+        [330, 392, 440, 494, 440, 392, 349, 330, 370, 440, 494, 587, 523, 494, 440, 392, 349, 392, 440, 494, 440, 392, 349, 330],
+      ],
+      bass: [82, 82, 123, 123, 110, 110, 165, 123, 98, 98, 147, 147, 123, 165, 147, 110, 82, 82, 123, 123, 110, 110, 147, 123],
+      tempo: 0.24,
+      delay: 272,
+      sectionLength: 24,
+      wave: "sine",
+      accentWave: "triangle",
+      drumStyle: "caravanTide",
+      turnaroundSteps: [11, 23],
+    },
+    "modal:caravan:dusk": {
+      variations: [
+        [294, 370, 440, 494, 440, 392, 370, 330, 370, 440, 494, 554, 494, 440, 392, 370, 330, 370, 440, 494, 440, 392, 370, 330],
+        [330, 392, 466, 554, 494, 440, 392, 349, 392, 466, 554, 622, 554, 494, 440, 392, 349, 392, 466, 554, 494, 440, 392, 349],
+      ],
+      bass: [69, 69, 104, 104, 93, 93, 139, 104, 83, 83, 124, 124, 104, 139, 124, 93, 69, 69, 104, 104, 93, 93, 124, 104],
+      tempo: 0.23,
+      delay: 258,
+      sectionLength: 24,
+      wave: "sine",
+      accentWave: "triangle",
+      drumStyle: "caravanDusk",
+      turnaroundSteps: [11, 23],
     },
     "modal:notice": {
       variations: [
@@ -2000,6 +2287,7 @@ function scheduleMusicBeat() {
   };
   const fieldPatterns = {
     "field:dawnhaven_march": {
+      intro: [262, 294, 330, 392, 440, 392, 330, 294],
       variations: [
         [262, 330, 392, 523, 494, 392, 330, 392, 262, 330, 392, 587, 523, 494, 392, 330],
         [294, 330, 392, 440, 523, 494, 392, 330, 294, 392, 440, 523, 587, 523, 440, 392],
@@ -2011,9 +2299,11 @@ function scheduleMusicBeat() {
       wave: "triangle",
       accentWave: "sine",
       drumStyle: "light",
+      turnaroundSteps: [15],
     },
     "field:central_kingdom": { ...patterns.field, wave: "sawtooth", accentWave: "triangle", drumStyle: "road" },
     "field:high_march": {
+      intro: [330, 392, 440, 494, 587, 659, 587, 494],
       variations: [
         [392, 494, 587, 740, 659, 587, 494, 587, 440, 523, 659, 784, 740, 659, 587, 494],
         [330, 392, 494, 587, 740, 659, 587, 523, 494, 587, 659, 880, 784, 740, 659, 587],
@@ -2025,8 +2315,10 @@ function scheduleMusicBeat() {
       wave: "square",
       accentWave: "triangle",
       drumStyle: "high",
+      turnaroundSteps: [15],
     },
     "field:low_roads": {
+      intro: [196, 220, 247, 294, 330, 294, 247, 220],
       variations: [
         [196, 247, 294, 330, 294, 247, 220, 247, 196, 220, 247, 330, 294, 247, 220, 196],
         [220, 247, 294, 370, 330, 294, 247, 220, 196, 247, 294, 392, 370, 330, 294, 247],
@@ -2038,8 +2330,10 @@ function scheduleMusicBeat() {
       wave: "triangle",
       accentWave: "sine",
       drumStyle: "low",
+      turnaroundSteps: [15],
     },
     "field:southern_wilds": {
+      intro: [220, 247, 294, 330, 392, 330, 294, 247],
       variations: [
         [220, 277, 330, 392, 440, 392, 330, 277, 247, 294, 349, 440, 392, 349, 294, 247],
         [247, 294, 349, 415, 494, 415, 349, 294, 277, 330, 392, 494, 440, 392, 330, 277],
@@ -2051,8 +2345,10 @@ function scheduleMusicBeat() {
       wave: "sawtooth",
       accentWave: "square",
       drumStyle: "wild",
+      turnaroundSteps: [15],
     },
     "field:black_gate_approach": {
+      intro: [147, 165, 196, 220, 247, 220, 196, 165],
       variations: [
         [147, 185, 220, 277, 247, 220, 185, 165, 147, 165, 196, 247, 220, 196, 185, 147],
         [165, 196, 247, 294, 277, 247, 220, 196, 165, 185, 220, 277, 247, 220, 196, 165],
@@ -2064,14 +2360,17 @@ function scheduleMusicBeat() {
       wave: "sine",
       accentWave: "triangle",
       drumStyle: "gate",
+      turnaroundSteps: [15],
     },
   };
   const pattern = patterns[mode] || fieldPatterns[mode] || patterns.field;
+  applyMusicGain(mode, musicState);
   const sectionLength = pattern.sectionLength || 16;
   const sectionIndex = Math.floor(musicStep / sectionLength);
   const stepInSection = musicStep % sectionLength;
   const phrase = pattern.variations?.[sectionIndex % pattern.variations.length] || pattern.variations?.[0] || [];
-  const note = phrase[stepInSection % phrase.length];
+  const introLength = pattern.intro?.length || 0;
+  const note = introLength && musicStep < introLength ? pattern.intro[musicStep] : phrase[stepInSection % phrase.length];
   const root = pattern.bass[Math.floor(musicStep / 2) % pattern.bass.length];
   const field = mode.startsWith("field");
   const battle = mode.startsWith("battle");
@@ -2080,22 +2379,24 @@ function scheduleMusicBeat() {
   const victory = mode === "victory";
   const leadWave = pattern.wave || (battle ? "square" : field ? "sawtooth" : "triangle");
   const accentWave = pattern.accentWave || (battle ? "sawtooth" : "triangle");
-  playTone(note, pattern.tempo, leadWave, battle ? 0.075 : modalMusic ? 0.044 : field ? 0.047 : 0.052, musicGain);
-  if (field && musicStep % 4 === 0) playTone(note * 2, 0.09, accentWave, 0.026, musicGain);
-  if (field && [7, 15, 23, 31].includes(stepInSection)) playTone(note * (pattern.drumStyle === "low" ? 1.25 : 1.5), 0.11, accentWave, 0.024, musicGain);
-  if (field && [12, 28].includes(stepInSection)) playTone(note * 0.75, 0.16, pattern.drumStyle === "gate" ? "sine" : "triangle", 0.022, musicGain);
-  if (modalMusic && musicStep % 4 === 0) playTone(note * (pattern.drumStyle === "shop" ? 2 : 1.5), 0.08, accentWave, 0.022, musicGain);
-  if (modalMusic && [6, 14].includes(stepInSection)) playTone(note * 0.75, 0.12, pattern.drumStyle === "notice" ? "sine" : "triangle", 0.018, musicGain);
-  if (battle && musicStep % 4 === 1) playTone(note * 2, 0.055, accentWave, 0.036, musicGain);
-  if (battle && [6, 14].includes(stepInSection)) playTone(note * 1.5, 0.075, pattern.drumStyle === "arcane" ? "sine" : "sawtooth", 0.032, musicGain);
-  if (night && musicStep % 8 === 5) playTone(note * 1.5, 0.12, "sine", 0.028, musicGain);
-  if (night && [10, 26].includes(stepInSection)) playTone(note * 2, 0.16, "triangle", 0.02, musicGain);
-  if (musicStep % 2 === 0) playTone(root, pattern.tempo + 0.08, pattern.drumStyle === "high" ? "square" : "sine", battle ? 0.135 : modalMusic ? 0.072 : field ? 0.105 : 0.095, musicGain);
-  if (field && musicStep % 4 === 2) playTone(root / 2, 0.12, pattern.drumStyle === "gate" ? "sine" : "triangle", pattern.drumStyle === "light" ? 0.045 : 0.07, musicGain);
-  if (battle && musicStep % 4 === 2) playTone(pattern.drumStyle === "boss" ? 37 : 55, 0.09, "sawtooth", pattern.drumStyle === "arcane" ? 0.075 : 0.11, musicGain);
-  if (mode !== "battle" && !field && !modalMusic && musicStep % 8 === 6) playTone(note * 1.5, 0.14, "sine", 0.035, musicGain);
-  if (sectionLength > 16 && [15, 31].includes(stepInSection)) playTone(root * 2, 0.18, battle ? "square" : "triangle", battle ? 0.03 : 0.024, musicGain);
-  playMusicArrangement(mode, pattern, { note, root, step: musicStep, beat: stepInSection, field, battle, modalMusic, night, victory });
+  const leadVolume = (battle ? 0.074 : modalMusic ? 0.04 : field ? 0.046 : 0.05) + musicState.lift * 0.006;
+  const bassVolume = (battle ? 0.128 : modalMusic ? 0.066 : field ? 0.096 : 0.09) + musicState.tension * 0.01;
+  playMusicVoice(note, pattern.tempo, leadWave, leadVolume, "lead", { mode, pan: musicState.panSeed });
+  if (field && musicStep % 4 === 0) playMusicVoice(note * 2, 0.1, accentWave, 0.022 + musicState.prosperity * 0.008, "accent", { mode, pan: -musicState.panSeed });
+  if (field && [7, 15, 23, 31].includes(stepInSection)) playMusicVoice(note * (pattern.drumStyle === "low" ? 1.25 : 1.5), 0.12, accentWave, 0.02 + musicState.lift * 0.006, "spark", { mode });
+  if (field && [12, 28].includes(stepInSection)) playMusicVoice(note * 0.75, 0.18, pattern.drumStyle === "gate" ? "sine" : "triangle", 0.018 + musicState.prosperity * 0.005, "pad", { mode });
+  if (modalMusic && musicStep % 4 === 0) playMusicVoice(note * (pattern.drumStyle.includes("caravan") ? 1.5 : pattern.drumStyle === "shop" ? 2 : 1.5), pattern.drumStyle.includes("caravan") ? 0.12 : 0.085, accentWave, pattern.drumStyle.includes("caravan") ? 0.016 : 0.02, "accent", { mode });
+  if (modalMusic && [6, 14, 22, 30].includes(stepInSection) && !pattern.drumStyle.includes("caravan")) playMusicVoice(note * 0.75, 0.13, pattern.drumStyle === "notice" ? "sine" : "triangle", 0.016, "spark", { mode });
+  if (battle && musicStep % 4 === 1) playMusicVoice(note * 2, 0.06, accentWave, 0.033 + musicState.tension * 0.005, "accent", { mode });
+  if (battle && [6, 14].includes(stepInSection)) playMusicVoice(note * 1.5, 0.08, pattern.drumStyle === "arcane" ? "sine" : "sawtooth", 0.028 + musicState.tension * 0.005, "spark", { mode });
+  if (night && musicStep % 8 === 5) playMusicVoice(note * 1.5, 0.14, "sine", 0.024 + musicState.lift * 0.004, "spark", { mode });
+  if (night && [10, 26].includes(stepInSection)) playMusicVoice(note * 2, 0.18, "triangle", 0.018, "pad", { mode });
+  if (musicStep % 2 === 0) playMusicVoice(root, pattern.tempo + 0.1, pattern.drumStyle === "high" ? "square" : "sine", bassVolume, "bass", { mode, pan: musicState.panSeed * -0.25 });
+  if (field && musicStep % 4 === 2) playMusicVoice(root / 2, 0.14, pattern.drumStyle === "gate" ? "sine" : "triangle", (pattern.drumStyle === "light" ? 0.038 : 0.062) + musicState.tension * 0.004, "bassPulse", { mode });
+  if (battle && musicStep % 4 === 2) playMusicVoice(pattern.drumStyle === "boss" ? 37 : 55, 0.1, "sawtooth", pattern.drumStyle === "arcane" ? 0.07 : 0.1, "bassPulse", { mode });
+  if (!battle && !field && !modalMusic && musicStep % 8 === 6) playMusicVoice(note * 1.5, 0.14, "sine", 0.03, "spark", { mode });
+  if ((pattern.turnaroundSteps || []).includes(stepInSection)) playMusicVoice(root * 2, 0.18, battle ? "square" : "triangle", battle ? 0.03 : 0.02 + musicState.lift * 0.004, "turnaround", { mode });
+  playMusicArrangement(mode, pattern, { note, root, step: musicStep, beat: stepInSection, field, battle, modalMusic, night, victory, musicState });
   if (field) playFieldDrums(musicStep, pattern.drumStyle || "road");
   if (modalMusic) playModalDrums(musicStep, pattern.drumStyle || "story");
   if (mode === "night") playNightDrums(musicStep);
@@ -2107,7 +2408,10 @@ function scheduleMusicBeat() {
 
 function playChord(root, ratios, duration, wave, volume) {
   ratios.forEach((ratio, index) => {
-    window.setTimeout(() => playTone(root * ratio, duration, wave, volume, musicGain), index * 18);
+    window.setTimeout(
+      () => playMusicVoice(root * ratio, duration, wave, volume, "pad", { mode: musicMode, pan: (index - (ratios.length - 1) / 2) * 0.1 }),
+      index * 18
+    );
   });
 }
 
@@ -2119,197 +2423,247 @@ function chordRatiosForStyle(style = "road") {
 }
 
 function playMusicArrangement(mode, pattern, context) {
-  const { note, root, step, beat, field, battle, modalMusic, night, victory } = context;
+  const { note, root, step, beat, field, battle, modalMusic, night, victory, musicState } = context;
   const style = pattern.drumStyle || "road";
+  const leadVolume = (modalMusic ? 0.014 : battle ? 0.02 : 0.017) + musicState.lift * 0.006 - musicState.tension * 0.003;
+  const accentVolume = (modalMusic ? 0.014 : 0.018) + musicState.lift * 0.004;
+  const padVolume = (modalMusic ? 0.011 : 0.013) + musicState.lift * 0.004;
+  const bassVolume = (battle ? 0.05 : night ? 0.043 : 0.038) + musicState.tension * 0.012;
+  const ambientPan = Math.max(-0.35, Math.min(0.35, musicState.panSeed || 0));
   if (field) {
-    if (beat % 8 === 0) playChord(root * 2, chordRatiosForStyle(style), 0.44, style === "gate" ? "sine" : "triangle", style === "light" ? 0.012 : 0.015);
-    if ([2, 6, 10, 14].includes(beat)) playTone(note * (style === "low" || style === "gate" ? 0.5 : 1.5), 0.08, style === "high" ? "square" : "sine", 0.018, musicGain);
-    if (style === "wild" && [5, 13].includes(beat)) playTone(note * 0.75, 0.11, "sawtooth", 0.023, musicGain);
-    if (style === "gate" && beat === 0) playTone(root / 2, 0.62, "sine", 0.055, musicGain);
+    if (beat % 8 === 0) playChord(root * 2, chordRatiosForStyle(style), 0.44, style === "gate" ? "sine" : "triangle", padVolume);
+    if ([2, 6, 10, 14].includes(beat)) {
+      playMusicVoice(note * (style === "low" || style === "gate" ? 0.5 : 1.5), 0.08, style === "high" ? "square" : "sine", accentVolume, "accent", {
+        mode,
+        pan: ambientPan * 0.7,
+      });
+    }
+    if (style === "wild" && [5, 13].includes(beat)) playMusicVoice(note * 0.75, 0.11, "sawtooth", leadVolume + 0.004, "lead", { mode, pan: -ambientPan });
+    if (style === "gate" && beat === 0) playMusicVoice(root / 2, 0.62, "sine", bassVolume + 0.01, "bass", { mode });
     return;
   }
   if (night) {
-    if ([0, 16].includes(beat)) playChord(root * 2, chordRatiosForStyle("gate"), 0.62, "sine", 0.014);
-    if ([3, 11, 19, 27].includes(beat)) playTone(note * 2, 0.12, "sine", 0.021, musicGain);
-    if (step % 16 === 8) playTone(root / 2, 0.8, "triangle", 0.045, musicGain);
+    if ([0, 16].includes(beat)) playChord(root * 2, chordRatiosForStyle("gate"), 0.62, "sine", padVolume + 0.002);
+    if ([3, 11, 19, 27].includes(beat)) playMusicVoice(note * 2, 0.12, "sine", leadVolume + 0.004, "lead", { mode, pan: ambientPan });
+    if (step % 16 === 8) playMusicVoice(root / 2, 0.8, "triangle", bassVolume + 0.004, "bass", { mode });
+    if (musicState.tension > 0.58 && [7, 23].includes(beat)) playMusicVoice(note * 1.5, 0.16, "triangle", 0.015 + musicState.tension * 0.007, "turnaround", { mode, pan: -ambientPan });
     return;
   }
   if (modalMusic) {
-    if (beat % 8 === 0) playChord(root * (style === "shop" ? 2 : 1.5), chordRatiosForStyle(style), style === "notice" ? 0.54 : 0.34, style === "shop" ? "square" : "triangle", style === "barracks" ? 0.018 : 0.014);
-    if (["town", "story"].includes(style) && [3, 11].includes(beat)) playTone(note * 2, 0.1, "sine", 0.018, musicGain);
-    if (style === "shop" && [1, 5, 9, 13].includes(beat)) playTone(note * 1.25, 0.045, "square", 0.018, musicGain);
-    if (style === "notice" && [4, 12].includes(beat)) playTone(root * 3, 0.16, "triangle", 0.017, musicGain);
-    if (style === "barracks" && [2, 6, 10, 14].includes(beat)) playTone(root, 0.055, "square", 0.038, musicGain);
-    if (style === "level" && [0, 4, 8, 12].includes(beat)) playChord(root * 2, [1, 1.26, 1.5, 2], 0.2, "triangle", 0.018);
-    if (style === "modalNight" && step % 16 === 8) playTone(root / 2, 0.72, "sine", 0.045, musicGain);
+    const modalRoot = style.includes("caravan") ? 1.75 : style === "shop" ? 2 : 1.5;
+    if (beat % 8 === 0) {
+      playChord(
+        root * modalRoot,
+        chordRatiosForStyle(style),
+        style === "notice" ? 0.54 : style.includes("caravan") ? 0.42 : 0.34,
+        style === "shop" ? "square" : "triangle",
+        style === "barracks" ? padVolume + 0.004 : padVolume
+      );
+    }
+    if (["town", "story", "groveTown", "forgeTown", "tideTown", "duskTown"].includes(style) && [3, 11, 19].includes(beat)) {
+      playMusicVoice(note * 2, 0.1, "sine", accentVolume, "accent", { mode, pan: ambientPan });
+    }
+    if (["shop", "caravan", "caravanGrove", "caravanForge", "caravanTide", "caravanDusk"].includes(style) && [1, 5, 9, 13, 17, 21].includes(beat)) {
+      playMusicVoice(note * 1.25, style.includes("caravan") ? 0.06 : 0.045, style.includes("caravan") ? "triangle" : "square", accentVolume + 0.002, "spark", {
+        mode,
+        pan: beat % 4 === 1 ? -0.22 : 0.22,
+      });
+    }
+    if (style === "notice" && [4, 12].includes(beat)) playMusicVoice(root * 3, 0.16, "triangle", accentVolume, "accent", { mode });
+    if (style === "barracks" && [2, 6, 10, 14].includes(beat)) playMusicVoice(root, 0.055, "square", bassVolume * 0.8, "bassPulse", { mode });
+    if (style === "level" && [0, 4, 8, 12].includes(beat)) playChord(root * 2, [1, 1.26, 1.5, 2], 0.2, "triangle", padVolume + 0.003);
+    if (style === "modalNight" && step % 16 === 8) playMusicVoice(root / 2, 0.72, "sine", bassVolume, "bass", { mode });
+    if (style.includes("caravan") && [6, 14, 22].includes(beat)) playMusicVoice(root * 0.75, 0.12, "triangle", bassVolume * 0.75, "bassPulse", { mode, pan: -ambientPan * 0.5 });
     return;
   }
   if (victory) {
-    if (beat % 8 === 0) playChord(root * 2, chordRatiosForStyle("victory"), 0.52, "triangle", 0.019);
-    if ([4, 12, 20, 28].includes(beat)) playTone(note * 2, 0.1, "sine", 0.03, musicGain);
-    if ([15, 31].includes(beat)) playChord(root * 4, [1, 1.26, 1.5], 0.22, "square", 0.012);
+    if (beat % 8 === 0) playChord(root * 2, chordRatiosForStyle("victory"), 0.52, "triangle", padVolume + 0.005);
+    if ([4, 12, 20, 28].includes(beat)) playMusicVoice(note * 2, 0.1, "sine", leadVolume + 0.01, "lead", { mode, pan: ambientPan });
+    if ([15, 31].includes(beat)) playChord(root * 4, [1, 1.26, 1.5], 0.22, "square", padVolume);
     return;
   }
   if (battle) {
-    if (beat % 8 === 0) playChord(root, chordRatiosForStyle(style), style === "boss" ? 0.34 : 0.24, style === "arcane" ? "sine" : "sawtooth", style === "boss" ? 0.025 : 0.017);
-    if ([1, 5, 9, 13].includes(beat)) playTone(note * 0.5, 0.06, "square", 0.026, musicGain);
-    if (style === "arcane" && [3, 7, 11, 15].includes(beat)) playTone(note * 2.5, 0.08, "sine", 0.025, musicGain);
-    if (style === "boss" && beat === 0) playTone(root / 2, 0.5, "sawtooth", 0.07, musicGain);
+    if (beat % 8 === 0) playChord(root, chordRatiosForStyle(style), style === "boss" ? 0.34 : 0.24, style === "arcane" ? "sine" : "sawtooth", style === "boss" ? padVolume + 0.008 : padVolume + 0.003);
+    if ([1, 5, 9, 13].includes(beat)) playMusicVoice(note * 0.5, 0.06, "square", bassVolume * 0.6, "bassPulse", { mode, pan: ambientPan * 0.3 });
+    if (style === "arcane" && [3, 7, 11, 15].includes(beat)) playMusicVoice(note * 2.5, 0.08, "sine", leadVolume + 0.008, "spark", { mode, pan: -ambientPan });
+    if (style === "boss" && beat === 0) playMusicVoice(root / 2, 0.5, "sawtooth", bassVolume + 0.02, "bass", { mode });
   }
 }
 
 function playFieldDrums(step, style = "road") {
   const beat = step % 16;
   if (style === "light") {
-    if ([0, 8].includes(beat)) playTone(82, 0.08, "triangle", 0.07, musicGain);
-    if ([4, 12].includes(beat)) playNoise(0.04, 0.022, musicGain, 3600, "highpass");
-    if ([3, 7, 11, 15].includes(beat)) playTone(2349, 0.018, "sine", 0.012, musicGain);
+    if ([0, 8].includes(beat)) playMusicVoice(82, 0.08, "triangle", 0.07, "bassPulse", { mode: musicMode });
+    if ([4, 12].includes(beat)) playNoise(0.04, 0.022, musicGain, 3600, "highpass", { pan: 0.08 });
+    if ([3, 7, 11, 15].includes(beat)) playMusicVoice(2349, 0.018, "sine", 0.012, "spark", { mode: musicMode, pan: 0.14 });
     return;
   }
   if (style === "low") {
-    if ([0, 7, 12].includes(beat)) playTone(41, 0.16, "sine", 0.105, musicGain);
-    if ([5, 13].includes(beat)) playNoise(0.075, 0.035, musicGain, 460, "bandpass");
-    if (step % 4 === 2) playTone(98, 0.05, "triangle", 0.025, musicGain);
+    if ([0, 7, 12].includes(beat)) playMusicVoice(41, 0.16, "sine", 0.105, "bass", { mode: musicMode });
+    if ([5, 13].includes(beat)) playNoise(0.075, 0.035, musicGain, 460, "bandpass", { pan: -0.05 });
+    if (step % 4 === 2) playMusicVoice(98, 0.05, "triangle", 0.025, "accent", { mode: musicMode });
     return;
   }
   if (style === "high") {
-    if ([0, 4, 8, 12].includes(beat)) playTone(98, 0.06, "square", 0.08, musicGain);
-    if ([2, 6, 10, 14].includes(beat)) playNoise(0.026, 0.02, musicGain, 5200, "highpass");
-    if ([7, 15].includes(beat)) playTone(1760, 0.035, "triangle", 0.018, musicGain);
+    if ([0, 4, 8, 12].includes(beat)) playMusicVoice(98, 0.06, "square", 0.08, "bassPulse", { mode: musicMode });
+    if ([2, 6, 10, 14].includes(beat)) playNoise(0.026, 0.02, musicGain, 5200, "highpass", { pan: 0.12 });
+    if ([7, 15].includes(beat)) playMusicVoice(1760, 0.035, "triangle", 0.018, "spark", { mode: musicMode, pan: -0.12 });
     return;
   }
   if (style === "wild") {
-    if ([0, 3, 8, 11].includes(beat)) playTone(55, 0.09, "sawtooth", 0.105, musicGain);
-    if ([5, 12].includes(beat)) playNoise(0.085, 0.045, musicGain, 620, "bandpass");
-    if (step % 2 === 1) playNoise(0.018, 0.018, musicGain, 4300, "highpass");
+    if ([0, 3, 8, 11].includes(beat)) playMusicVoice(55, 0.09, "sawtooth", 0.105, "bassPulse", { mode: musicMode });
+    if ([5, 12].includes(beat)) playNoise(0.085, 0.045, musicGain, 620, "bandpass", { pan: -0.16 });
+    if (step % 2 === 1) playNoise(0.018, 0.018, musicGain, 4300, "highpass", { pan: 0.15 });
     return;
   }
   if (style === "gate") {
-    if ([0, 8].includes(beat)) playTone(37, 0.2, "sine", 0.115, musicGain);
-    if ([6, 14].includes(beat)) playNoise(0.11, 0.028, musicGain, 320, "lowpass");
-    if ([3, 11].includes(beat)) playTone(740, 0.09, "triangle", 0.014, musicGain);
+    if ([0, 8].includes(beat)) playMusicVoice(37, 0.2, "sine", 0.115, "bass", { mode: musicMode });
+    if ([6, 14].includes(beat)) playNoise(0.11, 0.028, musicGain, 320, "lowpass", { pan: -0.08, filterQ: 0.9 });
+    if ([3, 11].includes(beat)) playMusicVoice(740, 0.09, "triangle", 0.014, "accent", { mode: musicMode, pan: 0.1 });
     return;
   }
   if ([0, 6, 8, 14].includes(beat)) {
-    playTone(54, 0.095, "sine", 0.13, musicGain);
-    playTone(82, 0.045, "triangle", 0.05, musicGain);
+    playMusicVoice(54, 0.095, "sine", 0.13, "bassPulse", { mode: musicMode });
+    playMusicVoice(82, 0.045, "triangle", 0.05, "accent", { mode: musicMode });
   }
   if ([4, 12].includes(beat)) {
-    playNoise(0.07, 0.052, musicGain, 520, "bandpass");
-    playTone(176, 0.035, "triangle", 0.036, musicGain);
+    playNoise(0.07, 0.052, musicGain, 520, "bandpass", { pan: -0.06 });
+    playMusicVoice(176, 0.035, "triangle", 0.036, "accent", { mode: musicMode, pan: 0.08 });
   }
-  if (step % 2 === 1) playNoise(0.024, 0.018, musicGain, 5200, "highpass");
-  if ([3, 7, 11, 15].includes(beat)) playTone(1760, 0.025, "square", 0.014, musicGain);
+  if (step % 2 === 1) playNoise(0.024, 0.018, musicGain, 5200, "highpass", { pan: 0.11 });
+  if ([3, 7, 11, 15].includes(beat)) playMusicVoice(1760, 0.025, "square", 0.014, "spark", { mode: musicMode, pan: -0.12 });
 }
 
 function playNightDrums(step) {
   const beat = step % 16;
   if ([0, 8].includes(beat)) {
-    playTone(44, 0.14, "sine", 0.12, musicGain);
-    playTone(66, 0.06, "triangle", 0.04, musicGain);
+    playMusicVoice(44, 0.14, "sine", 0.12, "bass", { mode: musicMode });
+    playMusicVoice(66, 0.06, "triangle", 0.04, "accent", { mode: musicMode });
   }
-  if ([5, 12].includes(beat)) playNoise(0.08, 0.036, musicGain, 420, "bandpass");
-  if ([3, 7, 11, 15].includes(beat)) playTone(130, 0.04, "sawtooth", 0.024, musicGain);
-  if (step % 2 === 1) playNoise(0.02, 0.01, musicGain, 3400, "highpass");
+  if ([5, 12].includes(beat)) playNoise(0.08, 0.036, musicGain, 420, "bandpass", { pan: -0.09 });
+  if ([3, 7, 11, 15].includes(beat)) playMusicVoice(130, 0.04, "sawtooth", 0.024, "accent", { mode: musicMode, pan: 0.08 });
+  if (step % 2 === 1) playNoise(0.02, 0.01, musicGain, 3400, "highpass", { pan: 0.1 });
 }
 
 function playModalDrums(step, style = "story") {
   const beat = step % 16;
   if (style === "shop") {
-    if ([0, 4, 8, 12].includes(beat)) playTone(156, 0.035, "triangle", 0.045, musicGain);
-    if ([2, 6, 10, 14].includes(beat)) playTone(2349, 0.014, "sine", 0.012, musicGain);
-    if ([7, 15].includes(beat)) playNoise(0.018, 0.012, musicGain, 5200, "highpass");
+    if ([0, 4, 8, 12].includes(beat)) playMusicVoice(156, 0.035, "triangle", 0.045, "accent", { mode: musicMode });
+    if ([2, 6, 10, 14].includes(beat)) playMusicVoice(2349, 0.014, "sine", 0.012, "spark", { mode: musicMode, pan: 0.12 });
+    if ([7, 15].includes(beat)) playNoise(0.018, 0.012, musicGain, 5200, "highpass", { pan: -0.08 });
+    return;
+  }
+  if (style === "caravan" || style === "caravanGrove" || style === "caravanForge" || style === "caravanTide" || style === "caravanDusk") {
+    if ([0, 6, 8, 14].includes(beat)) playMusicVoice(62, 0.08, "triangle", 0.065, "bassPulse", { mode: musicMode });
+    if ([3, 11].includes(beat)) playNoise(0.04, 0.022, musicGain, style === "caravanForge" ? 820 : 620, "bandpass", { pan: -0.08 });
+    if ([5, 13].includes(beat)) playMusicVoice(style === "caravanTide" ? 988 : style === "caravanGrove" ? 1175 : 784, 0.03, style === "caravanDusk" ? "triangle" : "sine", 0.014, "spark", {
+      mode: musicMode,
+      pan: 0.14,
+    });
+    if ([1, 9].includes(beat)) playMusicVoice(style === "caravanForge" ? 131 : 98, 0.05, "triangle", 0.028, "accent", { mode: musicMode, pan: -0.05 });
     return;
   }
   if (style === "notice") {
-    if ([0, 8].includes(beat)) playTone(62, 0.09, "sine", 0.058, musicGain);
-    if ([5, 13].includes(beat)) playNoise(0.045, 0.022, musicGain, 760, "bandpass");
-    if ([3, 11].includes(beat)) playTone(988, 0.04, "triangle", 0.013, musicGain);
+    if ([0, 8].includes(beat)) playMusicVoice(62, 0.09, "sine", 0.058, "bassPulse", { mode: musicMode });
+    if ([5, 13].includes(beat)) playNoise(0.045, 0.022, musicGain, 760, "bandpass", { pan: -0.08 });
+    if ([3, 11].includes(beat)) playMusicVoice(988, 0.04, "triangle", 0.013, "accent", { mode: musicMode, pan: 0.12 });
     return;
   }
   if (style === "barracks") {
-    if ([0, 8].includes(beat)) playTone(49, 0.09, "triangle", 0.062, musicGain);
-    if ([4, 12].includes(beat)) playNoise(0.022, 0.012, musicGain, 3200, "highpass");
-    if ([7, 15].includes(beat)) playTone(587, 0.045, "sine", 0.012, musicGain);
+    if ([0, 8].includes(beat)) playMusicVoice(49, 0.09, "triangle", 0.062, "bassPulse", { mode: musicMode });
+    if ([4, 12].includes(beat)) playNoise(0.022, 0.012, musicGain, 3200, "highpass", { pan: 0.06 });
+    if ([7, 15].includes(beat)) playMusicVoice(587, 0.045, "sine", 0.012, "accent", { mode: musicMode, pan: -0.08 });
     return;
   }
   if (style === "town") {
-    if ([0, 8].includes(beat)) playTone(82, 0.07, "triangle", 0.06, musicGain);
-    if ([4, 12].includes(beat)) playNoise(0.032, 0.018, musicGain, 3200, "highpass");
-    if ([3, 7, 11, 15].includes(beat)) playTone(1568, 0.022, "sine", 0.012, musicGain);
+    if ([0, 8].includes(beat)) playMusicVoice(82, 0.07, "triangle", 0.06, "bassPulse", { mode: musicMode });
+    if ([4, 12].includes(beat)) playNoise(0.032, 0.018, musicGain, 3200, "highpass", { pan: 0.07 });
+    if ([3, 7, 11, 15].includes(beat)) playMusicVoice(1568, 0.022, "sine", 0.012, "spark", { mode: musicMode, pan: -0.09 });
+    return;
+  }
+  if (style === "groveTown" || style === "forgeTown" || style === "tideTown" || style === "duskTown") {
+    if ([0, 8].includes(beat)) playMusicVoice(style === "forgeTown" ? 74 : style === "tideTown" ? 88 : 82, 0.08, "triangle", 0.062, "bassPulse", { mode: musicMode });
+    if ([4, 12].includes(beat)) playNoise(0.03, 0.018, musicGain, style === "forgeTown" ? 1800 : style === "tideTown" ? 4200 : 3000, style === "forgeTown" ? "bandpass" : "highpass", {
+      pan: style === "duskTown" ? -0.1 : 0.08,
+    });
+    if ([3, 7, 11, 15].includes(beat)) {
+      const tone = style === "groveTown" ? 1318 : style === "forgeTown" ? 1047 : style === "tideTown" ? 1760 : 1175;
+      const wave = style === "forgeTown" ? "triangle" : "sine";
+      playMusicVoice(tone, 0.024, wave, 0.013, "spark", { mode: musicMode, pan: style === "tideTown" ? 0.15 : -0.1 });
+    }
     return;
   }
   if (style === "level") {
-    if ([0, 8].includes(beat)) playTone(98, 0.06, "triangle", 0.072, musicGain);
-    if ([4, 12].includes(beat)) playNoise(0.032, 0.018, musicGain, 5200, "highpass");
-    if ([2, 6, 10, 14].includes(beat)) playTone(1976, 0.02, "sine", 0.018, musicGain);
+    if ([0, 8].includes(beat)) playMusicVoice(98, 0.06, "triangle", 0.072, "bassPulse", { mode: musicMode });
+    if ([4, 12].includes(beat)) playNoise(0.032, 0.018, musicGain, 5200, "highpass", { pan: 0.1 });
+    if ([2, 6, 10, 14].includes(beat)) playMusicVoice(1976, 0.02, "sine", 0.018, "spark", { mode: musicMode, pan: -0.12 });
     return;
   }
   if (style === "modalNight") {
-    if ([0, 8].includes(beat)) playTone(41, 0.12, "sine", 0.08, musicGain);
-    if ([5, 12].includes(beat)) playNoise(0.058, 0.024, musicGain, 420, "bandpass");
-    if ([3, 11].includes(beat)) playTone(130, 0.035, "triangle", 0.014, musicGain);
+    if ([0, 8].includes(beat)) playMusicVoice(41, 0.12, "sine", 0.08, "bass", { mode: musicMode });
+    if ([5, 12].includes(beat)) playNoise(0.058, 0.024, musicGain, 420, "bandpass", { pan: -0.08 });
+    if ([3, 11].includes(beat)) playMusicVoice(130, 0.035, "triangle", 0.014, "accent", { mode: musicMode, pan: 0.08 });
     return;
   }
-  if ([0, 8].includes(beat)) playTone(65, 0.07, "triangle", 0.055, musicGain);
-  if ([4, 12].includes(beat)) playNoise(0.028, 0.014, musicGain, 3600, "highpass");
+  if ([0, 8].includes(beat)) playMusicVoice(65, 0.07, "triangle", 0.055, "bassPulse", { mode: musicMode });
+  if ([4, 12].includes(beat)) playNoise(0.028, 0.014, musicGain, 3600, "highpass", { pan: 0.06 });
 }
 
 function playBattleDrums(step, style = "march") {
   const beat = step % 16;
   if (style === "stomp") {
-    if ([0, 5, 8, 13].includes(beat)) playTone(41, 0.13, "sawtooth", 0.16, musicGain);
-    if ([3, 11].includes(beat)) playNoise(0.09, 0.05, musicGain, 520, "bandpass");
-    if ([7, 15].includes(beat)) playTone(123, 0.045, "square", 0.03, musicGain);
+    if ([0, 5, 8, 13].includes(beat)) playMusicVoice(41, 0.13, "sawtooth", 0.16, "bassPulse", { mode: musicMode });
+    if ([3, 11].includes(beat)) playNoise(0.09, 0.05, musicGain, 520, "bandpass", { pan: -0.08 });
+    if ([7, 15].includes(beat)) playMusicVoice(123, 0.045, "square", 0.03, "accent", { mode: musicMode, pan: 0.08 });
     return;
   }
   if (style === "arcane") {
-    if ([0, 8].includes(beat)) playTone(62, 0.1, "sine", 0.095, musicGain);
-    if ([4, 10, 14].includes(beat)) playTone(988, 0.04, "sine", 0.028, musicGain);
-    if (step % 2 === 1) playNoise(0.018, 0.012, musicGain, 6400, "highpass");
+    if ([0, 8].includes(beat)) playMusicVoice(62, 0.1, "sine", 0.095, "bassPulse", { mode: musicMode });
+    if ([4, 10, 14].includes(beat)) playMusicVoice(988, 0.04, "sine", 0.028, "spark", { mode: musicMode, pan: 0.12 });
+    if (step % 2 === 1) playNoise(0.018, 0.012, musicGain, 6400, "highpass", { pan: -0.12 });
     return;
   }
   if (style === "siege") {
-    if ([0, 4, 8, 12].includes(beat)) playTone(46, 0.12, "square", 0.14, musicGain);
-    if ([6, 14].includes(beat)) playNoise(0.11, 0.052, musicGain, 420, "bandpass");
-    if ([2, 10].includes(beat)) playTone(92, 0.06, "sawtooth", 0.04, musicGain);
+    if ([0, 4, 8, 12].includes(beat)) playMusicVoice(46, 0.12, "square", 0.14, "bassPulse", { mode: musicMode });
+    if ([6, 14].includes(beat)) playNoise(0.11, 0.052, musicGain, 420, "bandpass", { pan: -0.06 });
+    if ([2, 10].includes(beat)) playMusicVoice(92, 0.06, "sawtooth", 0.04, "accent", { mode: musicMode, pan: 0.06 });
     return;
   }
   if (style === "boss") {
     if ([0, 3, 8, 11].includes(beat)) {
-      playTone(37, 0.14, "sawtooth", 0.18, musicGain);
-      playTone(55, 0.08, "square", 0.07, musicGain);
+      playMusicVoice(37, 0.14, "sawtooth", 0.18, "bass", { mode: musicMode });
+      playMusicVoice(55, 0.08, "square", 0.07, "bassPulse", { mode: musicMode });
     }
-    if ([4, 12].includes(beat)) playNoise(0.12, 0.065, musicGain, 360, "bandpass");
-    if ([7, 15].includes(beat)) playTone(1480, 0.035, "square", 0.022, musicGain);
+    if ([4, 12].includes(beat)) playNoise(0.12, 0.065, musicGain, 360, "bandpass", { pan: -0.08, filterQ: 1.1 });
+    if ([7, 15].includes(beat)) playMusicVoice(1480, 0.035, "square", 0.022, "spark", { mode: musicMode, pan: 0.12 });
     return;
   }
   if (style === "nightBattle") {
-    if ([0, 8].includes(beat)) playTone(44, 0.14, "sine", 0.13, musicGain);
-    if ([5, 12].includes(beat)) playNoise(0.075, 0.038, musicGain, 520, "bandpass");
-    if ([3, 7, 11, 15].includes(beat)) playTone(196, 0.035, "triangle", 0.024, musicGain);
+    if ([0, 8].includes(beat)) playMusicVoice(44, 0.14, "sine", 0.13, "bass", { mode: musicMode });
+    if ([5, 12].includes(beat)) playNoise(0.075, 0.038, musicGain, 520, "bandpass", { pan: -0.06 });
+    if ([3, 7, 11, 15].includes(beat)) playMusicVoice(196, 0.035, "triangle", 0.024, "accent", { mode: musicMode, pan: 0.08 });
     return;
   }
   if ([0, 3, 8, 11].includes(beat)) {
-    playTone(46, 0.085, "sine", 0.15, musicGain);
-    playTone(69, 0.04, "triangle", 0.06, musicGain);
+    playMusicVoice(46, 0.085, "sine", 0.15, "bassPulse", { mode: musicMode });
+    playMusicVoice(69, 0.04, "triangle", 0.06, "accent", { mode: musicMode });
   }
   if ([4, 12].includes(beat)) {
-    playNoise(0.075, 0.06, musicGain, 760, "bandpass");
-    playTone(155, 0.03, "sawtooth", 0.035, musicGain);
+    playNoise(0.075, 0.06, musicGain, 760, "bandpass", { pan: -0.06 });
+    playMusicVoice(155, 0.03, "sawtooth", 0.035, "accent", { mode: musicMode, pan: 0.08 });
   }
-  if (step % 2 === 1) playNoise(0.018, 0.02, musicGain, 6200, "highpass");
-  if ([2, 6, 10, 14].includes(beat)) playTone(2200, 0.018, "square", 0.013, musicGain);
+  if (step % 2 === 1) playNoise(0.018, 0.02, musicGain, 6200, "highpass", { pan: 0.1 });
+  if ([2, 6, 10, 14].includes(beat)) playMusicVoice(2200, 0.018, "square", 0.013, "spark", { mode: musicMode, pan: -0.1 });
 }
 
 function playVictoryDrums(step) {
   const beat = step % 16;
   if ([0, 8].includes(beat)) {
-    playTone(65, 0.08, "triangle", 0.085, musicGain);
-    playTone(131, 0.04, "sine", 0.04, musicGain);
+    playMusicVoice(65, 0.08, "triangle", 0.085, "bassPulse", { mode: musicMode });
+    playMusicVoice(131, 0.04, "sine", 0.04, "accent", { mode: musicMode });
   }
-  if ([4, 12].includes(beat)) playNoise(0.045, 0.025, musicGain, 4200, "highpass");
-  if ([3, 7, 11, 15].includes(beat)) playTone(1976, 0.03, "sine", 0.018, musicGain);
+  if ([4, 12].includes(beat)) playNoise(0.045, 0.025, musicGain, 4200, "highpass", { pan: 0.08 });
+  if ([3, 7, 11, 15].includes(beat)) playMusicVoice(1976, 0.03, "sine", 0.018, "spark", { mode: musicMode, pan: -0.08 });
 }
 
 function currentMusicMode() {
@@ -2323,10 +2677,17 @@ function currentMusicMode() {
 
 function currentModalMusicMode() {
   if (!modal?.open) return "";
+  if (modal.classList.contains("caravan-modal")) {
+    const faction = currentTownMusicFaction();
+    return faction ? `modal:caravan:${faction}` : "modal:caravan";
+  }
   if (modal.classList.contains("trade-modal")) return "modal:shop";
   if (modal.classList.contains("notice-modal")) return "modal:notice";
   if (modal.classList.contains("barracks-modal")) return "modal:barracks";
-  if (modal.classList.contains("town-modal")) return "modal:town";
+  if (modal.classList.contains("town-modal")) {
+    const faction = currentTownMusicFaction();
+    return faction ? `modal:town:${faction}` : "modal:town";
+  }
   if (modal.classList.contains("night-modal")) return "modal:night";
   if (modal.classList.contains("level-up-modal")) return "modal:level";
   if (modal.classList.contains("name-modal") || modal.classList.contains("boss-preview-modal") || modal.classList.contains("boss-aftermath-modal")) return "modal:story";
@@ -2337,8 +2698,7 @@ function refreshMusicMode() {
   if (!musicEnabled || !musicGain || !audioContext) return;
   const mode = currentMusicMode();
   if (mode === musicMode) return;
-  musicMode = mode;
-  musicStep = 0;
+  primeMusicTransition(mode);
 }
 
 function currentBattleMusicMode() {
@@ -4838,7 +5198,7 @@ function openCaravanTradeModal(key, event) {
       },
     },
     { label: "Back", secondary: true, action: () => reopenTownModal(key, event) },
-  ], { html: true, className: "trade-modal", onRender: () => bindCaravanTradeModal(key, event) });
+  ], { html: true, className: "trade-modal caravan-modal", onRender: () => bindCaravanTradeModal(key, event) });
 }
 
 function buyCaravanItem(good, key, event) {
