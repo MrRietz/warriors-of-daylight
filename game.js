@@ -7253,6 +7253,15 @@ function livingEnemies() {
   return activeBattle?.enemies.filter((enemy) => enemy.hp > 0) || [];
 }
 
+function battleTeamIndex(unit) {
+  if (!unit) return -1;
+  const team = [state.hero, ...state.party];
+  const directIndex = team.indexOf(unit);
+  if (directIndex >= 0) return directIndex;
+  if (!unit.id) return team[0] === unit ? 0 : -1;
+  return team.findIndex((member, index) => index > 0 && member === unit);
+}
+
 function hpPercent(unit) {
   return Math.max(0, Math.min(100, Math.round((unit.hp / unit.maxHp) * 100)));
 }
@@ -8050,15 +8059,24 @@ function enemyBattleTurn() {
   const targets = livingTeam();
   if (!targets.length) return finishBattle(false);
   const target = nearestEnemyTarget(enemyIndex, targets);
+  if (!target) {
+    advanceBattleTurn();
+    return renderBattle();
+  }
+  const targetIndex = battleTeamIndex(target);
+  if (targetIndex < 0) {
+    advanceBattleTurn();
+    return renderBattle();
+  }
   const moved = moveEnemyTowardTarget(enemyIndex, target);
   if (moved) {
     activeBattle.feedback = { type: "move", enemyIndex, target: "enemy" };
     activeBattle.log.push(`${enemy.name} advances on ${target.name}.`);
     renderBattle();
-    window.setTimeout(() => resolveEnemyAttack(enemyIndex, [state.hero, ...state.party].indexOf(target)), 320);
+    window.setTimeout(() => resolveEnemyAttack(enemyIndex, targetIndex), 320);
     return;
   }
-  resolveEnemyAttack(enemyIndex, [state.hero, ...state.party].indexOf(target));
+  resolveEnemyAttack(enemyIndex, targetIndex);
 }
 
 function performOriusBarrage(enemyIndex) {
@@ -8142,7 +8160,11 @@ function enemyAreaSpell(enemyIndex, name, powerScale) {
 function enemySingleSpecial(enemyIndex, name, bonusDamage, note) {
   const targets = livingTeam();
   const target = nearestEnemyTarget(enemyIndex, targets);
-  const targetIndex = [state.hero, ...state.party].indexOf(target);
+  const targetIndex = battleTeamIndex(target);
+  if (!target || targetIndex < 0) {
+    advanceBattleTurn();
+    return renderBattle();
+  }
   const enemy = activeBattle.enemies[enemyIndex];
   const moved = moveEnemyTowardTarget(enemyIndex, target);
   if (moved) activeBattle.log.push(`${enemy.name} dives toward ${target.name}.`);
@@ -8254,24 +8276,27 @@ function nearestEnemyTarget(enemyIndex, targets) {
   const team = [state.hero, ...state.party];
   const enemy = activeBattle.enemies[enemyIndex];
   const enemyPos = activeBattle.enemyPositions[enemyIndex];
-  return targets
+  const rankedTargets = targets
     .map((unit) => {
       const index = team.indexOf(unit);
-      const pos = activeBattle.positions[index];
+      const pos = index >= 0 ? activeBattle.positions[index] : null;
+      if (index < 0 || !pos || unit.hp <= 0) return null;
       const distance = battleDistance(enemyPos, pos, enemy);
       const attackable = canAttackTarget(enemy, enemyPos, pos);
       const wounded = 1 - Math.max(0, unit.hp || 0) / Math.max(1, unit.maxHp || 1);
-      return { unit, distance, attackable, wounded };
+      return { unit, distance, attackable, wounded, index };
     })
-    .sort((a, b) => Number(b.attackable) - Number(a.attackable) || a.distance - b.distance || b.wounded - a.wounded || a.unit.name.localeCompare(b.unit.name))[0].unit;
+    .filter(Boolean)
+    .sort((a, b) => Number(b.attackable) - Number(a.attackable) || a.distance - b.distance || b.wounded - a.wounded || a.unit.name.localeCompare(b.unit.name));
+  return rankedTargets[0]?.unit || null;
 }
 
 function moveEnemyTowardTarget(enemyIndex, target) {
   const enemy = activeBattle.enemies[enemyIndex];
   const from = activeBattle.enemyPositions[enemyIndex];
   const start = from ? { x: from.x, y: from.y } : null;
-  const targetIndex = [state.hero, ...state.party].indexOf(target);
-  const to = activeBattle.positions[targetIndex];
+  const targetIndex = battleTeamIndex(target);
+  const to = targetIndex >= 0 ? activeBattle.positions[targetIndex] : null;
   const range = moveRange(enemy);
   if (!enemy || !from || !to || canAttackTarget(enemy, from, to)) return false;
   let best = { ...from, distance: battleDistance(from, to, enemy), movementCost: 0 };

@@ -2470,132 +2470,96 @@ button.town-now-chip:focus-visible {
 .icon-sunsteel-edge,
 .trade-row .icon-sunsteel-edge,
 .trade-row.artifact .icon-sunsteel-edge {
-  background-image: radial-gradient(circle at 50% 50%, rgba(255, 243, 200, 0.16), rgba(15, 18, 25, 0) 62%);
+  background-image: url("assets/sunsteel-edge.png");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
 }
 
 .icon-sunsteel-edge::before {
-  left: 14px;
-  top: 4px;
-  width: 4px;
-  height: 20px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, #fff9df 0%, #f0c15b 24%, #a55d34 100%);
-  transform: rotate(28deg);
+  display: none;
 }
 
 .icon-sunsteel-edge::after {
-  left: 9px;
-  top: 17px;
-  width: 14px;
-  height: 4px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #74411f, #f0c15b 55%, #74411f);
-  transform: rotate(28deg);
+  display: none;
 }
 
 .icon-scout-lens,
 .trade-row .icon-scout-lens,
 .trade-row.artifact .icon-scout-lens {
-  background-image: radial-gradient(circle at 48% 44%, rgba(104, 199, 255, 0.42), rgba(15, 18, 25, 0) 56%);
+  background-image: url("assets/scout-lens.png");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
 }
 
 .icon-scout-lens::before {
-  left: 6px;
-  top: 6px;
-  width: 14px;
-  height: 14px;
-  border: 3px solid #8ae0ff;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 2px rgba(15, 18, 25, 0.45);
+  display: none;
 }
 
 .icon-scout-lens::after {
-  left: 18px;
-  top: 18px;
-  width: 9px;
-  height: 3px;
-  border-radius: 999px;
-  background: #c4efff;
-  transform: rotate(42deg);
+  display: none;
 }
 
 .icon-trail-boots,
 .trade-row .icon-trail-boots,
 .trade-row.artifact .icon-trail-boots {
-  background-image: linear-gradient(180deg, rgba(123, 80, 48, 0.18), rgba(15, 18, 25, 0));
+  background-image: url("assets/trail-boots.png");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
 }
 
 .icon-trail-boots::before,
 .icon-trail-boots::after {
-  width: 10px;
-  height: 8px;
-  border-radius: 3px 3px 5px 5px;
-  background: linear-gradient(180deg, #f5d2a7, #8a5830);
-  box-shadow: 0 8px 0 -2px #f0c15b;
+  display: none;
 }
 
 .icon-trail-boots::before {
-  left: 5px;
-  top: 8px;
-  transform: rotate(-12deg);
+  display: none;
 }
 
 .icon-trail-boots::after {
-  right: 5px;
-  top: 12px;
-  transform: rotate(10deg);
+  display: none;
 }
 
 .icon-marshal-horn,
 .trade-row .icon-marshal-horn,
 .trade-row.artifact .icon-marshal-horn {
-  background-image: radial-gradient(circle at 50% 40%, rgba(244, 234, 215, 0.16), rgba(15, 18, 25, 0) 56%);
+  background-image: url("assets/marshal-horn.png");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
 }
 
 .icon-marshal-horn::before {
-  left: 5px;
-  top: 9px;
-  width: 18px;
-  height: 12px;
-  border-radius: 3px 10px 10px 3px;
-  border: 3px solid #f0c15b;
-  border-left-width: 5px;
-  transform: skewX(-18deg);
+  display: none;
 }
 
 .icon-marshal-horn::after {
-  left: 20px;
-  top: 12px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #fff0ae;
-  box-shadow: 3px 0 0 rgba(255, 240, 174, 0.75);
+  display: none;
 }
 
 .icon-warding-sigil,
 .trade-row .icon-warding-sigil,
 .trade-row.artifact .icon-warding-sigil {
-  background-image: radial-gradient(circle at 50% 48%, rgba(164, 119, 215, 0.36), rgba(15, 18, 25, 0) 58%);
+  background-image: url("assets/warding-sigil.png");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
 }
 
 .icon-warding-sigil::before {
-  left: 8px;
-  top: 5px;
-  width: 16px;
-  height: 20px;
-  clip-path: polygon(50% 0%, 92% 18%, 92% 56%, 50% 100%, 8% 56%, 8% 18%);
-  background: linear-gradient(180deg, #f4e6ff, #a477d7 70%, #5b3b88);
+  display: none;
 }
 
 .icon-warding-sigil::after {
-  left: 12px;
-  top: 11px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: 2px solid rgba(15, 18, 25, 0.72);
-  background: rgba(255, 255, 255, 0.48);
+  display: none;
 }
 
 .trade-item {
