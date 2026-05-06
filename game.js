@@ -40,8 +40,8 @@ const MOVE_DURATION_MS = 235;
 const WALK_FRAME_MS = 76;
 const IDLE_FRAME_MS = 620;
 const DAY_LENGTH_STEPS = 56;
-const NIGHT_ENCOUNTER_MIN = 1;
-const NIGHT_ENCOUNTER_MAX = 2;
+const NIGHT_ENCOUNTER_MIN = 2;
+const NIGHT_ENCOUNTER_MAX = 3;
 const NIGHT_WAVE_SNEAK_MS = 3200;
 const NIGHT_WAVE_STAGGER_MS = 180;
 const NIGHT_WAVE_TRIGGER_BUFFER_MS = 120;
@@ -267,15 +267,15 @@ const heroBaseStats = {
 const creatureBook = {
   leafFox: { name: "Leaf Fox", color: "#6fc66a", maxHp: 22, atk: 6, def: 2, speed: 8, power: 3, morale: 6, moveType: "ground", attackType: "melee", attackRange: 1, skill: "Vine snap" },
   emberGolem: { name: "Ember Golem", color: "#d66945", maxHp: 28, atk: 8, def: 1, speed: 4, power: 6, morale: 4, moveType: "ground", attackType: "melee", attackRange: 1, skill: "Cinder fist" },
-  tideWisp: { name: "Tide Wisp", color: "#62a8d8", maxHp: 20, atk: 5, def: 4, speed: 7, power: 5, morale: 5, moveType: "flying", attackType: "ranged", attackRange: 6, skill: "Foam guard" },
-  duskMoth: { name: "Dusk Moth", color: "#a477d7", maxHp: 24, atk: 7, def: 2, speed: 6, power: 5, morale: 5, moveType: "flying", attackType: "ranged", attackRange: 7, skill: "Moon dust" },
-  thornArcher: { name: "Thorn Archer", color: "#8ccf76", maxHp: 18, atk: 5, def: 2, speed: 6, power: 4, morale: 6, moveType: "ground", attackType: "ranged", attackRange: 7, skill: "Briar shot" },
+  tideWisp: { name: "Tide Wisp", color: "#62a8d8", maxHp: 20, atk: 5, def: 4, speed: 7, power: 5, morale: 5, moveType: "flying", attackType: "ranged", attackRange: 5, skill: "Foam guard" },
+  duskMoth: { name: "Dusk Moth", color: "#a477d7", maxHp: 24, atk: 7, def: 2, speed: 6, power: 5, morale: 5, moveType: "flying", attackType: "ranged", attackRange: 5, skill: "Moon dust" },
+  thornArcher: { name: "Thorn Archer", color: "#8ccf76", maxHp: 18, atk: 5, def: 2, speed: 6, power: 4, morale: 6, moveType: "ground", attackType: "ranged", attackRange: 5, skill: "Briar shot" },
   ironPikeman: { name: "Iron Pikeman", color: "#b6a47c", maxHp: 30, atk: 7, def: 5, speed: 3, power: 4, morale: 5, moveType: "ground", attackType: "melee", attackRange: 1, skill: "Shield wall" },
   reefGuard: { name: "Reef Guard", color: "#63bfd3", maxHp: 26, atk: 6, def: 4, speed: 5, power: 5, morale: 5, moveType: "ground", attackType: "melee", attackRange: 1, skill: "Tide spear" },
-  moonSeer: { name: "Moon Seer", color: "#c392e8", maxHp: 19, atk: 6, def: 2, speed: 5, power: 7, morale: 6, moveType: "flying", attackType: "ranged", attackRange: 7, skill: "Star bolt" },
+  moonSeer: { name: "Moon Seer", color: "#c392e8", maxHp: 19, atk: 6, def: 2, speed: 5, power: 7, morale: 6, moveType: "flying", attackType: "ranged", attackRange: 5, skill: "Star bolt" },
   bloomStag: { name: "Bloom Stag", color: "#7ecf86", maxHp: 31, atk: 7, def: 3, speed: 7, power: 4, morale: 7, moveType: "ground", attackType: "melee", attackRange: 1, skill: "Antler charge", spriteId: "leafFox" },
-  cinderMage: { name: "Cinder Mage", color: "#dc7a4a", maxHp: 21, atk: 7, def: 2, speed: 5, power: 8, morale: 5, moveType: "ground", attackType: "ranged", attackRange: 6, skill: "Coal flare", spriteId: "emberGolem" },
-  coralArcher: { name: "Coral Archer", color: "#55c7c8", maxHp: 20, atk: 6, def: 3, speed: 6, power: 5, morale: 6, moveType: "ground", attackType: "ranged", attackRange: 7, skill: "Reef shot", spriteId: "reefGuard" },
+  cinderMage: { name: "Cinder Mage", color: "#dc7a4a", maxHp: 21, atk: 7, def: 2, speed: 5, power: 8, morale: 5, moveType: "ground", attackType: "ranged", attackRange: 4, skill: "Coal flare", spriteId: "emberGolem" },
+  coralArcher: { name: "Coral Archer", color: "#55c7c8", maxHp: 20, atk: 6, def: 3, speed: 6, power: 5, morale: 6, moveType: "ground", attackType: "ranged", attackRange: 5, skill: "Reef shot", spriteId: "reefGuard" },
   nightblade: { name: "Nightblade", color: "#9a78d7", maxHp: 24, atk: 8, def: 2, speed: 8, power: 6, morale: 5, moveType: "flying", attackType: "melee", attackRange: 1, skill: "Shadow dive", spriteId: "duskMoth" },
 };
 
@@ -308,7 +308,7 @@ const heroSkillCatalog = [
   { name: "Tactics", type: "Defense", icon: "tactics", text: "+2 defense. Reduces most incoming melee and ranged damage.", apply: () => (state.hero.def += 2) },
   { name: "Skirmisher", type: "Mobility", icon: "skirmisher", text: "+1 speed. Move earlier and reach better tiles in battle.", apply: () => (state.hero.speed += 1) },
   { name: "Battle Standard", type: "Morale", icon: "battleStandard", text: "+2 morale. Improves damage consistency for the whole campaign leader.", apply: () => (state.hero.morale += 2) },
-  { name: "Power Channel", type: "Magic", icon: "powerChannel", text: "+2 power and ranged attack. Turns the champion into a flexible back-line threat.", apply: () => { state.hero.power += 2; state.hero.attackType = "ranged"; state.hero.attackRange = Math.max(state.hero.attackRange || 1, 5); } },
+  { name: "Power Channel", type: "Magic", icon: "powerChannel", text: "+2 power and ranged attack. Turns the champion into a flexible back-line threat.", apply: () => { state.hero.power += 2; state.hero.attackType = "ranged"; state.hero.attackRange = Math.max(state.hero.attackRange || 1, 4); } },
   { name: "Field Medic", type: "Support", icon: "fieldMedic", text: "+6 max HP and +1 defense. Also fully heals the party now.", apply: () => { state.hero.maxHp += 6; state.hero.def += 1; state.hero.hp = state.hero.maxHp; state.party.forEach((unit) => (unit.hp = unit.maxHp)); } },
   { name: "Quartermaster", type: "Economy", icon: "quartermaster", text: "+80 gold and +1 morale. Helps recover from expensive recruitment turns.", apply: () => { state.gold += 80; state.hero.morale += 1; } },
 ];
@@ -316,13 +316,13 @@ const heroSkillCatalog = [
 const encounters = {
   goblin: { name: "Hill Bandit", color: "#ab7048", hp: 27, atk: 6, def: 1, speed: 5, power: 3, morale: 5, moveType: "ground", attackType: "melee", attackRange: 1, reward: 34 },
   basilisk: { name: "Mire Basilisk", color: "#568d55", hp: 35, atk: 8, def: 3, speed: 5, power: 4, morale: 5, moveType: "ground", attackType: "melee", attackRange: 1, reward: 43 },
-  raiders: { name: "Cinder Raiders", color: "#bd5f45", hp: 39, atk: 9, def: 3, speed: 6, power: 5, morale: 6, moveType: "ground", attackType: "ranged", attackRange: 6, reward: 52 },
+  raiders: { name: "Cinder Raiders", color: "#bd5f45", hp: 39, atk: 9, def: 3, speed: 6, power: 5, morale: 6, moveType: "ground", attackType: "ranged", attackRange: 4, reward: 52 },
   wyvern: { name: "Glasswing Wyvern", color: "#5aa6c8", hp: 44, atk: 10, def: 4, speed: 8, power: 6, morale: 6, moveType: "flying", attackType: "melee", attackRange: 1, reward: 62 },
   knight: { name: "Clockwork Knight", color: "#9fa7b7", hp: 46, atk: 10, def: 5, speed: 3, power: 6, morale: 6, moveType: "ground", attackType: "melee", attackRange: 1, reward: 58 },
   tideGuard: { name: "Harbor Guard", color: "#6aa7bf", hp: 41, atk: 8, def: 5, speed: 5, power: 5, morale: 6, moveType: "ground", attackType: "melee", attackRange: 1, reward: 54 },
-  warlock: { name: "Ashen Warlock", color: "#8b5fbf", hp: 60, atk: 12, def: 4, speed: 6, power: 8, morale: 7, moveType: "flying", attackType: "ranged", attackRange: 7, reward: 70 },
+  warlock: { name: "Ashen Warlock", color: "#8b5fbf", hp: 60, atk: 12, def: 4, speed: 6, power: 8, morale: 7, moveType: "flying", attackType: "ranged", attackRange: 5, reward: 70 },
   gatekeeper: { name: "Black Gate Warden", color: "#646b7d", hp: 94, atk: 14, def: 8, speed: 5, power: 8, morale: 8, moveType: "ground", attackType: "melee", attackRange: 1, reward: 115 },
-  rival: { name: "Rival Mage Orius", color: "#7a4bb5", hp: 126, atk: 17, def: 8, speed: 8, power: 12, morale: 9, moveType: "flying", attackType: "ranged", attackRange: 7, reward: 220 },
+  rival: { name: "Rival Mage Orius", color: "#7a4bb5", hp: 126, atk: 17, def: 8, speed: 8, power: 12, morale: 9, moveType: "flying", attackType: "ranged", attackRange: 6, reward: 220 },
 };
 
 const roamingHeroDefinitions = {
@@ -357,8 +357,8 @@ const npcSpriteVisuals = {
 };
 
 const townBuildingDefinitions = {
-  market: { name: "Market", cost: 70, income: 10, text: "+10 gold each dawn." },
-  caravanPost: { name: "Caravan Post", cost: 125, income: 5, text: "Shop stays open. Trade carts dispatch automatically and earn more with each owned town." },
+  market: { name: "Market", cost: 70, income: 6, text: "+6 gold each dawn." },
+  caravanPost: { name: "Caravan Post", cost: 125, income: 0, text: "Shop stays open. Trade carts dispatch automatically and earn more with each owned town." },
   barracks: { name: "Barracks", cost: 95, income: 0, text: "Lets this town raise and train its local unit." },
   trainingYard: { name: "Training Yard", cost: 115, income: 0, text: "Owned town visits grant +1 attack once." },
 };
@@ -418,6 +418,7 @@ const townCommissionDefinitions = {
   dawnhavenPatrol: {
     title: "Dawnhaven Patrol",
     towns: ["Dawnhaven"],
+    retroactiveVisits: true,
     targetKeys: ["7,7"],
     objective: "After accepting: clear the Hill Bandit camp at 7,7",
     rewardText: "55 gold and a Healing Draught",
@@ -430,6 +431,7 @@ const townCommissionDefinitions = {
   dawnRoadSurvey: {
     title: "Dawn Road Survey",
     towns: ["Dawnhaven"],
+    retroactiveVisits: true,
     targetKeys: ["8,5", "18,11"],
     requiredTargets: 2,
     objective: "After accepting: visit Dawnhaven Crossing and Broken Watch",
@@ -443,6 +445,7 @@ const townCommissionDefinitions = {
   ashbellOreRun: {
     title: "Ore for the Ridge",
     towns: ["Ashbell"],
+    retroactiveVisits: true,
     targetKeys: ["20,2", "21,9"],
     objective: "After accepting: claim either nearby Ashbell mine",
     rewardText: "45 gold and +1 defense",
@@ -455,6 +458,7 @@ const townCommissionDefinitions = {
   ashbellRidgeWarden: {
     title: "Ridge Warden Writ",
     towns: ["Ashbell"],
+    retroactiveVisits: true,
     targetKeys: ["22,6"],
     objective: "After accepting: defeat the Ashbell Ridge Warden at 22,6",
     rewardText: "75 gold and 30 XP",
@@ -467,6 +471,7 @@ const townCommissionDefinitions = {
   mistfenRemedy: {
     title: "Mistfen Remedy",
     towns: ["Mistfen"],
+    retroactiveVisits: true,
     targetKeys: ["6,4", "12,6", "14,4"],
     objective: "After accepting: recover one remedy from shrine or supply cache",
     rewardText: "1 Healing Draught and 20 XP",
@@ -479,6 +484,7 @@ const townCommissionDefinitions = {
   mistfenFangProof: {
     title: "Fang Proof",
     towns: ["Mistfen"],
+    retroactiveVisits: true,
     targetKeys: ["13,9"],
     objective: "After accepting: clear the Mire Basilisk at 13,9",
     rewardText: "65 gold and +1 morale",
@@ -491,6 +497,7 @@ const townCommissionDefinitions = {
   moonbarrowCompass: {
     title: "Moonlit Compass",
     towns: ["Moonbarrow"],
+    retroactiveVisits: true,
     targetKeys: ["35,13"],
     objective: "After accepting: recover the Starlit Compass cache at 35,13",
     rewardText: "80 gold and 32 XP",
@@ -503,6 +510,7 @@ const townCommissionDefinitions = {
   moonbarrowWingWatch: {
     title: "Wing Watch",
     towns: ["Moonbarrow"],
+    retroactiveVisits: true,
     targetKeys: ["31,11"],
     objective: "After accepting: drive off the Glasswing Wyvern at 31,11",
     rewardText: "95 gold",
@@ -514,6 +522,7 @@ const townCommissionDefinitions = {
   southwatchMonument: {
     title: "Sunfall Memorial",
     towns: ["Southwatch"],
+    retroactiveVisits: true,
     targetKeys: ["41,21"],
     objective: "After accepting: visit Sunfall Monument at 41,21",
     rewardText: "55 gold and +1 speed",
@@ -526,6 +535,7 @@ const townCommissionDefinitions = {
   southwatchGap: {
     title: "Hold Sunfall Gap",
     towns: ["Southwatch"],
+    retroactiveVisits: true,
     targetKeys: ["38,24"],
     objective: "After accepting: defeat the Sunfall Gap Raiders at 38,24",
     rewardText: "110 gold and 28 XP",
@@ -538,6 +548,7 @@ const townCommissionDefinitions = {
   eastmereBowCache: {
     title: "Bow Cache Escort",
     towns: ["Eastmere"],
+    retroactiveVisits: true,
     targetKeys: ["41,10"],
     objective: "After accepting: open the guarded bow cache at 41,10",
     rewardText: "85 gold and a Healing Draught",
@@ -550,6 +561,7 @@ const townCommissionDefinitions = {
   eastmereGlassroad: {
     title: "Glass Road Marker",
     towns: ["Eastmere"],
+    retroactiveVisits: true,
     targetKeys: ["57,12"],
     objective: "After accepting: visit High March Road at 57,12 and scout the road held by the Black Gate Warden",
     rewardText: "70 gold and 22 XP",
@@ -563,6 +575,7 @@ const townCommissionDefinitions = {
   sunforgeRelicRun: {
     title: "Twin Relic Run",
     towns: ["Sunforge"],
+    retroactiveVisits: true,
     targetKeys: ["48,26", "49,26"],
     objective: "After accepting: recover either Sunforge relic at 48,26 or 49,26",
     rewardText: "100 gold and +1 attack",
@@ -575,6 +588,7 @@ const townCommissionDefinitions = {
   sunforgeMineQuota: {
     title: "Forge Quota",
     towns: ["Sunforge"],
+    retroactiveVisits: true,
     targetKeys: ["42,14", "46,20", "47,27"],
     objective: "After accepting: claim one Sunforge ore site",
     rewardText: "75 gold and 25 XP",
@@ -587,6 +601,7 @@ const townCommissionDefinitions = {
   amberwatchSupply: {
     title: "Amber Supply Vault",
     towns: ["Amberwatch"],
+    retroactiveVisits: true,
     targetKeys: ["27,23", "28,23"],
     objective: "After accepting: open the guarded supply at 27,23 or 28,23",
     rewardText: "90 gold and a Healing Draught",
@@ -599,6 +614,7 @@ const townCommissionDefinitions = {
   amberwatchWarlock: {
     title: "Ashen Road Ban",
     towns: ["Amberwatch"],
+    retroactiveVisits: true,
     targetKeys: ["51,25"],
     objective: "After accepting: defeat the Ashen Warlock at 51,25",
     rewardText: "125 gold",
@@ -610,6 +626,7 @@ const townCommissionDefinitions = {
   highglassTollGuard: {
     title: "Glassroad Toll Guard",
     towns: ["Highglass"],
+    retroactiveVisits: true,
     targetKeys: ["61,6"],
     objective: "After accepting: break the Glassroad Toll Guard at 61,6",
     rewardText: "130 gold and 35 XP",
@@ -622,6 +639,7 @@ const townCommissionDefinitions = {
   highglassWyvern: {
     title: "Highglass Sky Hunt",
     towns: ["Highglass"],
+    retroactiveVisits: true,
     targetKeys: ["70,9"],
     objective: "After accepting: defeat the wyvern at 70,9",
     rewardText: "120 gold and +1 defense",
@@ -634,6 +652,7 @@ const townCommissionDefinitions = {
   greenmarchTollhouse: {
     title: "Sunken Tollhouse",
     towns: ["Greenmarch"],
+    retroactiveVisits: true,
     targetKeys: ["67,17"],
     objective: "After accepting: inspect the Sunken Tollhouse at 67,17",
     rewardText: "85 gold and 30 XP",
@@ -646,6 +665,7 @@ const townCommissionDefinitions = {
   greenmarchHunt: {
     title: "Greenmarch Hunt",
     towns: ["Greenmarch"],
+    retroactiveVisits: true,
     targetKeys: ["70,9", "59,20"],
     objective: "After accepting: clear either nearby eastern threat",
     rewardText: "115 gold and a Healing Draught",
@@ -658,6 +678,7 @@ const townCommissionDefinitions = {
   starfenRelics: {
     title: "Starfen Relic Pair",
     towns: ["Starfen"],
+    retroactiveVisits: true,
     targetKeys: ["57,36", "58,36"],
     objective: "After accepting: recover one relic from the Starfen guarded cache",
     rewardText: "130 gold and +1 morale",
@@ -670,6 +691,7 @@ const townCommissionDefinitions = {
   starfenSouthRoad: {
     title: "South Road Watch",
     towns: ["Starfen"],
+    retroactiveVisits: true,
     targetKeys: ["60,30"],
     objective: "After accepting: visit South Road Camp at 60,30",
     rewardText: "80 gold and 28 XP",
@@ -682,6 +704,7 @@ const townCommissionDefinitions = {
   lowmarketCauseway: {
     title: "Causeway Breaker",
     towns: ["Lowmarket"],
+    retroactiveVisits: true,
     targetKeys: ["13,36"],
     objective: "After accepting: defeat the Lowmarket Causeway Raiders at 13,36",
     rewardText: "125 gold and a Healing Draught",
@@ -694,6 +717,7 @@ const townCommissionDefinitions = {
   lowmarketCairn: {
     title: "Wayfinder Cairn",
     towns: ["Lowmarket"],
+    retroactiveVisits: true,
     targetKeys: ["33,34"],
     objective: "After accepting: visit Wayfinder Cairn at 33,34",
     rewardText: "90 gold and 30 XP",
@@ -732,6 +756,17 @@ const townCommissionDefinitions = {
       addInventoryItem("healingDraught", 1);
     },
   },
+  frontierSweep: {
+    title: "Frontier Sweep",
+    objective: "After accepting: clear one new outpost on the Black Gate road",
+    rewardText: "140 gold and Field Rations",
+    available: () => gateRequirementsKnown() && !finalGateCleared(),
+    complete: () => questBattlesClearedSince("frontierSweep", 1),
+    reward: () => {
+      state.gold += 140;
+      addInventoryItem("fieldRations", 1);
+    },
+  },
 };
 
 function countVisitedKeys(keys) {
@@ -761,6 +796,8 @@ function questStart(id) {
 
 function questVisitedSince(id, keys, required = 1) {
   const start = questStart(id);
+  const retroactive = Boolean(townCommissionDefinitions[id]?.retroactiveVisits);
+  if (retroactive) return keys.filter((key) => state.visited?.[key]).length >= required;
   if (!start) return false;
   const alreadyVisited = new Set(start.visited || []);
   return keys.filter((key) => state.visited?.[key] && !alreadyVisited.has(key)).length >= required;
@@ -802,8 +839,8 @@ function caravanPostCount() {
 
 const campUpgradeDefinitions = {
   betterTent: { name: "Better Tent", cost: 120, text: "Turns dawn into a real recovery window with stronger healing after the watch." },
-  watchtower: { name: "Watchtower", cost: 160, text: "Reveals incoming wave details before battle and can cut one wave when the camp spots a weak flank." },
-  traps: { name: "Stake Traps", cost: 140, text: "The first enemy in every wave reaches camp already bloodied by hidden stakes." },
+  watchtower: { name: "Watchtower", cost: 160, text: "Reveals incoming wave details before battle, can cut one wave, and opens each defense with tower fire." },
+  traps: { name: "Stake Traps", cost: 140, text: "The first raiders in every wave reach camp already bloodied by hidden stakes." },
   healerFire: { name: "Healer Fire", cost: 180, text: "Restores the party before each wave so a rough first fight does not snowball." },
 };
 
@@ -940,6 +977,7 @@ const itemDefinitions = {
   bannerOfLuck: {
     name: "Banner of Luck",
     type: "equipment",
+    slot: "banner",
     description: "Equip: your champion gains +1 attack.",
     use: () => {
       state.hero.atk += 1;
@@ -953,11 +991,12 @@ const itemDefinitions = {
   dawnwoodBow: {
     name: "Dawnwood Bow",
     type: "equipment",
-    description: "Equip: your champion becomes ranged, gains +1 power, and shoots best within 6 tiles.",
+    slot: "weapon",
+    description: "Equip: your champion becomes ranged, gains +1 power, and shoots best within 5 tiles.",
     use: () => {
       state.hero.power += 1;
       state.hero.attackType = "ranged";
-      state.hero.attackRange = Math.max(state.hero.attackRange || 1, 6);
+      state.hero.attackRange = Math.max(state.hero.attackRange || 1, 5);
       return `${championName()} equips the Dawnwood Bow and can now attack from range.`;
     },
     unequip: () => {
@@ -970,6 +1009,7 @@ const itemDefinitions = {
   silverBridle: {
     name: "Silver Bridle",
     type: "equipment",
+    slot: "mount",
     description: "Equip: your champion gains +1 defense.",
     use: () => {
       state.hero.def += 1;
@@ -983,6 +1023,7 @@ const itemDefinitions = {
   starlitCompass: {
     name: "Starlit Compass",
     type: "equipment",
+    slot: "trinket",
     description: "Equip: your champion gains +1 speed.",
     use: () => {
       state.hero.speed += 1;
@@ -996,6 +1037,7 @@ const itemDefinitions = {
   forgeCharm: {
     name: "Forge Charm",
     type: "equipment",
+    slot: "charm",
     description: "Equip: your champion gains +6 max HP and fully heals.",
     use: () => {
       state.hero.maxHp += 6;
@@ -1008,25 +1050,122 @@ const itemDefinitions = {
       return `${championName()} removes the Forge Charm and loses its +6 max HP.`;
     },
   },
+  fieldRations: {
+    name: "Field Rations",
+    type: "consumable",
+    description: "Restore 12 HP to every party member outside battle.",
+    use: () => {
+      recoverParty(12);
+      return "Field Rations steady the march and restore 12 HP across the party.";
+    },
+  },
+  sunsteelEdge: {
+    name: "Sunsteel Edge",
+    type: "equipment",
+    slot: "weapon",
+    description: "Equip: your champion gains +2 attack and +1 morale.",
+    use: () => {
+      state.hero.atk += 2;
+      state.hero.morale += 1;
+      return `${championName()} draws the Sunsteel Edge and hits with more conviction.`;
+    },
+    unequip: () => {
+      state.hero.atk -= 2;
+      state.hero.morale -= 1;
+      return `${championName()} sheaths the Sunsteel Edge and loses that extra bite.`;
+    },
+  },
+  scoutLens: {
+    name: "Scout Lens",
+    type: "equipment",
+    slot: "trinket",
+    description: "Equip: your champion gains +1 speed, and ranged builds gain +1 attack range.",
+    use: () => {
+      state.hero.speed += 1;
+      if (state.hero.attackType === "ranged") state.hero.attackRange = Math.max(1, (state.hero.attackRange || 1) + 1);
+      return `${championName()} fits the Scout Lens and reads the field faster.`;
+    },
+    unequip: () => {
+      state.hero.speed -= 1;
+      if (state.hero.attackType === "ranged") state.hero.attackRange = Math.max(heroBaseStats.attackRange, (state.hero.attackRange || 1) - 1);
+      return `${championName()} stows the Scout Lens and loses that sharper line of sight.`;
+    },
+  },
+  trailBoots: {
+    name: "Trail Boots",
+    type: "equipment",
+    slot: "boots",
+    description: "Equip: your champion gains +2 speed.",
+    use: () => {
+      state.hero.speed += 2;
+      return `${championName()} laces the Trail Boots and starts moving earlier in every skirmish.`;
+    },
+    unequip: () => {
+      state.hero.speed -= 2;
+      return `${championName()} removes the Trail Boots and slows back to a normal march.`;
+    },
+  },
+  marshalHorn: {
+    name: "Marshal Horn",
+    type: "equipment",
+    slot: "banner",
+    description: "Equip: your champion gains +1 morale and +1 power.",
+    use: () => {
+      state.hero.morale += 1;
+      state.hero.power += 1;
+      return `${championName()} raises the Marshal Horn and the line answers with steadier nerve.`;
+    },
+    unequip: () => {
+      state.hero.morale -= 1;
+      state.hero.power -= 1;
+      return `${championName()} packs away the Marshal Horn and the line loses some sharpness.`;
+    },
+  },
+  wardingSigil: {
+    name: "Warding Sigil",
+    type: "equipment",
+    slot: "charm",
+    description: "Equip: your champion gains +2 defense and +4 max HP.",
+    use: () => {
+      state.hero.def += 2;
+      state.hero.maxHp += 4;
+      state.hero.hp += 4;
+      return `${championName()} binds the Warding Sigil and hardens against the next push.`;
+    },
+    unequip: () => {
+      state.hero.def -= 2;
+      state.hero.maxHp -= 4;
+      state.hero.hp = Math.min(state.hero.hp, state.hero.maxHp);
+      return `${championName()} unbinds the Warding Sigil and its ward fades.`;
+    },
+  },
 };
 
 const chestItemIds = {
   "Healing Draught": "healingDraught",
   "Banner of Luck": "bannerOfLuck",
   "Dawnwood Bow": "dawnwoodBow",
+  "Field Rations": "fieldRations",
+  "Marshal Horn": "marshalHorn",
+  "Scout Lens": "scoutLens",
   "Silver Bridle": "silverBridle",
   "Starlit Compass": "starlitCompass",
+  "Sunsteel Edge": "sunsteelEdge",
+  "Trail Boots": "trailBoots",
   "Forge Charm": "forgeCharm",
+  "Warding Sigil": "wardingSigil",
 };
 const relicItems = new Set(["Banner of Luck", "Silver Bridle", "Starlit Compass", "Forge Charm"]);
 const relicItemNamesById = Object.fromEntries(Object.entries(chestItemIds).map(([name, id]) => [id, name]));
 const caravanTradeGoods = [
   { id: "healingDraught", buyPrice: 35, sellPrice: 20, kind: "Supply" },
-  { id: "bannerOfLuck", buyPrice: 150, sellPrice: 80, kind: "Artifact" },
-  { id: "dawnwoodBow", buyPrice: 165, sellPrice: 90, kind: "Weapon" },
-  { id: "silverBridle", buyPrice: 150, sellPrice: 80, kind: "Artifact" },
-  { id: "starlitCompass", buyPrice: 150, sellPrice: 80, kind: "Artifact" },
-  { id: "forgeCharm", buyPrice: 175, sellPrice: 95, kind: "Rare" },
+  { id: "fieldRations", buyPrice: 20, sellPrice: 11, kind: "Supply" },
+  { id: "dawnwoodBow", buyPrice: 175, sellPrice: 95, kind: "Weapon", minDay: 2 },
+  { id: "sunsteelEdge", buyPrice: 185, sellPrice: 100, kind: "Weapon", minDay: 2 },
+  { id: "trailBoots", buyPrice: 150, sellPrice: 82, kind: "Gear", minDay: 3 },
+  { id: "marshalHorn", buyPrice: 165, sellPrice: 90, kind: "Banner", minDay: 3 },
+  { id: "scoutLens", buyPrice: 155, sellPrice: 85, kind: "Tool", minDay: 4, minTowns: 2 },
+  { id: "wardingSigil", buyPrice: 195, sellPrice: 108, kind: "Charm", minDay: 5, minTowns: 3 },
 ];
 const battleQuips = {
   playerHit: [
@@ -3473,14 +3612,14 @@ function buildNightEncounters(planId = currentNightPlanId()) {
   const watchtowerReduction = state.campUpgrades?.watchtower ? 1 : 0;
   const nightRaid = planId === "nightRaid" ? 1 : 0;
   const holdfastReduction = planId === "holdfast" ? 1 : 0;
-  const waveCap = planId === "nightRaid" ? 3 : 2;
-  const latePressure = tier.rank >= 2 && state.day >= 5 && planId !== "holdfast" ? 1 : 0;
+  const waveCap = planId === "nightRaid" ? 4 : 3;
+  const latePressure = tier.rank >= 1 && state.day >= 3 && planId !== "holdfast" ? 1 : 0;
   const count = Math.max(1, Math.min(waveCap, NIGHT_ENCOUNTER_MIN + Math.floor(Math.random() * (NIGHT_ENCOUNTER_MAX - NIGHT_ENCOUNTER_MIN + 1)) + latePressure + nightRaid - watchtowerReduction - holdfastReduction));
   const partyLevel = averagePartyLevel();
   return Array.from({ length: count }, (_, index) => {
     const eventBias = activeNight?.report?.eventDifficultyBias || 0;
     const firstWaveThreat = index === 0 ? activeNight?.report?.eventFirstWaveThreat || 0 : 0;
-    const difficulty = partyLevel + Math.floor((state.day - 1) / 3) * 0.65 + tier.rank * 0.75 + index * 0.55 + (planId === "nightRaid" ? 0.75 : 0) - (planId === "holdfast" ? 0.75 : 0) + eventBias + firstWaveThreat;
+    const difficulty = partyLevel + Math.floor((state.day - 1) / 2) * 0.75 + tier.rank * 0.95 + index * 0.75 + (planId === "nightRaid" ? 1.2 : 0) - (planId === "holdfast" ? 0.45 : 0) + eventBias + firstWaveThreat;
     const level = Math.max(1, Math.round(difficulty));
     const maxPoolByTier = tier.rank <= 0 ? 1 : tier.rank === 1 ? 3 : nightEncounterPool.length - 1;
     const poolIndex = Math.min(maxPoolByTier, nightEncounterPool.length - 1, Math.max(0, Math.floor((level - 1) / 2.5) + (Math.random() < 0.3 ? 1 : 0)));
@@ -3499,18 +3638,18 @@ function scaledNightEnemy(encounterId, difficulty, index) {
   const tier = campaignDifficultyTier();
   const level = Math.max(1, Math.round(difficulty));
   const scale = Math.max(0, level - 1);
-  const hp = base.hp + scale * 3 + index * 2;
+  const hp = base.hp + scale * 4 + index * 3;
   return {
     ...base,
     name: `${base.name} Night Raid`,
     hp,
     maxHp: hp,
-    atk: base.atk + Math.floor(scale * 0.55),
-    def: base.def + Math.floor(scale * 0.3),
-    speed: base.speed + Math.floor(scale * 0.2),
-    power: (base.power ?? 3) + Math.floor(scale * 0.3),
+    atk: base.atk + Math.floor(scale * 0.7),
+    def: base.def + Math.floor(scale * 0.35),
+    speed: base.speed + Math.floor(scale * 0.25),
+    power: (base.power ?? 3) + Math.floor(scale * 0.4),
     morale: (base.morale ?? 4) + Math.floor(scale * 0.25),
-    reward: Math.round(base.reward * 0.45 + level * 6),
+    reward: Math.round(base.reward * 0.34 + level * 5),
     nightLevel: level,
     partySize: desiredEnemyPartySize(encounterId, { night: true, tier, nightPlan: currentNightPlanId() }),
     difficultyTier: tier,
@@ -3897,7 +4036,7 @@ function campMoraleLabel() {
 function nightStreakBonusText() {
   const streak = state.nightStreak || 0;
   if (!streak) return "No bonus yet.";
-  return `+${streak * 4} gold, +${streak * 2} XP per wave.`;
+  return `+${streak * 2} gold, +${streak} XP per wave.`;
 }
 
 function nightRewardHeadline(planId) {
@@ -4029,11 +4168,11 @@ function nightDefenseEffectPills() {
   if (currentNightPlanId() === "holdfast") pills.push("Hold Fast: extra recovery before battle");
   if (currentNightPlanId() === "nightRaid") pills.push("Night Raid: extra gold, XP, and item chance");
   if (currentNightPlanId() === "scoutLines") pills.push("Scout Lines: dawn reveals the next target");
-  if (state.campUpgrades?.watchtower) pills.push("Watchtower: identifies wave threats and may cut one wave");
-  if (state.campUpgrades?.traps) pills.push("Stake Traps: first raider starts damaged");
+  if (state.campUpgrades?.watchtower) pills.push("Watchtower: identifies wave threats, may cut one wave, and opens with tower fire");
+  if (state.campUpgrades?.traps) pills.push("Stake Traps: first raiders start damaged");
   if (state.campUpgrades?.healerFire) pills.push("Healer Fire: party restored before each wave");
   if (state.campUpgrades?.betterTent) pills.push("Better Tent: stronger dawn recovery");
-  if (state.nightStreak) pills.push(`Night Streak: +${state.nightStreak * 4} gold on night wins`);
+  if (state.nightStreak) pills.push(`Night Streak: +${state.nightStreak * 2} gold on night wins`);
   if (!pills.length) pills.push("Basic camp: no extra defenses");
   return pills.slice(0, 5);
 }
@@ -4058,8 +4197,8 @@ function campUpgradeCard(id, upgrade) {
 function campUpgradeShortText(id) {
   return {
     betterTent: "More dawn recovery.",
-    watchtower: "Shows threats early.",
-    traps: "First raider starts hurt.",
+    watchtower: "Shows threats and fires first.",
+    traps: "First raiders start hurt.",
     healerFire: "Heal before each wave.",
   }[id] || "";
 }
@@ -4075,8 +4214,8 @@ function nightPlanEffectTags(id) {
 function campUpgradeEffectTags(id) {
   return {
     betterTent: ["More dawn healing", "Recovery spike"],
-    watchtower: ["Wave forecast", "Possible wave cut"],
-    traps: ["Damaged opener", "Every wave"],
+    watchtower: ["Wave forecast", "Tower fire", "Possible wave cut"],
+    traps: ["Damaged opener", "Two targets"],
     healerFire: ["Pre-wave healing", "Party sustain"],
   }[id] || [];
 }
@@ -4195,7 +4334,7 @@ function finishNight() {
   report.dawnRecovery = dawnRecovery;
   report.dawnHealing = recoverPartyDetailed(dawnRecovery);
   if (planId === "nightRaid") {
-    const raidBonus = 24 + completedDay * 8;
+    const raidBonus = 14 + completedDay * 5;
     state.gold += raidBonus;
     report.raidBonus = raidBonus;
   } else if (planId === "scoutLines") {
@@ -4598,9 +4737,11 @@ function townNoticeEntries(key, event) {
 function townCommissionAvailable(id, quest) {
   const status = state.quests?.[id] || "new";
   if (status !== "new") return true;
+  if (typeof quest.available === "function" && !quest.available()) return false;
   const targets = quest.targetKeys || [];
   if (!targets.length) return true;
   const required = quest.requiredTargets || 1;
+  if (quest.retroactiveVisits && countVisitedKeys(targets) >= required) return true;
   return countVisitedKeys(targets) <= targets.length - required;
 }
 
@@ -4972,6 +5113,7 @@ const townQuestTargets = {
   groveAid: "3,2",
   roadTithe: "3,2",
   musterCall: "16,5",
+  frontierSweep: "71,5",
 };
 
 function questTrackTarget(type, id) {
@@ -5057,7 +5199,7 @@ function townFactionActionLabel(event) {
 }
 
 function townFactionActionDescription(event) {
-  if (event.faction === "forge") return "Grant the whole warband bonus drill XP once today.";
+  if (event.faction === "forge") return "Grant the warband a modest drill XP boost once today.";
   if (event.faction === "tide") return "Collect an immediate trade payout based on your realm.";
   if (event.faction === "dusk") return "Mark the nearest unrecovered target directly on the world map.";
   return "Restore the party, or brew a Healing Draught if everyone is already fit.";
@@ -5077,8 +5219,8 @@ function useTownFactionAction(key, event) {
   let messageText = "";
   let messageType = "good";
   if (event.faction === "forge") {
-    const xp = 24 + state.hero.level * 5;
-    const report = gainXp(xp);
+    const xp = 16 + state.hero.level * 3;
+    const report = gainXp(xp, { unitShare: 0.25 });
     const levelText = report.unitLevelUps.length ? ` ${report.unitLevelUps.length} unit${report.unitLevelUps.length === 1 ? "" : "s"} advanced.` : "";
     messageText = `${event.name}'s smiths run live drills. The warband gains ${xp} XP.${levelText}`;
     markTownActionUsed(town, actionId);
@@ -5131,7 +5273,16 @@ function recruitableUnitsForTown(event) {
 
 function recruitCostForTown(id, event = null) {
   const unit = creatureBook[id];
-  const baseCost = 22 + (unit?.maxHp || 20) * 0.72 + (unit?.atk || 5) * 3 + state.hero.level * 4;
+  const baseCost = 34
+    + (unit?.maxHp || 20) * 0.82
+    + (unit?.atk || 5) * 3.4
+    + (unit?.def || 2) * 2.4
+    + (unit?.speed || 4) * 2.1
+    + (unit?.power || 3) * 2
+    + Math.max(0, (unit?.attackRange || 1) - 1) * 8
+    + (unit?.attackType === "ranged" ? 18 : 0)
+    + (unit?.moveType === "flying" ? 16 : 0)
+    + state.hero.level * 5;
   const factionMultiplier = event?.faction === "grove" ? 0.9 : 1;
   return Math.round(baseCost * economyDiscountMultiplier() * factionMultiplier);
 }
@@ -5144,7 +5295,7 @@ function townUpgradeCostForUnit(id, event = null) {
   const unit = partyUnitForId(id);
   const baseRecruit = recruitCostForTown(id) / economyDiscountMultiplier();
   const factionMultiplier = event?.faction === "forge" ? 0.85 : 1;
-  return Math.round((baseRecruit * 0.65 + (unit?.level || 1) * 10) * economyDiscountMultiplier() * factionMultiplier);
+  return Math.round((baseRecruit * 0.72 + (unit?.level || 1) * 14) * economyDiscountMultiplier() * factionMultiplier);
 }
 
 function economyDiscountMultiplier() {
@@ -5585,7 +5736,6 @@ function buyCaravanItem(good, key, event) {
   }
   state.gold -= good.buyPrice;
   addInventoryItem(good.id, 1);
-  rememberRelicItem(good.id);
   const text = `Bought ${definition.name} for ${good.buyPrice} gold. It is now in your bag.`;
   caravanTradeFeedback = { text, type: "good" };
   setMessage(text);
@@ -5624,6 +5774,11 @@ function shortItemName(id) {
   return name.replace("Healing ", "").replace(" of Luck", "");
 }
 
+function availableCaravanTradeGoods(key, event) {
+  const ownedTowns = ownedTownEntries().length;
+  return caravanTradeGoods.filter((good) => (good.minDay || 1) <= state.day && (good.minTowns || 0) <= ownedTowns);
+}
+
 function rememberRelicItem(id) {
   const relicName = relicItemNamesById[id];
   if (relicName && relicItems.has(relicName) && !state.relics.includes(relicName)) state.relics.push(relicName);
@@ -5637,11 +5792,12 @@ function forgetRelicItem(id) {
 
 function caravanTradeMarkup(key, event) {
   const town = getTownState(key);
+  const stockGoods = availableCaravanTradeGoods(key, event);
   const caravanStatus = isTownActionUsed(town, "caravanPost") ? "Route dispatched" : "Route dispatches now";
   const feedback = caravanTradeFeedback.text
     ? `<div class="trade-feedback ${caravanTradeFeedback.type}">${escapeHtml(caravanTradeFeedback.text)}</div>`
     : `<div class="trade-feedback info">Select an item to buy from caravan stock, or sell carried goods from your inventory.</div>`;
-  const stock = caravanTradeGoods.map((good) => {
+  const stock = stockGoods.map((good) => {
     const definition = itemDefinitions[good.id];
     const owned = inventoryCount(good.id);
     const equipped = state.equipped[good.id];
@@ -5656,7 +5812,7 @@ function caravanTradeMarkup(key, event) {
         <button type="button" data-caravan-buy="${good.id}"${buyDisabled}>Buy</button>
       </li>
     `;
-  }).join("");
+  }).join("") || `<li class="trade-row empty"><span class="trade-icon">-</span><span class="trade-item"><strong>No new stock</strong><em>Come back on a later day or after claiming more towns</em></span><span class="trade-price"><small>Cost</small><strong>-</strong></span><button type="button" disabled>Buy</button></li>`;
   const sellRows = state.inventory.map((item) => {
         const definition = itemDefinitions[item.id];
         const tradeGood = caravanTradeGoods.find((good) => good.id === item.id);
@@ -5705,9 +5861,15 @@ function tradeItemIconClass(id) {
     healingDraught: "icon-healing-draught",
     bannerOfLuck: "icon-banner-of-luck",
     dawnwoodBow: "icon-dawnwood-bow",
+    fieldRations: "icon-supply-crate",
+    marshalHorn: "icon-marshal-horn",
+    scoutLens: "icon-scout-lens",
     silverBridle: "icon-silver-bridle",
     starlitCompass: "icon-starlit-compass",
+    sunsteelEdge: "icon-sunsteel-edge",
+    trailBoots: "icon-trail-boots",
     forgeCharm: "icon-forge-charm",
+    wardingSigil: "icon-warding-sigil",
   }[id] || "icon-supply-crate";
 }
 
@@ -5734,8 +5896,9 @@ function caravanMarketArtUrl() {
 }
 
 function bindCaravanTradeModal(key, event) {
+  const stockGoods = availableCaravanTradeGoods(key, event);
   modalText.querySelectorAll("[data-caravan-buy]").forEach((button) => {
-    const good = caravanTradeGoods.find((entry) => entry.id === button.dataset.caravanBuy);
+    const good = stockGoods.find((entry) => entry.id === button.dataset.caravanBuy);
     button.addEventListener("click", () => good && buyCaravanItem(good, key, event));
   });
   modalText.querySelectorAll("[data-caravan-sell]").forEach((button) => {
@@ -5906,7 +6069,7 @@ function applyTownTraining(town) {
 }
 
 function caravanRouteGoldFor(caravanCount, townCount) {
-  return caravanCount ? caravanCount * Math.max(9, Math.min(36, townCount * 7)) : 0;
+  return caravanCount ? caravanCount * Math.max(3, Math.min(14, 2 + townCount * 2)) : 0;
 }
 
 function caravanRouteGoldForTown(key, townCount) {
@@ -5929,7 +6092,7 @@ function townEconomyPreview() {
   const buildingGold = ownedTowns.reduce((sum, [, town]) => sum + town.buildings.reduce((part, id) => part + (townBuildingDefinitions[id]?.income || 0), 0), 0);
   const caravanTowns = ownedTowns.filter(([, town]) => town.buildings.includes("caravanPost"));
   const routeGold = caravanTowns.reduce((sum, [key]) => sum + caravanRouteGoldForTown(key, ownedTowns.length), 0);
-  const townGold = ownedTowns.length * 5;
+  const townGold = ownedTowns.length * 2;
   return { total: mineGold + townGold + buildingGold + routeGold, mines: mineGold, towns: townGold + buildingGold, routes: routeGold };
 }
 
@@ -5950,7 +6113,7 @@ function collectTownIncome() {
 function claimedMineIncome() {
   let total = 0;
   events.forEach((event, key) => {
-    if (event.type === "mine" && state.visited[key]) total += Math.max(7, Math.round(event.gold * 0.38));
+    if (event.type === "mine" && state.visited[key]) total += Math.max(4, Math.round(event.gold * 0.22));
   });
   return total;
 }
@@ -6025,10 +6188,10 @@ function rollChestRewards(key, event) {
   if (bonusA > 0.34) rewards.push({ gold: 14 + Math.floor(bonusA * 42) });
   if (bonusB > 0.46) rewards.push({ xp: 14 + Math.floor(bonusB * 34) });
   if (bonusC > 0.72) {
-    const artifactPool = ["Banner of Luck", "Silver Bridle", "Starlit Compass", "Forge Charm"];
+    const artifactPool = ["Banner of Luck", "Dawnwood Bow", "Marshal Horn", "Scout Lens", "Silver Bridle", "Starlit Compass", "Sunsteel Edge", "Trail Boots", "Forge Charm", "Warding Sigil"];
     rewards.push({ item: artifactPool[Math.floor(bonusC * artifactPool.length) % artifactPool.length], gold: 10 });
   } else if (bonusC > 0.34 && event.item !== "Healing Draught") {
-    rewards.push({ item: "Healing Draught", qty: 1 });
+    rewards.push({ item: Math.random() < 0.5 ? "Healing Draught" : "Field Rations", qty: 1 });
   }
   return rewards;
 }
@@ -6161,6 +6324,11 @@ function inventoryCount(id) {
   return state.inventory.find((entry) => entry.id === id)?.qty || 0;
 }
 
+function equippedItemIdForSlot(slot) {
+  if (!slot) return "";
+  return Object.keys(state.equipped || {}).find((id) => state.equipped[id] && itemDefinitions[id]?.slot === slot) || "";
+}
+
 function sellableInventoryCount(id) {
   return Math.max(0, inventoryCount(id) - (state.equipped[id] ? 1 : 0));
 }
@@ -6181,6 +6349,10 @@ function useInventoryItem(id) {
   if (definition.type === "equipment" && state.equipped[id]) {
     return unequipInventoryItem(id);
   }
+  const slotOccupant = definition.type === "equipment" ? equippedItemIdForSlot(definition.slot) : "";
+  if (slotOccupant && slotOccupant !== id) {
+    unequipInventoryItem(slotOccupant, { silent: true });
+  }
   const result = definition.use();
   if (definition.type === "consumable") {
     item.qty -= 1;
@@ -6192,12 +6364,12 @@ function useInventoryItem(id) {
   renderAll();
 }
 
-function unequipInventoryItem(id) {
+function unequipInventoryItem(id, options = {}) {
   const definition = itemDefinitions[id];
   if (!definition || definition.type !== "equipment" || !state.equipped[id]) return;
   const result = definition.unequip ? definition.unequip() : `${definition.name} unequipped.`;
   delete state.equipped[id];
-  setMessage(result);
+  if (!options.silent) setMessage(result);
   renderAll();
 }
 
@@ -6318,26 +6490,26 @@ function enemyTraitText(encounterId) {
 function battleGoldReward(event, enemies) {
   const base = enemies.reduce((sum, enemy) => sum + (enemy.reward || 0), 0);
   if (event.type === "night") {
-    const streakBonus = (state.nightStreak || 0) * 4;
-    const moraleBonus = (state.campMorale || 0) * 3;
-    const planBonus = activeNight?.plan === "nightRaid" ? 14 : activeNight?.plan === "holdfast" ? -6 : 4;
-    return Math.max(12, base + streakBonus + moraleBonus + planBonus);
+    const streakBonus = (state.nightStreak || 0) * 2;
+    const moraleBonus = (state.campMorale || 0) * 2;
+    const planBonus = activeNight?.plan === "nightRaid" ? 10 : activeNight?.plan === "holdfast" ? -4 : 2;
+    return Math.max(10, Math.round(base * 0.82) + streakBonus + moraleBonus + planBonus);
   }
-  if (event.type === "final") return base + 80;
-  if (event.gate) return base + 45;
-  if (event.passName) return base + 48;
-  if (event.guards?.length) return base + 18;
-  if (event.type === "townClaim") return base + 12;
-  if (event.type === "roamingHero") return base + 24;
-  return base;
+  if (event.type === "final") return Math.round(base * 0.92) + 60;
+  if (event.gate) return Math.round(base * 0.9) + 30;
+  if (event.passName) return Math.round(base * 0.9) + 34;
+  if (event.guards?.length) return Math.round(base * 0.88) + 12;
+  if (event.type === "townClaim") return Math.round(base * 0.86) + 10;
+  if (event.type === "roamingHero") return Math.round(base * 0.9) + 16;
+  return Math.round(base * 0.88);
 }
 
 function battleXpReward(event, leader, enemies) {
   if (event.type === "night") {
-    const streakBonus = (state.nightStreak || 0) * 2;
+    const streakBonus = state.nightStreak || 0;
     const moraleBonus = state.campMorale || 0;
-    const planBonus = activeNight?.plan === "nightRaid" ? 8 : activeNight?.plan === "holdfast" ? -4 : 2;
-    return Math.max(18, 18 + (leader.nightLevel || state.hero.level) * 4 + streakBonus + moraleBonus + planBonus);
+    const planBonus = activeNight?.plan === "nightRaid" ? 6 : activeNight?.plan === "holdfast" ? -3 : 1;
+    return Math.max(16, 14 + (leader.nightLevel || state.hero.level) * 3 + streakBonus + moraleBonus + planBonus);
   }
   if (event.type === "final") return 80;
   if (event.gate) return 64;
@@ -6489,8 +6661,8 @@ function campaignDifficultyTier() {
   const mines = countVisitedEvents("mine");
   const army = state.party.length + 1;
   const score = clearedBattles + ownedTowns * 1.25 + mines * 0.75 + Math.max(0, state.day - 1) * 0.9 + Math.max(0, army - 3) * 1.3 + Math.max(0, averagePartyLevel() - 2) * 1.1;
-  if (score >= 15) return { label: "Hard", rank: 2, score };
-  if (score >= 7) return { label: "Medium", rank: 1, score };
+  if (score >= 11) return { label: "Hard", rank: 2, score };
+  if (score >= 5) return { label: "Medium", rank: 1, score };
   return { label: "Easy", rank: 0, score };
 }
 
@@ -6518,8 +6690,8 @@ function desiredEnemyPartySize(encounterId, options = {}) {
   if (options.night) {
     const planId = options.nightPlan || currentNightPlanId();
     const nightBonus = planId === "nightRaid" ? 1 : 0;
-    const nightCap = planId === "holdfast" ? 2 : planId === "nightRaid" ? Math.min(4, 2 + tier.rank) : Math.min(3, 2 + tier.rank);
-    return Math.max(1, Math.min(BATTLE_ROWS, nightCap, base + Math.min(1, tier.rank) + Math.min(1, armyPressure) + nightBonus - 1));
+    const nightCap = planId === "holdfast" ? 3 : planId === "nightRaid" ? 5 : 4;
+    return Math.max(1, Math.min(BATTLE_ROWS, nightCap, base + tier.rank + Math.min(2, armyPressure) + nightBonus - (planId === "holdfast" ? 1 : 0)));
   }
   const nightBonus = options.night ? 1 : 0;
   const cap = encounterId === "rival" || encounterId === "gatekeeper" ? 5 : tier.rank === 0 ? 3 : tier.rank === 1 ? 4 : 5;
@@ -6571,15 +6743,8 @@ function startBattle(key, event, enemyInput) {
   const team = [state.hero, ...state.party];
   const positions = team.map((unit, index) => ({ x: index >= BATTLE_ROWS ? 0 : 1, y: index % BATTLE_ROWS, acted: unit.hp <= 0 }));
   const enemies = Array.isArray(enemyInput) ? enemyInput.map((enemy) => normalizeEnemyUnit(enemy)) : createEnemyParty(event.encounter, enemyInput);
-  if (state.campUpgrades?.traps && event.type === "night" && enemies[0]) {
-    const damage = Math.max(4, Math.round(enemies[0].maxHp * 0.18));
-    enemies[0].hp = Math.max(1, enemies[0].hp - damage);
-    enemies[0].trapDamage = damage;
-    if (activeNight?.report) activeNight.report.trapDamageTotal += damage;
-  }
   const enemyPositions = enemies.map((_, index) => ({ x: index >= BATTLE_ROWS ? BATTLE_COLS - 1 : BATTLE_COLS - 2, y: index % BATTLE_ROWS }));
   const enemyNames = enemies.map((enemy) => enemy.name).join(", ");
-  const trapLine = enemies[0]?.trapDamage ? ` Stake traps hit ${enemies[0].name} for ${enemies[0].trapDamage}.` : "";
   const showBattleHint = !state.tutorial?.battleBasics && event.type !== "night";
   state.tutorial ??= {};
   if (showBattleHint) state.tutorial.battleBasics = true;
@@ -6599,12 +6764,14 @@ function startBattle(key, event, enemyInput) {
     enemyPositions,
     floaters: [],
     effects: [],
-    log: [`${enemyNames} engage your party.${trapLine}`],
+    log: [`${enemyNames} engage your party.`],
     bossState: createBossBattleState(event),
     usedSpecials: {},
     auto: false,
+    resolving: false,
     showBattleHint,
   };
+  if (event.type === "night") applyNightBattleDefenses();
   clearAutoBattleTimer();
   buildBattleQueue();
   modal.classList.remove("victory-modal", "town-modal", "trade-modal", "barracks-modal", "notice-modal", "night-modal", "name-modal", "boss-preview-modal", "boss-aftermath-modal");
@@ -6612,6 +6779,45 @@ function startBattle(key, event, enemyInput) {
   advanceBattleTurn();
   renderBattle();
   if (!modal.open) modal.showModal();
+}
+
+function applyNightBattleDefenses() {
+  if (!activeBattle || activeBattle.event?.type !== "night") return;
+  const notes = [];
+  if (state.campUpgrades?.traps) {
+    const trapped = activeBattle.enemies.slice(0, Math.min(2, activeBattle.enemies.length));
+    trapped.forEach((enemy) => {
+      const damage = Math.max(3, Math.round(enemy.maxHp * 0.12));
+      enemy.hp = Math.max(1, enemy.hp - damage);
+      enemy.trapDamage = (enemy.trapDamage || 0) + damage;
+    });
+    const trapTotal = trapped.reduce((sum, enemy) => sum + (enemy.trapDamage || 0), 0);
+    if (trapTotal > 0 && activeNight?.report) activeNight.report.trapDamageTotal += trapTotal;
+    if (trapped.length) notes.push(`Stake traps maul ${trapped.map((enemy) => `${enemy.name} (${enemy.trapDamage})`).join(", ")}.`);
+  }
+  if (state.campUpgrades?.watchtower) {
+    const priority = activeBattle.enemies
+      .map((enemy, index) => ({ enemy, index }))
+      .filter(({ enemy }) => enemy.hp > 0)
+      .sort((a, b) => (b.enemy.attackRange || 1) - (a.enemy.attackRange || 1) || (b.enemy.power || 0) - (a.enemy.power || 0))[0];
+    if (priority) {
+      const damage = Math.max(4, Math.round(priority.enemy.maxHp * 0.14));
+      priority.enemy.hp = Math.max(1, priority.enemy.hp - damage);
+      priority.enemy.watchtowerDamage = damage;
+      notes.push(`Watchtower fire tags ${priority.enemy.name} for ${damage} before the line closes.`);
+      const towerPos = { x: 0, y: Math.min(BATTLE_ROWS - 1, priority.index) };
+      const targetPos = activeBattle.enemyPositions[priority.index];
+      if (targetPos) {
+        queueBattleEffect("shot", towerPos, targetPos, 520);
+        addBattleFloater(targetPos.x, targetPos.y, `-${damage}`, "damage");
+      }
+    }
+  }
+  if (currentNightPlanId() === "holdfast") {
+    activeBattle.teamWard = Math.max(activeBattle.teamWard || 0, 1);
+    notes.push("Hold Fast braces the camp with an opening ward.");
+  }
+  if (notes.length) activeBattle.log.push(...notes);
 }
 
 function buildBattleQueue() {
@@ -6668,6 +6874,7 @@ function renderBattle() {
   bindBattleBoard();
 
   if (activeBattle.turn === "player") {
+    const locked = battleInputLocked();
     const activeUnit = selectedBattleUnit();
     if (activeUnit) {
       const special = playerSpecialDefinition(activeUnit, activeBattle.selectedIndex);
@@ -6675,7 +6882,7 @@ function renderBattle() {
         const specialButton = document.createElement("button");
         specialButton.type = "button";
         specialButton.className = "secondary battle-action battle-action-special";
-        specialButton.disabled = !canUsePlayerSpecial(activeUnit, activeBattle.selectedIndex);
+        specialButton.disabled = locked || !canUsePlayerSpecial(activeUnit, activeBattle.selectedIndex);
         specialButton.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>${activeUnit.name}</span><b>${special.name}</b>`;
         specialButton.setAttribute("aria-label", `${activeUnit.name} uses ${special.name}`);
         specialButton.addEventListener("click", () => usePlayerSpecial(activeBattle.selectedIndex));
@@ -6687,7 +6894,7 @@ function renderBattle() {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "battle-action battle-action-attack";
-      button.disabled = !canAttack;
+      button.disabled = locked || !canAttack;
       button.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>${activeUnit.name}${target ? ` -> ${target.name}` : ""}</span><b>${battleAttackButtonText(activeUnit, targetIndex)}</b>`;
       button.setAttribute("aria-label", canAttack ? `${activeUnit.name} attacks ${target.name}` : `${activeUnit.name} has no enemy in attack range`);
       button.addEventListener("click", () => selectedBattleAttack());
@@ -6699,7 +6906,7 @@ function renderBattle() {
     potion.type = "button";
     potion.className = "secondary battle-action battle-action-potion";
     potion.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>x${potionCount}</span><b>Heal</b>`;
-    potion.disabled = potionCount <= 0 || injured <= 0;
+    potion.disabled = locked || potionCount <= 0 || injured <= 0;
     potion.setAttribute("aria-label", `Use Healing Draught to heal the party for ${HEALING_DRAUGHT_AMOUNT}`);
     potion.addEventListener("click", useBattleHealingDraught);
     modalActions.appendChild(potion);
@@ -6707,6 +6914,7 @@ function renderBattle() {
     guard.type = "button";
     guard.className = "secondary battle-action battle-action-guard";
     guard.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>${activeUnit?.name || "Unit"}</span><b>Guard</b>`;
+    guard.disabled = locked;
     guard.setAttribute("aria-label", "Current unit guards against the next enemy attack");
     guard.addEventListener("click", guardBattleAction);
     modalActions.appendChild(guard);
@@ -6716,13 +6924,14 @@ function renderBattle() {
     auto.innerHTML = activeBattle.auto
       ? `<i class="battle-action-icon" aria-hidden="true"></i><span>Auto</span><b>Stop</b>`
       : `<i class="battle-action-icon" aria-hidden="true"></i><span>${battleHasBoss() ? "Risky" : "Repeat"}</span><b>Auto</b>`;
+    auto.disabled = locked;
     auto.setAttribute("aria-label", activeBattle.auto ? "Stop auto battle" : "Enable auto battle");
     auto.addEventListener("click", toggleAutoBattle);
     modalActions.appendChild(auto);
   } else {
     const waiting = document.createElement("p");
     waiting.className = "battle-wait";
-    waiting.textContent = activeBattle.auto ? "Enemy turn... Auto Battle armed." : "Enemy turn...";
+    waiting.textContent = activeBattle.auto ? "Enemy turn... Auto Battle armed." : activeBattle.turn === "player" && battleInputLocked() ? "Resolving action..." : "Enemy turn...";
     modalActions.appendChild(waiting);
     if (activeBattle.auto) {
       const stopAuto = document.createElement("button");
@@ -7114,6 +7323,10 @@ function clearAutoBattleTimer() {
   autoBattleTimer = 0;
 }
 
+function battleInputLocked() {
+  return Boolean(activeBattle?.resolving);
+}
+
 function battleHasBoss() {
   return Boolean(activeBattle?.event?.type === "final" || activeBattle?.event?.gate || activeBattle?.enemies?.some((enemy) => ["gatekeeper", "rival"].includes(enemy.sourceEncounter)));
 }
@@ -7136,7 +7349,7 @@ function markSpecialUsed(key) {
 }
 
 function toggleAutoBattle() {
-  if (!activeBattle) return;
+  if (!activeBattle || battleInputLocked()) return;
   activeBattle.auto = !activeBattle.auto;
   clearAutoBattleTimer();
   activeBattle.log.push(activeBattle.auto
@@ -7149,12 +7362,12 @@ function toggleAutoBattle() {
 
 function scheduleAutoBattleAction() {
   clearAutoBattleTimer();
-  if (!activeBattle?.auto || activeBattle.turn !== "player") return;
+  if (!activeBattle?.auto || activeBattle.turn !== "player" || battleInputLocked()) return;
   autoBattleTimer = window.setTimeout(runAutoBattleAction, AUTO_BATTLE_DELAY_MS);
 }
 
 function runAutoBattleAction() {
-  if (!activeBattle?.auto || activeBattle.turn !== "player") return;
+  if (!activeBattle?.auto || activeBattle.turn !== "player" || battleInputLocked()) return;
   const activeUnit = selectedBattleUnit();
   const activeIndex = activeBattle.selectedIndex;
   const pos = activeBattle.positions[activeIndex];
@@ -7286,7 +7499,7 @@ function playerSpecialDefinition(unit, unitIndex) {
 function canUsePlayerSpecial(unit, unitIndex, preferredTargetIndex = currentBattleTargetIndex()) {
   if (!activeBattle || activeBattle.turn !== "player" || activeBattle.activeActor?.index !== unitIndex) return false;
   const pos = activeBattle.positions[unitIndex];
-  if (!unit || unit.hp <= 0 || !pos || pos.acted || specialUsed(battleUnitKey(unitIndex))) return false;
+  if (!unit || unit.hp <= 0 || !pos || pos.acted || battleInputLocked() || specialUsed(battleUnitKey(unitIndex))) return false;
   const special = playerSpecialDefinition(unit, unitIndex);
   if (!special) return false;
   if (special.type === "heal" || special.type === "guard") return true;
@@ -7305,6 +7518,7 @@ function usePlayerSpecial(unitIndex, preferredTargetIndex = currentBattleTargetI
   const unit = [state.hero, ...state.party][unitIndex];
   const special = playerSpecialDefinition(unit, unitIndex);
   if (!canUsePlayerSpecial(unit, unitIndex, preferredTargetIndex) || !special) return renderBattle();
+  beginBattleUnitResolution(unitIndex);
   if (special.type === "heal") {
     markSpecialUsed(battleUnitKey(unitIndex));
     return useSupportSpecial(unit, unitIndex, special);
@@ -7388,7 +7602,7 @@ function canActiveUnitAttackEnemy(enemyIndex) {
   const unitPos = activeBattle.positions[activeBattle.selectedIndex];
   const enemy = activeBattle.enemies[enemyIndex];
   const enemyPos = activeBattle.enemyPositions[enemyIndex];
-  return Boolean(unit && unit.hp > 0 && unitPos && !unitPos.acted && enemy && enemy.hp > 0 && enemyPos && attackPositionForTarget(unit, activeBattle.selectedIndex, enemyPos));
+  return Boolean(unit && unit.hp > 0 && unitPos && !unitPos.acted && !battleInputLocked() && enemy && enemy.hp > 0 && enemyPos && attackPositionForTarget(unit, activeBattle.selectedIndex, enemyPos));
 }
 
 function battleFeedbackClassForUnit(index) {
@@ -7453,7 +7667,7 @@ function enemyVisualForEnemy(enemy) {
 }
 
 function selectBattleUnit(index) {
-  if (!activeBattle || activeBattle.turn !== "player") return;
+  if (!activeBattle || activeBattle.turn !== "player" || battleInputLocked()) return;
   if (activeBattle.activeActor?.type !== "unit" || activeBattle.activeActor.index !== index) return;
   const unit = [state.hero, ...state.party][index];
   const pos = activeBattle.positions[index];
@@ -7464,7 +7678,7 @@ function selectBattleUnit(index) {
 }
 
 function selectBattleEnemy(index) {
-  if (!activeBattle || activeBattle.turn !== "player") return;
+  if (!activeBattle || activeBattle.turn !== "player" || battleInputLocked()) return;
   const enemy = activeBattle.enemies[index];
   if (!enemy || enemy.hp <= 0) return;
   activeBattle.selectedEnemyIndex = index;
@@ -7473,7 +7687,7 @@ function selectBattleEnemy(index) {
 }
 
 function handleBattleEnemyClick(index) {
-  if (!activeBattle || activeBattle.turn !== "player") return;
+  if (!activeBattle || activeBattle.turn !== "player" || battleInputLocked()) return;
   const enemy = activeBattle.enemies[index];
   if (!enemy || enemy.hp <= 0) return;
   activeBattle.selectedEnemyIndex = index;
@@ -7491,7 +7705,7 @@ function selectedBattleUnit() {
 }
 
 function moveSelectedBattleUnit(x, y) {
-  if (!activeBattle || activeBattle.turn !== "player") return;
+  if (!activeBattle || activeBattle.turn !== "player" || battleInputLocked()) return;
   const unit = selectedBattleUnit();
   const pos = activeBattle.positions[activeBattle.selectedIndex];
   if (!unit || unit.hp <= 0 || !pos || pos.acted) return;
@@ -7514,7 +7728,7 @@ function moveSelectedBattleUnit(x, y) {
 }
 
 function selectedBattleAttack(enemyIndex = activeBattle?.selectedEnemyIndex) {
-  if (!activeBattle || activeBattle.turn !== "player") return;
+  if (!activeBattle || activeBattle.turn !== "player" || battleInputLocked()) return;
   const unit = selectedBattleUnit();
   const pos = activeBattle.positions[activeBattle.selectedIndex];
   const explicitTarget = Number.isInteger(enemyIndex);
@@ -7543,6 +7757,7 @@ function selectedBattleAttack(enemyIndex = activeBattle?.selectedEnemyIndex) {
     pos.y = attackPos.y;
     activeBattle.log.push(`${unit.name} moves into range.`);
   }
+  beginBattleUnitResolution(activeBattle.selectedIndex);
   playerBattleAction(activeBattle.selectedIndex, targetIndex);
 }
 
@@ -7579,7 +7794,7 @@ function attackPositionForTarget(unit, unitIndex, enemyPos) {
 }
 
 function moveRange(unit) {
-  return Math.max(1, unit.speed || 1);
+  return Math.max(1, Math.ceil((unit.speed || 1) / 2));
 }
 
 function attackRange(unit) {
@@ -7641,7 +7856,6 @@ function isTargetInAttackRange(attacker, from, to) {
 
 function canAttackTarget(attacker, from, to) {
   if (!attacker || !from || !to) return false;
-  if (attackTypeLabel(attacker) === "Ranged") return true;
   return isTargetInAttackRange(attacker, from, to);
 }
 
@@ -7660,9 +7874,19 @@ function battleDistance(from, to, unit) {
   return unit?.moveType === "flying" ? Math.max(dx, dy) : dx + dy;
 }
 
+function beginBattleUnitResolution(unitIndex = activeBattle?.selectedIndex) {
+  if (!activeBattle) return false;
+  activeBattle.resolving = true;
+  const pos = activeBattle.positions[unitIndex];
+  if (pos) pos.acted = true;
+  clearAutoBattleTimer();
+  return true;
+}
+
 function finishBattleUnitAction() {
   const pos = activeBattle.positions[activeBattle.selectedIndex];
   if (pos) pos.acted = true;
+  activeBattle.resolving = false;
   advanceBattleTurn();
   renderBattle();
 }
@@ -7670,6 +7894,7 @@ function finishBattleUnitAction() {
 function queueBattleFollowthrough(callback, delay = BATTLE_HIT_PAUSE_MS) {
   window.setTimeout(() => {
     if (!activeBattle) return;
+    activeBattle.resolving = false;
     callback();
   }, delay);
 }
@@ -7769,8 +7994,9 @@ function maybeTriggerBossPhase(enemyIndex) {
 }
 
 function guardBattleAction() {
-  if (!activeBattle) return;
+  if (!activeBattle || battleInputLocked()) return;
   const unit = selectedBattleUnit();
+  beginBattleUnitResolution(activeBattle.selectedIndex);
   activeBattle.feedback = { type: "guard", unitIndex: activeBattle.selectedIndex };
   playSfx("guard");
   activeBattle.log.push(`${unit?.name || "Unit"} guards.`);
@@ -7779,7 +8005,7 @@ function guardBattleAction() {
 }
 
 function useBattleHealingDraught() {
-  if (!activeBattle || activeBattle.turn !== "player") return;
+  if (!activeBattle || activeBattle.turn !== "player" || battleInputLocked()) return;
   const unit = selectedBattleUnit();
   const pos = activeBattle.positions[activeBattle.selectedIndex];
   if (!unit || unit.hp <= 0 || !pos || pos.acted) return;
@@ -7792,6 +8018,7 @@ function useBattleHealingDraught() {
     return renderBattle();
   }
   removeInventoryItem("healingDraught", 1);
+  beginBattleUnitResolution(activeBattle.selectedIndex);
   [state.hero, ...state.party].forEach((member, index) => {
     if (member.hp <= 0) return;
     const before = member.hp;
@@ -8270,12 +8497,15 @@ function finalVictoryMarkup(enemyLabel, reward, xp) {
   `;
 }
 
-function gainXp(amount) {
+function gainXp(amount, options = {}) {
   let heroLevels = 0;
   const unitLevelUps = [];
+  const unitShare = Number.isFinite(options.unitShare) ? Math.max(0, options.unitShare) : 0.55;
+  const unitGain = Math.max(0, Math.round(amount * unitShare));
   state.hero.xp += amount;
   state.party.forEach((unit) => {
-    unit.xp = (unit.xp || 0) + amount;
+    if (unit.hp <= 0) return;
+    unit.xp = (unit.xp || 0) + unitGain;
     while (unit.xp >= xpToNext(unit)) {
       unit.xp -= xpToNext(unit);
       const summary = applyUnitLevelGrowth(unit);
@@ -8293,7 +8523,7 @@ function gainXp(amount) {
 
 function xpToNext(unit) {
   const level = Math.max(1, unit.level || 1);
-  return Math.round(42 + level * 38 + Math.max(0, level - 1) * 8);
+  return Math.round(54 + level * 44 + Math.max(0, level - 1) * 10);
 }
 
 function applyHeroLevelGrowth() {
@@ -8307,10 +8537,10 @@ function applyHeroLevelGrowth() {
 
 function applyUnitLevelGrowth(unit) {
   unit.level += 1;
-  const hpGain = unit.level % 2 === 0 ? 5 : 3;
-  const atkGain = unit.attackType === "ranged" ? (unit.level % 2 === 0 ? 1 : 0) : 1;
-  const defGain = unit.level % 3 === 0 ? 1 : 0;
-  const powerGain = unit.attackType === "ranged" || unit.moveType === "flying" ? 1 : unit.level % 2;
+  const hpGain = unit.level % 2 === 0 ? 4 : 3;
+  const atkGain = unit.attackType === "ranged" ? (unit.level % 3 === 0 ? 1 : 0) : 1;
+  const defGain = unit.level % 4 === 0 ? 1 : 0;
+  const powerGain = unit.attackType === "ranged" || unit.moveType === "flying" ? (unit.level % 3 === 0 ? 1 : 0) : unit.level % 4 === 0 ? 1 : 0;
   unit.maxHp += hpGain;
   unit.atk += atkGain;
   unit.def += defGain;
@@ -10434,9 +10664,15 @@ function itemIconIndex(id) {
     healingDraught: 0,
     bannerOfLuck: 1,
     dawnwoodBow: 2,
+    fieldRations: 6,
+    marshalHorn: 1,
+    scoutLens: 4,
     silverBridle: 3,
     starlitCompass: 4,
+    sunsteelEdge: 2,
+    trailBoots: 3,
     forgeCharm: 5,
+    wardingSigil: 5,
     supplyCrate: 6,
     coinPouch: 7,
   }[id] ?? 6;
@@ -11228,13 +11464,15 @@ function renderInventory() {
 function renderInventoryItem(entry) {
   const definition = itemDefinitions[entry.id];
   const equipped = state.equipped[entry.id];
+  const slotOccupant = definition.type === "equipment" ? equippedItemIdForSlot(definition.slot) : "";
+  const slotLabel = definition.slot ? `${definition.slot[0].toUpperCase()}${definition.slot.slice(1)}` : "";
   const action = definition.type === "consumable" ? "Use" : equipped ? "Unequip" : "Equip";
   return `
     <div class="inventory-item">
       ${tradeItemIconMarkup(entry.id)}
       <div>
         <div class="item-name"><span>${definition.name}</span><span>x${entry.qty}</span></div>
-        <p>${definition.description}</p>
+        <p>${definition.description}${definition.type === "equipment" && slotLabel ? ` Slot: ${slotLabel}.${slotOccupant && slotOccupant !== entry.id ? ` Replaces ${itemDefinitions[slotOccupant]?.name || "equipped gear"}.` : ""}` : ""}</p>
       </div>
       <button type="button" data-use-item="${entry.id}">${action}</button>
     </div>
