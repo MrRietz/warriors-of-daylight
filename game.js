@@ -6886,7 +6886,8 @@ function battleEffectsMarkup() {
     const top = ((from.y + 0.5) / BATTLE_ROWS) * 100;
     const width = (length / BATTLE_COLS) * 100;
     const sprite = effect.kind === "spell" ? "assets/vfx-spell-orb.svg" : "assets/vfx-ranged-bolt.svg";
-    return `<span class="battle-effect ${effect.kind}" style="left:${left}%;top:${top}%;width:${Math.max(width, 4)}%;--angle:${angle}rad;--battle-layer:8;">
+    const projectileClass = effect.kind === "shot" || effect.kind === "spell" ? "projectile" : "";
+    return `<span class="battle-effect ${effect.kind} ${projectileClass}" style="left:${left}%;top:${top}%;width:${Math.max(width, 4)}%;--angle:${angle}rad;--battle-layer:8;">
       <i class="trail"></i>
       <img class="battle-effect-sprite projectile ${effect.kind}" src="${sprite}" alt="" />
       <b class="impact"></b>
@@ -6904,7 +6905,12 @@ function addBattleFloater(x, y, text, kind = "") {
   activeBattle.floaters = (activeBattle.floaters || []).concat({ x, y, text, kind }).slice(-4);
 }
 
-function queueBattleEffect(kind, from, to, duration = 340) {
+function battleEffectDuration(kind, requestedDuration = 0) {
+  const minimum = kind === "slash" ? 620 : kind === "shot" || kind === "spell" ? 820 : 420;
+  return Math.max(minimum, requestedDuration || 0);
+}
+
+function queueBattleEffect(kind, from, to, duration = 0) {
   if (!activeBattle) return;
   battleEffectId += 1;
   const id = battleEffectId;
@@ -6914,13 +6920,13 @@ function queueBattleEffect(kind, from, to, duration = 340) {
     if (!activeBattle?.effects?.length) return;
     activeBattle.effects = activeBattle.effects.filter((effect) => effect.id !== id);
     if (activeBattle) renderBattle();
-  }, duration);
+  }, battleEffectDuration(kind, duration));
 }
 
 function queueBattleAttackEffect(attacker, from, to, styleOverride = "") {
   if (!from || !to) return;
   const mode = styleOverride || battleAttackEffectKind(attacker);
-  queueBattleEffect(mode, from, to, mode === "slash" ? 620 : 780);
+  queueBattleEffect(mode, from, to);
 }
 
 function battleAttackEffectKind(attacker) {
@@ -6939,6 +6945,13 @@ function battleAttackFeedbackStyle(attacker, override = "") {
   return attacker.attackType === "ranged"
     ? ((attacker.power || 0) >= 7 ? "spell" : "ranged")
     : "melee";
+}
+
+function battleSpecialEffectKind(special, unit) {
+  if (!special) return battleAttackEffectKind(unit);
+  if (special.type === "magic" || special.type === "hex") return "spell";
+  if (special.type === "pierce") return "shot";
+  return battleAttackEffectKind(unit);
 }
 
 function clearBattleFloaters() {
@@ -7282,11 +7295,11 @@ function usePlayerSpecial(unitIndex) {
   const defense = special.type === "pierce" ? Math.floor((enemy.def || 0) * 0.45) : Math.floor((enemy.def || 0) * 0.75);
   const damage = Math.max(3, unit.atk + bonus + (unit.level || 1) - defense - penalty);
   enemy.hp = Math.max(0, enemy.hp - damage);
-  const effectStyle = special.type === "magic" ? "spell" : special.type === "pierce" ? "shot" : "";
+  const effectStyle = battleSpecialEffectKind(special, unit);
   activeBattle.feedback = { type: "hit", unitIndex, enemyIndex: targetIndex, target: "enemy", style: battleAttackFeedbackStyle(unit, effectStyle) };
   queueBattleAttackEffect(unit, pos, enemyPos, effectStyle);
-  addBattleFloater(enemyPos.x, enemyPos.y, `-${damage}`, special.type === "magic" ? "magic" : "damage");
-  playSfx(special.type === "magic" ? "spell" : special.type === "pierce" ? "shot" : "slash");
+  addBattleFloater(enemyPos.x, enemyPos.y, `-${damage}`, effectStyle === "spell" ? "magic" : "damage");
+  playSfx(effectStyle === "spell" ? "spell" : effectStyle === "shot" ? "shot" : "slash");
   activeBattle.log.push(`${unit.name} uses ${special.name} on ${enemy.name} for ${damage}.`);
   if (enemy.hp <= 0) {
     enemy.hp = 0;

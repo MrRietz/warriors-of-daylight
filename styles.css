@@ -2932,7 +2932,8 @@ dialog.notice-modal .modal-card {
 
 @keyframes battle-shot-streak {
   0% { opacity: 0; transform: scaleX(0.18); }
-  25% { opacity: 1; }
+  18% { opacity: 1; }
+  62% { opacity: 1; }
   100% { opacity: 0; transform: scaleX(1); }
 }
 
@@ -2943,9 +2944,10 @@ dialog.notice-modal .modal-card {
 }
 
 @keyframes battle-projectile-sprite {
-  0% { opacity: 0; transform: translateY(-50%) scale(0.5); }
-  18% { opacity: 1; transform: translateY(-50%) scale(1.05); }
-  100% { opacity: 0; transform: translateY(-50%) scale(0.94); }
+  0% { opacity: 0; transform: translate(-18px, -50%) scale(0.72); }
+  16% { opacity: 1; transform: translate(-6px, -50%) scale(1.08); }
+  68% { opacity: 1; transform: translate(0, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(8px, -50%) scale(0.96); }
 }
 
 @keyframes battle-melee-sprite {
@@ -2956,7 +2958,8 @@ dialog.notice-modal .modal-card {
 
 @keyframes battle-spell-streak {
   0% { opacity: 0; transform: scaleX(0.12) scaleY(0.8); }
-  20% { opacity: 1; }
+  18% { opacity: 1; }
+  64% { opacity: 1; }
   100% { opacity: 0; transform: scaleX(1) scaleY(1.05); }
 }
 
@@ -4853,7 +4856,7 @@ dialog.notice-modal .modal-card {
 .battle-effect.shot,
 .battle-effect.spell {
   min-width: 26px;
-  height: 16px;
+  height: 22px;
   transform-origin: left center;
   transform: translateY(-50%) rotate(var(--angle));
 }
@@ -4868,20 +4871,20 @@ dialog.notice-modal .modal-card {
 }
 
 .battle-effect.shot .trail {
-  inset: 5px 12px 5px 0;
+  inset: 7px 16px 7px 0;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255, 242, 182, 0), rgba(255, 242, 182, 0.92) 35%, rgba(240, 193, 91, 1) 60%, rgba(255, 242, 182, 0));
-  box-shadow: 0 0 12px rgba(240, 193, 91, 0.82);
-  animation: battle-shot-streak 420ms ease-out forwards;
+  background: linear-gradient(90deg, rgba(255, 242, 182, 0), rgba(255, 248, 223, 1) 28%, rgba(255, 204, 82, 1) 62%, rgba(255, 242, 182, 0));
+  box-shadow: 0 0 16px rgba(240, 193, 91, 0.95), 0 0 4px rgba(15, 18, 25, 0.9);
+  animation: battle-shot-streak 620ms ease-out forwards;
 }
 
 .battle-effect.projectile .battle-effect-sprite {
   top: 50%;
-  right: -14px;
-  width: 44px;
-  height: 44px;
+  right: -22px;
+  width: 72px;
+  height: 24px;
   transform: translateY(-50%);
-  filter: drop-shadow(0 0 14px rgba(255, 248, 223, 0.9));
+  filter: drop-shadow(0 0 3px rgba(15, 18, 25, 0.95)) drop-shadow(0 0 16px rgba(255, 248, 223, 1));
   opacity: 0;
   animation: battle-projectile-sprite 780ms ease-out forwards;
 }
@@ -4898,18 +4901,18 @@ dialog.notice-modal .modal-card {
 }
 
 .battle-effect.spell .trail {
-  inset: 4px 14px 4px 0;
+  inset: 5px 18px 5px 0;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(160, 116, 221, 0), rgba(215, 236, 255, 0.95) 30%, rgba(160, 116, 221, 1) 64%, rgba(160, 116, 221, 0));
-  box-shadow: 0 0 16px rgba(160, 116, 221, 0.96);
-  animation: battle-spell-streak 460ms ease-out forwards;
+  box-shadow: 0 0 18px rgba(160, 116, 221, 1), 0 0 5px rgba(15, 18, 25, 0.9);
+  animation: battle-spell-streak 680ms ease-out forwards;
 }
 
 .battle-effect.spell .battle-effect-sprite {
-  width: 56px;
-  height: 56px;
-  right: -20px;
-  filter: drop-shadow(0 0 18px rgba(160, 116, 221, 0.96));
+  width: 72px;
+  height: 34px;
+  right: -26px;
+  filter: drop-shadow(0 0 3px rgba(15, 18, 25, 0.95)) drop-shadow(0 0 20px rgba(160, 116, 221, 1));
 }
 
 .battle-effect.spell .impact {
@@ -5507,27 +5510,6 @@ dialog.notice-modal .modal-card {
   pointer-events: none;
 }
 
-.battle-feedback-ranged .battle-base::after,
-.battle-feedback-spell .battle-base::after {
-  position: absolute;
-  inset: -10px -10px 2px;
-  content: "";
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.battle-feedback-ranged .battle-base::after {
-  background: radial-gradient(circle, rgba(255, 242, 182, 0.95), rgba(240, 193, 91, 0.24) 48%, rgba(240, 193, 91, 0) 72%);
-  box-shadow: 0 0 22px rgba(240, 193, 91, 0.82);
-  animation: battle-ranged-flash 520ms ease-out;
-}
-
-.battle-feedback-spell .battle-base::after {
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.98), rgba(215, 236, 255, 0.92) 18%, rgba(160, 116, 221, 0.72) 52%, rgba(160, 116, 221, 0) 78%);
-  box-shadow: 0 0 28px rgba(160, 116, 221, 0.94);
-  animation: battle-spell-flash 680ms ease-out;
-}
-
 .battle-floater {
   z-index: var(--battle-layer, 9);
   place-self: center;
@@ -5992,18 +5974,6 @@ dialog.notice-modal .modal-card {
     opacity: 0;
     transform: scale(1.28);
   }
-}
-
-@keyframes battle-ranged-flash {
-  0% { opacity: 0; transform: scale(0.35); }
-  35% { opacity: 1; transform: scale(1.08); }
-  100% { opacity: 0; transform: scale(1.5); }
-}
-
-@keyframes battle-spell-flash {
-  0% { opacity: 0; transform: scale(0.28); }
-  30% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.65); }
 }
 
 @media (max-width: 759px) {
