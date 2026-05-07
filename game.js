@@ -34,7 +34,7 @@ const MUSIC_OUTPUT_BOOST = 3.1;
 const HERO_WORLD_HEIGHT = 54;
 const NPC_WORLD_HEIGHT = 52;
 const BATTLE_COLS = 9;
-const BATTLE_ROWS = 5;
+const BATTLE_ROWS = 7;
 const BATTLE_HIT_PAUSE_MS = 260;
 const MOVE_DURATION_MS = 235;
 const WALK_FRAME_MS = 76;
@@ -839,7 +839,7 @@ function caravanPostCount() {
 
 const campUpgradeDefinitions = {
   betterTent: { name: "Better Tent", cost: 120, text: "Turns dawn into a real recovery window with stronger healing after the watch." },
-  watchtower: { name: "Watchtower", cost: 160, text: "Reveals incoming wave details before battle, can cut one wave, and opens each defense with tower fire." },
+  watchtower: { name: "Watchtower", cost: 160, text: "Reveals incoming wave details and joins night battles as a controllable tower unit." },
   traps: { name: "Stake Traps", cost: 140, text: "The first raiders in every wave reach camp already bloodied by hidden stakes." },
   healerFire: { name: "Healer Fire", cost: 180, text: "Restores the party before each wave so a rough first fight does not snowball." },
 };
@@ -968,7 +968,7 @@ const itemDefinitions = {
   healingDraught: {
     name: "Healing Draught",
     type: "consumable",
-    description: `Restore ${HEALING_DRAUGHT_AMOUNT} HP to every party member. Usable in battle.`,
+    description: `Restore ${HEALING_DRAUGHT_AMOUNT} HP. In battle, choose one living party member to heal.`,
     use: () => {
       recoverParty(HEALING_DRAUGHT_AMOUNT);
       return `Healing Draught restores ${HEALING_DRAUGHT_AMOUNT} HP to the party. It tastes like heroic soup.`;
@@ -3609,12 +3609,11 @@ function setNightPlan(id) {
 
 function buildNightEncounters(planId = currentNightPlanId()) {
   const tier = campaignDifficultyTier();
-  const watchtowerReduction = state.campUpgrades?.watchtower ? 1 : 0;
   const nightRaid = planId === "nightRaid" ? 1 : 0;
   const holdfastReduction = planId === "holdfast" ? 1 : 0;
   const waveCap = planId === "nightRaid" ? 4 : 3;
   const latePressure = tier.rank >= 1 && state.day >= 3 && planId !== "holdfast" ? 1 : 0;
-  const count = Math.max(1, Math.min(waveCap, NIGHT_ENCOUNTER_MIN + Math.floor(Math.random() * (NIGHT_ENCOUNTER_MAX - NIGHT_ENCOUNTER_MIN + 1)) + latePressure + nightRaid - watchtowerReduction - holdfastReduction));
+  const count = Math.max(1, Math.min(waveCap, NIGHT_ENCOUNTER_MIN + Math.floor(Math.random() * (NIGHT_ENCOUNTER_MAX - NIGHT_ENCOUNTER_MIN + 1)) + latePressure + nightRaid - holdfastReduction));
   const partyLevel = averagePartyLevel();
   return Array.from({ length: count }, (_, index) => {
     const eventBias = activeNight?.report?.eventDifficultyBias || 0;
@@ -3713,6 +3712,8 @@ function nightWaveMarkup(enemy, remaining, partySize) {
   const sprite = enemyWaveSpriteUrl(enemy);
   const attackerCount = Math.min(5, partySize);
   const plan = currentNightPlan();
+  const campArt = state.campUpgrades?.watchtower ? "assets/night-camp-watchtower.png" : "assets/night-camp-defense.png";
+  const towerShot = state.campUpgrades?.watchtower ? `<span class="camp-tower-shot" aria-hidden="true"></span>` : "";
   const attackers = Array.from({ length: Math.min(5, partySize) }, (_, index) => sprite
     ? `<img src="${sprite}" alt="" style="--i:${index};--delay:${index * NIGHT_WAVE_STAGGER_MS}ms;--sneak-ms:${NIGHT_WAVE_SNEAK_MS}ms" />`
     : `<i style="--i:${index};--delay:${index * NIGHT_WAVE_STAGGER_MS}ms;--sneak-ms:${NIGHT_WAVE_SNEAK_MS}ms"></i>`).join("");
@@ -3720,7 +3721,8 @@ function nightWaveMarkup(enemy, remaining, partySize) {
     <div class="night-wave">
       <div class="camp-scene" aria-label="Night camp under attack">
         <div class="night-sky"><span></span><span></span><span></span></div>
-        <img class="camp-art" src="assets/night-camp-defense.png" alt="" />
+        <img class="camp-art ${state.campUpgrades?.watchtower ? "with-watchtower" : ""}" src="${campArt}" alt="" />
+        ${towerShot}
         <div class="camp-attackers">${attackers}</div>
       </div>
       <div class="night-prep-banner">
@@ -3747,6 +3749,24 @@ function enemyWaveSpriteUrl(enemy) {
   return "";
 }
 
+function nightfallCampArtMarkup() {
+  const pieces = [
+    { id: "watchtower", label: "Tower", built: Boolean(state.campUpgrades?.watchtower) },
+    { id: "traps", label: "Traps", built: Boolean(state.campUpgrades?.traps) },
+    { id: "healerFire", label: "Fire", built: Boolean(state.campUpgrades?.healerFire) },
+    { id: "betterTent", label: "Tent", built: Boolean(state.campUpgrades?.betterTent) },
+  ];
+  const classes = pieces.filter((piece) => piece.built).map((piece) => `has-${piece.id}`).join(" ");
+  return `
+    <figure class="nightfall-camp-art ${classes}" aria-label="Night camp defenses">
+      <img src="assets/nightfall-camp-upgrades.png" alt="" />
+      <figcaption>
+        ${pieces.map((piece) => `<span class="${piece.built ? "built" : "missing"}">${escapeHtml(piece.label)}</span>`).join("")}
+      </figcaption>
+    </figure>
+  `;
+}
+
 function nightfallMarkup() {
   const currentPlanId = currentNightPlanId();
   const currentPlan = currentNightPlan();
@@ -3767,6 +3787,7 @@ function nightfallMarkup() {
           <p>Pick, resolve, review, stand guard.</p>
         </div>
       </div>
+      ${nightfallCampArtMarkup()}
       <div class="night-summary-bar">
         <span><small>Waves</small><strong>${activeNight.encounters.length}</strong></span>
         <span><small>Chosen</small><strong>${currentPlan.name}</strong></span>
@@ -4168,7 +4189,7 @@ function nightDefenseEffectPills() {
   if (currentNightPlanId() === "holdfast") pills.push("Hold Fast: extra recovery before battle");
   if (currentNightPlanId() === "nightRaid") pills.push("Night Raid: extra gold, XP, and item chance");
   if (currentNightPlanId() === "scoutLines") pills.push("Scout Lines: dawn reveals the next target");
-  if (state.campUpgrades?.watchtower) pills.push("Watchtower: identifies wave threats, may cut one wave, and opens with tower fire");
+  if (state.campUpgrades?.watchtower) pills.push("Watchtower: identifies threats and gives you a controllable tower turn");
   if (state.campUpgrades?.traps) pills.push("Stake Traps: first raiders start damaged");
   if (state.campUpgrades?.healerFire) pills.push("Healer Fire: party restored before each wave");
   if (state.campUpgrades?.betterTent) pills.push("Better Tent: stronger dawn recovery");
@@ -4197,7 +4218,7 @@ function campUpgradeCard(id, upgrade) {
 function campUpgradeShortText(id) {
   return {
     betterTent: "More dawn recovery.",
-    watchtower: "Shows threats and fires first.",
+    watchtower: "Shows threats and fights at night.",
     traps: "First raiders start hurt.",
     healerFire: "Heal before each wave.",
   }[id] || "";
@@ -4214,7 +4235,7 @@ function nightPlanEffectTags(id) {
 function campUpgradeEffectTags(id) {
   return {
     betterTent: ["More dawn healing", "Recovery spike"],
-    watchtower: ["Wave forecast", "Tower fire", "Possible wave cut"],
+    watchtower: ["Wave forecast", "Playable tower", "No free shot"],
     traps: ["Damaged opener", "Two targets"],
     healerFire: ["Pre-wave healing", "Party sustain"],
   }[id] || [];
@@ -6741,13 +6762,14 @@ function createBossBattleState(event) {
 function startBattle(key, event, enemyInput) {
   clearHeldMovementInput();
   const team = [state.hero, ...state.party];
-  const positions = team.map((unit, index) => ({ x: index >= BATTLE_ROWS ? 0 : 1, y: index % BATTLE_ROWS, acted: unit.hp <= 0 }));
+  const positions = team.map((unit, index) => battleFormationPosition(index, "team", unit.hp <= 0));
   const enemies = Array.isArray(enemyInput) ? enemyInput.map((enemy) => normalizeEnemyUnit(enemy)) : createEnemyParty(event.encounter, enemyInput);
-  const enemyPositions = enemies.map((_, index) => ({ x: index >= BATTLE_ROWS ? BATTLE_COLS - 1 : BATTLE_COLS - 2, y: index % BATTLE_ROWS }));
+  const enemyPositions = enemies.map((_, index) => battleFormationPosition(index, "enemy"));
   const enemyNames = enemies.map((enemy) => enemy.name).join(", ");
   const showBattleHint = !state.tutorial?.battleBasics && event.type !== "night";
   state.tutorial ??= {};
   if (showBattleHint) state.tutorial.battleBasics = true;
+  const tower = createBattleTower(event, positions);
   activeBattle = {
     key,
     event,
@@ -6762,11 +6784,14 @@ function startBattle(key, event, enemyInput) {
     queueIndex: 0,
     positions,
     enemyPositions,
+    tower,
+    terrain: createBattleTerrain(key, event, positions, enemyPositions, tower),
     floaters: [],
     effects: [],
     log: [`${enemyNames} engage your party.`],
     bossState: createBossBattleState(event),
     usedSpecials: {},
+    healingTargetMode: false,
     auto: false,
     resolving: false,
     showBattleHint,
@@ -6779,6 +6804,142 @@ function startBattle(key, event, enemyInput) {
   advanceBattleTurn();
   renderBattle();
   if (!modal.open) modal.showModal();
+}
+
+function battleFormationPosition(index, side, acted = false) {
+  const reserveLine = Math.floor(index / BATTLE_ROWS);
+  const isEnemy = side === "enemy";
+  const edgeX = isEnemy ? BATTLE_COLS - 1 : 0;
+  const reserveX = isEnemy ? Math.max(0, edgeX - reserveLine) : Math.min(BATTLE_COLS - 1, edgeX + reserveLine);
+  return {
+    x: reserveX,
+    y: index % BATTLE_ROWS,
+    facing: isEnemy ? "left" : "right",
+    acted,
+  };
+}
+
+function createBattleTower(event, positions = []) {
+  if (event?.type !== "night" || !state.campUpgrades?.watchtower) return null;
+  const occupied = new Set(positions.filter((pos, index) => [state.hero, ...state.party][index]?.hp > 0).map((pos) => `${pos.x},${pos.y}`));
+  const preferredRows = [Math.floor(BATTLE_ROWS / 2), BATTLE_ROWS - 1, 0, 1, BATTLE_ROWS - 2];
+  const preferredTiles = [0, 1].flatMap((x) => preferredRows.map((y) => ({ x, y })));
+  const tile = preferredTiles.find((candidate) => !occupied.has(`${candidate.x},${candidate.y}`)) || { x: 1, y: Math.floor(BATTLE_ROWS / 2) };
+  return {
+    unit: {
+      name: "Watchtower",
+      color: "#9ec4e8",
+      hp: 30,
+      maxHp: 30,
+      atk: Math.max(6, 5 + Math.floor((state.day || 1) / 2)),
+      def: 8,
+      speed: 9,
+      power: 4,
+      morale: 6,
+      moveType: "fixed",
+      attackType: "ranged",
+      attackRange: 6,
+      skill: "Tower Shot",
+    },
+    pos: { x: tile.x, y: tile.y, facing: "right", acted: false },
+  };
+}
+
+const battleTerrainDefinitions = {
+  cover: { label: "Cover", short: "Guard", icon: "", hint: "Reduces incoming hits." },
+  focus: { label: "Focus Rune", short: "Power", icon: "", hint: "Boosts attacks from this tile." },
+  well: { label: "Healing Well", short: "Heal", icon: "", hint: "Heals a little at turn start." },
+  obstacle: { label: "Obstacle", icon: "", hint: "Blocks movement." },
+};
+
+const battleObstacleTypes = ["boulder", "pond", "lake", "trees", "log", "bramble", "ruins", "marsh"];
+
+function createBattleTerrain(key, event, positions, enemyPositions, tower = null) {
+  const seedText = `${key || ""}:${event?.encounter || event?.type || "battle"}:${state.day || 1}`;
+  const random = seededBattleRandom(seedText);
+  const occupied = new Set([...positions, ...enemyPositions, tower?.pos].filter(Boolean).map((pos) => `${pos.x},${pos.y}`));
+  const candidates = [];
+  for (let y = 0; y < BATTLE_ROWS; y += 1) {
+    for (let x = 1; x < BATTLE_COLS - 1; x += 1) {
+      if (occupied.has(`${x},${y}`)) continue;
+      candidates.push({ x, y });
+    }
+  }
+  const terrain = [];
+  const obstacleCount = event?.type === "night" ? 4 : 6;
+  for (let i = 0; i < obstacleCount && candidates.length; i += 1) {
+    const start = Math.floor(random() * candidates.length);
+    let pickedIndex = -1;
+    for (let offset = 0; offset < candidates.length; offset += 1) {
+      const index = (start + offset) % candidates.length;
+      const tile = candidates[index];
+      if (!battleObstacleLayoutIsConnected([...terrain, { ...tile, type: "obstacle" }], occupied)) continue;
+      pickedIndex = index;
+      break;
+    }
+    if (pickedIndex < 0) break;
+    const [tile] = candidates.splice(pickedIndex, 1);
+    const obstacle = battleObstacleTypes[Math.floor(random() * battleObstacleTypes.length) % battleObstacleTypes.length];
+    terrain.push({ ...tile, type: "obstacle", obstacle });
+  }
+  const picks = [
+    { type: "cover", count: 4 },
+    { type: "focus", count: 2 },
+    { type: "well", count: 1 },
+  ];
+  picks.forEach(({ type, count }) => {
+    for (let i = 0; i < count && candidates.length; i += 1) {
+      const index = Math.floor(random() * candidates.length);
+      const [tile] = candidates.splice(index, 1);
+      terrain.push({ ...tile, type });
+    }
+  });
+  return terrain;
+}
+
+function battleObstacleLayoutIsConnected(terrain, occupied = new Set()) {
+  const blocked = new Set(terrain.filter((tile) => tile.type === "obstacle").map((tile) => `${tile.x},${tile.y}`));
+  const passable = (x, y) => x >= 0 && y >= 0 && x < BATTLE_COLS && y < BATTLE_ROWS && !blocked.has(`${x},${y}`) && !occupied.has(`${x},${y}`);
+  for (let y = 0; y < BATTLE_ROWS; y += 1) {
+    const leftOpen = [0, 1].some((x) => passable(x, y));
+    if (!leftOpen) continue;
+    const seen = new Set();
+    const queue = [];
+    [0, 1].forEach((x) => {
+      if (passable(x, y)) {
+        queue.push({ x, y });
+        seen.add(`${x},${y}`);
+      }
+    });
+    while (queue.length) {
+      const tile = queue.shift();
+      if (tile.x >= BATTLE_COLS - 2) return true;
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+        const nx = tile.x + dx;
+        const ny = tile.y + dy;
+        const key = `${nx},${ny}`;
+        if (seen.has(key) || !passable(nx, ny)) return;
+        seen.add(key);
+        queue.push({ x: nx, y: ny });
+      });
+    }
+  }
+  return false;
+}
+
+function seededBattleRandom(seedText) {
+  let seed = 2166136261;
+  for (let i = 0; i < seedText.length; i += 1) {
+    seed ^= seedText.charCodeAt(i);
+    seed = Math.imul(seed, 16777619);
+  }
+  return () => {
+    seed += 0x6D2B79F5;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function applyNightBattleDefenses() {
@@ -6795,24 +6956,7 @@ function applyNightBattleDefenses() {
     if (trapTotal > 0 && activeNight?.report) activeNight.report.trapDamageTotal += trapTotal;
     if (trapped.length) notes.push(`Stake traps maul ${trapped.map((enemy) => `${enemy.name} (${enemy.trapDamage})`).join(", ")}.`);
   }
-  if (state.campUpgrades?.watchtower) {
-    const priority = activeBattle.enemies
-      .map((enemy, index) => ({ enemy, index }))
-      .filter(({ enemy }) => enemy.hp > 0)
-      .sort((a, b) => (b.enemy.attackRange || 1) - (a.enemy.attackRange || 1) || (b.enemy.power || 0) - (a.enemy.power || 0))[0];
-    if (priority) {
-      const damage = Math.max(4, Math.round(priority.enemy.maxHp * 0.14));
-      priority.enemy.hp = Math.max(1, priority.enemy.hp - damage);
-      priority.enemy.watchtowerDamage = damage;
-      notes.push(`Watchtower fire tags ${priority.enemy.name} for ${damage} before the line closes.`);
-      const towerPos = { x: 0, y: Math.min(BATTLE_ROWS - 1, priority.index) };
-      const targetPos = activeBattle.enemyPositions[priority.index];
-      if (targetPos) {
-        queueBattleEffect("shot", towerPos, targetPos, 520);
-        addBattleFloater(targetPos.x, targetPos.y, `-${damage}`, "damage");
-      }
-    }
-  }
+  if (state.campUpgrades?.watchtower) notes.push("Watchtower crew takes position. You control its fire during the fight.");
   if (currentNightPlanId() === "holdfast") {
     activeBattle.teamWard = Math.max(activeBattle.teamWard || 0, 1);
     notes.push("Hold Fast braces the camp with an opening ward.");
@@ -6825,8 +6969,12 @@ function buildBattleQueue() {
   const enemyTurns = activeBattle.enemies
     .map((enemy, index) => ({ type: "enemy", index, name: enemy.name, speed: enemy.speed || 1 }))
     .filter((actor) => activeBattle.enemies[actor.index]?.hp > 0);
+  const towerTurns = activeBattle.tower?.unit?.hp > 0
+    ? [{ type: "tower", index: 0, name: activeBattle.tower.unit.name, speed: activeBattle.tower.unit.speed || 1 }]
+    : [];
   activeBattle.queue = [state.hero, ...state.party]
     .map((unit, index) => ({ type: "unit", index, name: unit.name, speed: unit.speed || 1 }))
+    .concat(towerTurns)
     .concat(enemyTurns)
     .sort((a, b) => b.speed - a.speed || a.name.localeCompare(b.name));
   activeBattle.queueIndex = 0;
@@ -6850,6 +6998,17 @@ function advanceBattleTurn() {
     if (activeBattle.positions[actor.index]) activeBattle.positions[actor.index].acted = false;
     activeBattle.turn = "player";
     activeBattle.log.push(`${unit.name}'s turn.`);
+    triggerBattleTerrainStart("unit", actor.index);
+    return;
+  }
+  if (actor.type === "tower") {
+    if (!activeBattle.tower?.unit || activeBattle.tower.unit.hp <= 0) return advanceBattleTurn();
+    activeBattle.activeActor = actor;
+    activeBattle.selectedIndex = -1;
+    activeBattle.selectedEnemyIndex = livingEnemyIndex(activeBattle.selectedEnemyIndex);
+    activeBattle.tower.pos.acted = false;
+    activeBattle.turn = "tower";
+    activeBattle.log.push("Watchtower is ready.");
     return;
   }
   const enemy = activeBattle.enemies[actor.index];
@@ -6859,6 +7018,7 @@ function advanceBattleTurn() {
   activeBattle.selectedEnemyIndex = actor.index;
   activeBattle.turn = "enemy";
   activeBattle.log.push(`${enemy.name}'s turn.`);
+  triggerBattleTerrainStart("enemy", actor.index);
   window.setTimeout(enemyBattleTurn, 450);
 }
 
@@ -6904,10 +7064,10 @@ function renderBattle() {
     const injured = partyMissingHp();
     const potion = document.createElement("button");
     potion.type = "button";
-    potion.className = "secondary battle-action battle-action-potion";
-    potion.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>x${potionCount}</span><b>Heal</b>`;
+    potion.className = `${activeBattle.healingTargetMode ? "" : "secondary "}battle-action battle-action-potion`;
+    potion.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>x${potionCount}</span><b>${activeBattle.healingTargetMode ? "Pick Unit" : "Heal Unit"}</b>`;
     potion.disabled = locked || potionCount <= 0 || injured <= 0;
-    potion.setAttribute("aria-label", `Use Healing Draught to heal the party for ${HEALING_DRAUGHT_AMOUNT}`);
+    potion.setAttribute("aria-label", `Use Healing Draught to heal one party member for ${HEALING_DRAUGHT_AMOUNT}`);
     potion.addEventListener("click", useBattleHealingDraught);
     modalActions.appendChild(potion);
     const guard = document.createElement("button");
@@ -6928,6 +7088,27 @@ function renderBattle() {
     auto.setAttribute("aria-label", activeBattle.auto ? "Stop auto battle" : "Enable auto battle");
     auto.addEventListener("click", toggleAutoBattle);
     modalActions.appendChild(auto);
+  } else if (activeBattle.turn === "tower") {
+    const locked = battleInputLocked();
+    const targetIndex = currentBattleTargetIndex();
+    const target = activeBattle.enemies[targetIndex];
+    const canAttack = Number.isInteger(targetIndex) && targetIndex >= 0 && canTowerAttackEnemy(targetIndex);
+    const shoot = document.createElement("button");
+    shoot.type = "button";
+    shoot.className = "battle-action battle-action-attack";
+    shoot.disabled = locked || !canAttack;
+    shoot.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>Watchtower${target ? ` -> ${target.name}` : ""}</span><b>Tower Shot</b>`;
+    shoot.setAttribute("aria-label", canAttack ? `Watchtower shoots ${target.name}` : "Watchtower has no enemy in range");
+    shoot.addEventListener("click", () => selectedTowerAttack());
+    modalActions.appendChild(shoot);
+    const hold = document.createElement("button");
+    hold.type = "button";
+    hold.className = "secondary battle-action battle-action-guard";
+    hold.innerHTML = `<i class="battle-action-icon" aria-hidden="true"></i><span>Watchtower</span><b>Hold Fire</b>`;
+    hold.disabled = locked;
+    hold.setAttribute("aria-label", "Watchtower holds fire");
+    hold.addEventListener("click", holdTowerFire);
+    modalActions.appendChild(hold);
   } else {
     const waiting = document.createElement("p");
     waiting.className = "battle-wait";
@@ -6952,6 +7133,7 @@ function battleMarkup() {
   const teamRows = [state.hero, ...state.party]
     .map((unit, index) => battleUnitMarkup(unit, index))
     .join("");
+  const towerRow = battleTowerMarkup();
   const enemyRows = activeBattle.enemies
     .map((enemy, index) => battleEnemyMarkup(enemy, index))
     .join("");
@@ -6966,9 +7148,9 @@ function battleMarkup() {
       ${battleFocusMarkup()}
       <div class="turn-order"><b>Turn order</b>${order}</div>
       <div class="battle-layout">
-        <div class="battle-arena" aria-label="Battle arena">
+        <div class="battle-arena ${battleBackgroundClass()}" aria-label="Battle arena">
           ${battleCampSceneMarkup()}
-          <div class="battle-grid">${cells}${teamRows}${enemyRows}${effects}${floaters}</div>
+          <div class="battle-grid">${cells}${teamRows}${towerRow}${enemyRows}${effects}${floaters}</div>
         </div>
         <div class="battle-roster">${battleRosterMarkup()}</div>
       </div>
@@ -6977,10 +7159,24 @@ function battleMarkup() {
   `;
 }
 
+function battleBackgroundClass() {
+  return `battle-bg-${battleBackgroundId()}`;
+}
+
+function battleBackgroundId() {
+  const event = activeBattle?.event || {};
+  const encounterId = event.encounter || activeBattle?.enemies?.[0]?.sourceEncounter || "";
+  if (event.type === "night") return "night";
+  if (event.type === "final" || event.gate || ["gatekeeper", "rival", "towerAdept", "towerSentinel"].includes(encounterId)) return "forge";
+  if (["warlock", "knight"].includes(encounterId) || ["high_march", "black_gate_approach"].includes(currentRegionId())) return "forge";
+  if (["basilisk", "tideGuard"].includes(encounterId) || currentRegionId() === "low_roads") return "marsh";
+  if (["wyvern", "goblin"].includes(encounterId) || currentRegionId() === "southern_wilds") return "forest";
+  return "grassland";
+}
+
 function battleCampSceneMarkup() {
   if (activeBattle?.event?.type !== "night") return "";
   const props = [];
-  if (state.campUpgrades?.watchtower) props.push(`<span class="battle-camp-prop tower" aria-hidden="true"></span>`);
   if (state.campUpgrades?.betterTent) props.push(`<span class="battle-camp-prop tent" aria-hidden="true"></span>`);
   if (state.campUpgrades?.healerFire) props.push(`<span class="battle-camp-prop fire" aria-hidden="true"></span>`);
   if (state.campUpgrades?.traps) props.push(`<span class="battle-camp-prop stakes" aria-hidden="true"></span>`);
@@ -7004,17 +7200,25 @@ function battleFocusMarkup() {
   const targetIndex = currentBattleTargetIndex();
   const target = activeBattle.enemies[targetIndex];
   const activeEnemy = activeBattle.turn === "enemy" ? activeBattle.enemies[activeBattle.activeActor?.index] : null;
-  const actorName = activeBattle.turn === "player" ? activeUnit?.name || "Choose unit" : activeEnemy?.name || "Enemy";
+  const actorName = activeBattle.turn === "player"
+    ? activeUnit?.name || "Choose unit"
+    : activeBattle.turn === "tower" ? "Watchtower" : activeEnemy?.name || "Enemy";
   const actorState = activeBattle.turn === "player"
     ? activeUnit ? `HP ${Math.max(0, activeUnit.hp)}/${activeUnit.maxHp} | ${rangeText(activeUnit)}` : "No active unit"
-    : activeEnemy ? `HP ${Math.max(0, activeEnemy.hp)}/${activeEnemy.maxHp} | ${enemyIntentLabel(activeEnemy, activeBattle.activeActor?.index)}` : "Enemy turn";
-  const targetName = activeBattle.turn === "player" ? target?.name || "No target" : enemyTargetPreview(activeBattle.activeActor?.index)?.name || "Nearest unit";
+    : activeBattle.turn === "tower"
+      ? `HP ${Math.max(0, activeBattle.tower?.unit?.hp || 0)}/${activeBattle.tower?.unit?.maxHp || 0} | ${rangeText(activeBattle.tower?.unit)}`
+      : activeEnemy ? `HP ${Math.max(0, activeEnemy.hp)}/${activeEnemy.maxHp} | ${enemyIntentLabel(activeEnemy, activeBattle.activeActor?.index)}` : "Enemy turn";
+  const targetName = activeBattle.turn === "player" || activeBattle.turn === "tower"
+    ? target?.name || "No target"
+    : enemyTargetPreview(activeBattle.activeActor?.index)?.name || "Nearest unit";
   const targetState = activeBattle.turn === "player"
     ? target ? `HP ${Math.max(0, target.hp)}/${target.maxHp}` : "Tap an enemy"
-    : enemyTargetPreview(activeBattle.activeActor?.index)?.summary || "Enemy is choosing a target";
+    : activeBattle.turn === "tower"
+      ? target ? `HP ${Math.max(0, target.hp)}/${target.maxHp}` : "Tap an enemy"
+      : enemyTargetPreview(activeBattle.activeActor?.index)?.summary || "Enemy is choosing a target";
   const guidance = activeBattle.turn === "player"
     ? playerBattleGuidance(activeUnit, targetIndex)
-    : enemyBattleGuidance(activeBattle.activeActor?.index);
+    : activeBattle.turn === "tower" ? towerBattleGuidance(targetIndex) : enemyBattleGuidance(activeBattle.activeActor?.index);
   return `
     <section class="battle-focus" aria-label="Battle focus">
       <article><small>Acting</small><strong>${escapeHtml(actorName)}</strong><span>${escapeHtml(actorState)}</span></article>
@@ -7026,13 +7230,46 @@ function battleFocusMarkup() {
 
 function playerBattleGuidance(unit, targetIndex) {
   if (!unit) return { title: "Waiting", text: "Select a living unit to continue." };
+  if (activeBattle?.healingTargetMode) return { title: "Choose healing", text: `Tap a wounded party member to restore ${HEALING_DRAUGHT_AMOUNT} HP.` };
   const target = activeBattle.enemies[targetIndex];
   if (!target) return { title: "Pick a target", text: "Tap an enemy to preview attack range." };
-  if (canActiveUnitAttackEnemy(targetIndex)) return { title: "Attack ready", text: `${unit.name} can hit ${target.name} now.` };
+  const currentTerrain = battleTerrainAt(activeBattle.positions[activeBattle.selectedIndex]?.x, activeBattle.positions[activeBattle.selectedIndex]?.y);
+  if (canActiveUnitAttackEnemy(targetIndex)) {
+    if (currentTerrain?.type === "focus") return { title: "Powered shot", text: `${unit.name} can hit ${target.name} with focus bonus from this rune.` };
+    if (currentTerrain?.type === "cover") return { title: "Attack from cover", text: `${unit.name} can hit ${target.name} and still keeps cover until moving.` };
+    return { title: "Attack ready", text: `${unit.name} can hit ${target.name} now.` };
+  }
   const pos = activeBattle.positions[activeBattle.selectedIndex];
   const enemyPos = activeBattle.enemyPositions[targetIndex];
   const distance = pos && enemyPos ? attackDistance(pos, enemyPos) : 0;
   return { title: "Reposition", text: `${target.name} is out of range${distance ? ` at distance ${distance}` : ""}. Move onto a blue/red lane first.` };
+}
+
+function towerBattleGuidance(targetIndex) {
+  const tower = activeBattle?.tower?.unit;
+  const target = activeBattle?.enemies?.[targetIndex];
+  if (!tower) return { title: "No tower", text: "Build a watchtower before nightfall to control tower fire." };
+  if (!target) return { title: "Pick a target", text: "Tap an enemy to aim the watchtower." };
+  if (canTowerAttackEnemy(targetIndex)) return { title: "Tower shot ready", text: `The watchtower can shoot ${target.name}.` };
+  return { title: "Out of arc", text: `${target.name} is outside the tower's current line.` };
+}
+
+function battleTowerMarkup() {
+  const tower = activeBattle?.tower;
+  if (!tower?.unit || !tower.pos) return "";
+  const fill = hpPercent(tower.unit);
+  const selected = activeBattle.turn === "tower";
+  const feedbackClass = activeBattle.feedback?.type === "hit" && activeBattle.feedback?.unitIndex === -2 ? "battle-feedback-damage" : activeBattle.feedback?.type === "tower" ? "battle-feedback-ranged" : "";
+  const facingClass = battleFacingClass(tower.pos.facing || "right");
+  const facingStyle = battleFacingStyle(tower.pos.facing || "right");
+  return `
+    <button type="button" class="battle-combatant battle-tower ${facingClass} ${selected ? "selected" : ""} ${feedbackClass}" data-battle-tower="true" style="grid-column:${tower.pos.x + 1};grid-row:${tower.pos.y + 1};--battle-layer:${tower.pos.y + 2};${facingStyle}" aria-label="Watchtower">
+      <div class="battle-base">
+        <img class="battle-tower-sprite" src="assets/battle-watchtower-sprite.png" alt="" />
+      </div>
+      <div class="battle-mini-hp" style="--fill:${fill}%"><span></span></div>
+    </button>
+  `;
 }
 
 function enemyTargetPreview(enemyIndex) {
@@ -7052,8 +7289,8 @@ function enemyBattleGuidance(enemyIndex) {
   if (shouldUseEnemySpecial(enemy, enemyIndex)) return { title: enemySpecialName(enemy), text: enemySpecialIntentText(enemy) };
   const target = nearestEnemyTarget(enemyIndex, livingTeam());
   const enemyPos = activeBattle.enemyPositions[enemyIndex];
-  const targetIndex = [state.hero, ...state.party].indexOf(target);
-  const targetPos = activeBattle.positions[targetIndex];
+  const targetIndex = battleTeamIndex(target);
+  const targetPos = battleTargetPositionByIndex(targetIndex);
   if (target && enemyPos && targetPos && canAttackTarget(enemy, enemyPos, targetPos)) return { title: "Incoming attack", text: `${enemy.name} can strike ${target.name}. Guard can reduce the hit.` };
   return { title: "Advancing", text: `${enemy.name} is moving toward the nearest target.` };
 }
@@ -7064,6 +7301,52 @@ function enemyIntentLabel(enemy, enemyIndex) {
   if (enemy.attackType === "ranged") return `Ranged ${enemy.attackRange || 3}`;
   if ((enemy.def || 0) >= 7) return "Armored";
   return "Melee";
+}
+
+function triggerBattleTerrainStart(side, index) {
+  if (!activeBattle) return;
+  const unit = side === "enemy" ? activeBattle.enemies[index] : [state.hero, ...state.party][index];
+  const pos = side === "enemy" ? activeBattle.enemyPositions[index] : activeBattle.positions[index];
+  const terrain = battleTerrainAt(pos?.x, pos?.y);
+  if (!unit || unit.hp <= 0 || !pos || terrain?.type !== "well") return;
+  const heal = Math.min(3, Math.max(0, (unit.maxHp || unit.hp) - unit.hp));
+  if (heal <= 0) return;
+  unit.hp += heal;
+  addBattleFloater(pos.x, pos.y, `+${heal}`, "heal");
+  activeBattle.log.push(`${unit.name} draws from the healing well.`);
+}
+
+function triggerBattleTerrainEnter(side, index, previousPos = null) {
+  if (!activeBattle) return;
+  const unit = side === "enemy" ? activeBattle.enemies[index] : [state.hero, ...state.party][index];
+  const pos = side === "enemy" ? activeBattle.enemyPositions[index] : activeBattle.positions[index];
+  const terrain = battleTerrainAt(pos?.x, pos?.y);
+  if (!unit || unit.hp <= 0 || !pos || !terrain || terrain.type === "obstacle") return;
+  if (previousPos && previousPos.x === pos.x && previousPos.y === pos.y) return;
+  if (terrain.type === "well") {
+    queueBattleTileEffect("terrainWell", pos, 1120);
+    const heal = Math.min(4, Math.max(0, (unit.maxHp || unit.hp) - unit.hp));
+    if (heal > 0) {
+      unit.hp += heal;
+      addBattleFloater(pos.x, pos.y, `+${heal}`, "heal");
+      activeBattle.log.push(`${unit.name} steps into the healing well and recovers ${heal}.`);
+    } else {
+      addBattleFloater(pos.x, pos.y, "Well", "heal");
+      activeBattle.log.push(`${unit.name} steps into the healing well, already healthy.`);
+    }
+    return;
+  }
+  if (terrain.type === "focus") {
+    queueBattleTileEffect("terrainFocus", pos, 1120);
+    addBattleFloater(pos.x, pos.y, "+Focus", "buff");
+    activeBattle.log.push(`${unit.name} stands on a focus rune. Attacks from there hit harder.`);
+    return;
+  }
+  if (terrain.type === "cover") {
+    queueBattleTileEffect("terrainCover", pos, 1120);
+    addBattleFloater(pos.x, pos.y, "Cover", "guard");
+    activeBattle.log.push(`${unit.name} takes cover. Incoming hits are reduced while there.`);
+  }
 }
 
 function enemySpecialName(enemy) {
@@ -7092,6 +7375,32 @@ function battleFloatersMarkup() {
 
 function battleEffectsMarkup() {
   return (activeBattle.effects || []).map((effect) => {
+    if (String(effect.kind || "").startsWith("terrain")) {
+      const target = effect.to || effect.from;
+      if (!target) return "";
+      const left = ((target.x + 0.5) / BATTLE_COLS) * 100;
+      const top = ((target.y + 0.5) / BATTLE_ROWS) * 100;
+      return `<span class="battle-effect ${effect.kind}" style="left:${left}%;top:${top}%;--battle-layer:7;">
+        <i></i>
+        <b></b>
+        <em></em>
+      </span>`;
+    }
+    if (effect.kind === "towerShot") {
+      const from = effect.from;
+      const to = effect.to;
+      if (!from || !to) return "";
+      const dx = (to.x - from.x) * (100 / BATTLE_COLS);
+      const dy = (to.y - from.y) * (100 / BATTLE_ROWS);
+      const length = Math.hypot(dx, dy);
+      const angle = Math.atan2(dy, dx);
+      const left = ((from.x + 0.5) / BATTLE_COLS) * 100;
+      const top = ((from.y + 0.5) / BATTLE_ROWS) * 100;
+      return `<span class="battle-effect towerShot projectile" style="left:${left}%;top:${top}%;width:${Math.max(length, 4)}%;--angle:${angle}rad;--battle-layer:8;">
+        <i class="trail"></i>
+        <b class="impact"></b>
+      </span>`;
+    }
     if (effect.kind === "slash" || effect.kind === "impact") {
       const target = effect.to || effect.from;
       if (!target) return "";
@@ -7140,7 +7449,7 @@ function addBattleFloater(x, y, text, kind = "") {
 }
 
 function battleEffectDuration(kind, requestedDuration = 0) {
-  const minimum = kind === "slash" ? 620 : kind === "shot" || kind === "spell" ? 820 : 420;
+  const minimum = String(kind || "").startsWith("terrain") ? 980 : kind === "slash" ? 620 : kind === "shot" || kind === "spell" || kind === "towerShot" ? 820 : 420;
   return Math.max(minimum, requestedDuration || 0);
 }
 
@@ -7155,6 +7464,11 @@ function queueBattleEffect(kind, from, to, duration = 0) {
     activeBattle.effects = activeBattle.effects.filter((effect) => effect.id !== id);
     if (activeBattle) renderBattle();
   }, battleEffectDuration(kind, duration));
+}
+
+function queueBattleTileEffect(kind, pos, duration = 0) {
+  if (!pos) return;
+  queueBattleEffect(kind, pos, pos, duration);
 }
 
 function queueBattleAttackEffect(attacker, from, to, styleOverride = "") {
@@ -7195,26 +7509,46 @@ function battleCellsMarkup() {
   for (let y = 0; y < BATTLE_ROWS; y += 1) {
     for (let x = 0; x < BATTLE_COLS; x += 1) {
       const classes = ["battle-cell"];
+      const terrain = battleTerrainAt(x, y);
       const tile = { x, y };
-      const canMoveHere = activeBattle?.turn === "player" && activeUnit && activePos && !isBattleOccupied(x, y) && battleDistance(activePos, tile, activeUnit) <= moveRange(activeUnit);
+      const canMoveHere = activeBattle?.turn === "player" && activeUnit && activePos && !isBattleOccupied(x, y) && battleMovementDistance(activePos, tile, activeUnit, { unitIndex: activeBattle.selectedIndex }) <= moveRange(activeUnit);
       const attacksFromHere = activeBattle?.turn === "player" && activeUnit && activeBattle.enemyPositions.some((pos, index) => activeBattle.enemies[index]?.hp > 0 && canAttackTarget(activeUnit, tile, pos));
       const attackableEnemyHere = activeBattle?.turn === "player" && activeUnit && activePos && activeBattle.enemyPositions.some((pos, index) => activeBattle.enemies[index]?.hp > 0 && pos.x === x && pos.y === y && canAttackTarget(activeUnit, activePos, pos));
+      if (terrain) classes.push(`terrain-${terrain.type}`);
+      if (terrain?.type === "obstacle" && terrain.obstacle) classes.push(`obstacle-${terrain.obstacle}`);
       if (canMoveHere) {
         classes.push("reachable");
+        if (terrain && terrain.type !== "obstacle") classes.push("terrain-inviting");
       }
       if ((canMoveHere && attacksFromHere) || attackableEnemyHere) {
         classes.push("attack-lane");
       }
-      html += `<button type="button" class="${classes.join(" ")}" data-battle-tile="${x},${y}" style="grid-column:${x + 1};grid-row:${y + 1}" aria-label="Battle tile ${x + 1}, ${y + 1}"></button>`;
+      const terrainDefinition = terrain ? battleTerrainDefinitions[terrain.type] : null;
+      const terrainLabel = terrainDefinition ? `${terrainDefinition.label}${terrain?.obstacle ? ` ${terrain.obstacle}` : ""}: ${terrainDefinition.hint}` : "";
+      const terrainContents = terrainDefinition
+        ? `<span class="battle-terrain-icon" aria-hidden="true">${terrainDefinition.icon}</span>${terrainDefinition.short ? `<span class="battle-terrain-chip" aria-hidden="true">${terrainDefinition.short}</span>` : ""}`
+        : "";
+      html += `<button type="button" class="${classes.join(" ")}" data-battle-tile="${x},${y}" style="grid-column:${x + 1};grid-row:${y + 1}" aria-label="Battle tile ${x + 1}, ${y + 1}${terrainLabel ? `. ${terrainLabel}` : ""}">${terrainContents}</button>`;
     }
   }
   return html;
 }
 
+function battleTerrainAt(x, y) {
+  if (!activeBattle || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return activeBattle.terrain?.find((tile) => tile.x === x && tile.y === y) || null;
+}
+
+function battleTerrainClassAt(pos) {
+  const terrain = battleTerrainAt(pos?.x, pos?.y);
+  return terrain && terrain.type !== "obstacle" ? `on-terrain-${terrain.type}` : "";
+}
+
 function battleRosterMarkup() {
   const rows = [state.hero, ...state.party].map((unit, index) => battleStatCard(unit, activeBattle.selectedIndex === index)).join("");
+  const towerRow = activeBattle.tower?.unit ? battleStatCard(activeBattle.tower.unit, activeBattle.turn === "tower") : "";
   const enemyRows = activeBattle.enemies.map((enemy, index) => battleStatCard(enemy, activeBattle.selectedEnemyIndex === index, true)).join("");
-  return `${rows}${enemyRows}`;
+  return `${rows}${towerRow}${enemyRows}`;
 }
 
 function battleStatCard(unit, active, enemy = false) {
@@ -7229,7 +7563,16 @@ function bindBattleBoard() {
   board.addEventListener("click", (event) => {
     const unitEl = event.target.closest("[data-battle-unit]");
     if (unitEl) {
+      if (activeBattle.healingTargetMode) {
+        useBattleHealingDraught(Number(unitEl.dataset.battleUnit));
+        return;
+      }
       selectBattleUnit(Number(unitEl.dataset.battleUnit));
+      return;
+    }
+    const towerEl = event.target.closest("[data-battle-tower]");
+    if (towerEl) {
+      if (activeBattle.turn === "tower") renderBattle();
       return;
     }
     const enemyEl = event.target.closest("[data-battle-enemy]");
@@ -7255,11 +7598,22 @@ function livingEnemies() {
 
 function battleTeamIndex(unit) {
   if (!unit) return -1;
+  if (activeBattle?.tower?.unit && unit === activeBattle.tower.unit) return -2;
   const team = [state.hero, ...state.party];
   const directIndex = team.indexOf(unit);
   if (directIndex >= 0) return directIndex;
   if (!unit.id) return team[0] === unit ? 0 : -1;
   return team.findIndex((member, index) => index > 0 && member === unit);
+}
+
+function battleTargetUnitByIndex(index) {
+  if (index === -2) return activeBattle?.tower?.unit || null;
+  return [state.hero, ...state.party][index] || null;
+}
+
+function battleTargetPositionByIndex(index) {
+  if (index === -2) return activeBattle?.tower?.pos || null;
+  return activeBattle?.positions?.[index] || null;
 }
 
 function hpPercent(unit) {
@@ -7268,17 +7622,20 @@ function hpPercent(unit) {
 
 function battleUnitMarkup(unit, index) {
   const fill = hpPercent(unit);
-  const portrait = battleUnitPortrait(unit);
   const pos = activeBattle.positions[index] || { x: 1, y: index };
+  const portrait = battleUnitPortrait(unit, index);
   const defeated = unit.hp <= 0;
   const selected = !defeated && activeBattle.selectedIndex === index;
   const feedbackClass = battleFeedbackClassForUnit(index);
+  const facingClass = battleFacingClass(pos?.facing || "right");
+  const facingStyle = battleFacingStyle(pos?.facing || "right");
+  const terrainClass = battleTerrainClassAt(pos);
   const sprite = portrait
     ? `<img class="battle-sprite-img" src="${portrait}" alt="" />`
     : `<div class="battle-token" style="--unit-color:${unit.color || "#f0c15b"}"></div>`;
   return `
-    <button type="button" class="battle-combatant battle-unit battle-facing-right ${defeated ? "down" : ""} ${selected ? "selected" : ""} ${feedbackClass}" data-battle-unit="${index}" style="grid-column:${pos.x + 1};grid-row:${pos.y + 1};--battle-layer:${pos.y + 2}" aria-label="${defeated ? `${unit.name} defeated` : `Select ${unit.name}`}" ${defeated ? "disabled" : ""}>
-      <div class="battle-base">${sprite}</div>
+    <button type="button" class="battle-combatant battle-unit ${facingClass} ${terrainClass} ${defeated ? "down" : ""} ${selected ? "selected" : ""} ${feedbackClass}" data-battle-unit="${index}" style="grid-column:${pos.x + 1};grid-row:${pos.y + 1};--battle-layer:${pos.y + 2};${facingStyle}" aria-label="${defeated ? `${unit.name} defeated` : `Select ${unit.name}`}" ${defeated ? "disabled" : ""}>
+      <div class="battle-base">${terrainClass ? `<span class="battle-terrain-aura" aria-hidden="true"></span>` : ""}${sprite}</div>
       <div class="battle-mini-hp" style="--fill:${fill}%"><span></span></div>
     </button>
   `;
@@ -7290,21 +7647,36 @@ function battleEnemyMarkup(enemy, index) {
   const defeated = enemy.hp <= 0;
   const attackable = !defeated && canActiveUnitAttackEnemy(index);
   const visual = enemyVisualForEnemy(enemy);
-  const spriteFacingClass = visual?.source === "enemy" && !visual.flipInBattle ? " enemy-faces-left" : " enemy-faces-right";
-  const sprite = portrait
-    ? `<img class="battle-sprite-img enemy${spriteFacingClass}" src="${portrait}" alt="" />`
-    : `<div class="battle-token enemy sprite-${visual?.id || "enemy"}" style="--unit-color:${enemy.color || "#d95d5d"}"></div>`;
   const pos = activeBattle.enemyPositions[index];
+  const facingClass = battleFacingClass(pos?.facing || "left");
+  const terrainClass = battleTerrainClassAt(pos);
+  const naturalFacing = visual?.source === "enemy" && !visual.flipInBattle ? -1 : 1;
+  const facingStyle = battleFacingStyle(pos?.facing || "left", naturalFacing);
+  const sprite = portrait
+    ? `<img class="battle-sprite-img enemy" src="${portrait}" alt="" />`
+    : `<div class="battle-token enemy sprite-${visual?.id || "enemy"}" style="--unit-color:${enemy.color || "#d95d5d"}"></div>`;
   const selected = !defeated && activeBattle.selectedEnemyIndex === index;
   const intentChip = battleEnemyIntentChip(enemy, index, selected);
   return `
-    <button type="button" class="battle-combatant battle-enemy battle-facing-left ${defeated ? "down" : ""} ${selected ? "selected" : ""} ${attackable ? "attackable" : ""} ${feedbackClass}" data-battle-enemy="${index}" style="grid-column:${pos.x + 1};grid-row:${pos.y + 1};--battle-layer:${pos.y + 2}" aria-label="${defeated ? `${enemy.name} defeated` : `Target ${enemy.name}`}" ${defeated ? "disabled" : ""}>
-      <div class="battle-base">${sprite}</div>
+    <button type="button" class="battle-combatant battle-enemy ${facingClass} ${terrainClass} ${defeated ? "down" : ""} ${selected ? "selected" : ""} ${attackable ? "attackable" : ""} ${feedbackClass}" data-battle-enemy="${index}" style="grid-column:${pos.x + 1};grid-row:${pos.y + 1};--battle-layer:${pos.y + 2};${facingStyle}" aria-label="${defeated ? `${enemy.name} defeated` : `Target ${enemy.name}`}" ${defeated ? "disabled" : ""}>
+      <div class="battle-base">${terrainClass ? `<span class="battle-terrain-aura" aria-hidden="true"></span>` : ""}${sprite}</div>
       ${intentChip}
       ${attackable ? `<span class="battle-attack-icon" aria-hidden="true">&#9876;</span>` : ""}
       <div class="battle-mini-hp danger" style="--fill:${fill}%"><span></span></div>
     </button>
   `;
+}
+
+function battleFacingClass(direction) {
+  return `battle-facing-${["up", "down", "left", "right"].includes(direction) ? direction : "right"}`;
+}
+
+function battleFacingStyle(direction, naturalFacing = 1) {
+  const baseX = direction === "left" ? -1 : 1;
+  const x = direction === "up" || direction === "down" ? naturalFacing : baseX * naturalFacing;
+  const y = direction === "up" ? 0.96 : direction === "down" ? 1.04 : 1;
+  const tilt = direction === "up" ? -4 : direction === "down" ? 4 : 0;
+  return `--battle-facing-x:${x};--battle-facing-y:${y};--battle-facing-tilt:${tilt}deg;--battle-lunge-x:${x * 10}px;--battle-kick-x:${x * 5}px;`;
 }
 
 function battleEnemyIntentChip(enemy, index, selected) {
@@ -7391,7 +7763,7 @@ function runAutoBattleAction() {
     return;
   }
   if (emergencyHeal) {
-    useBattleHealingDraught();
+    useBattleHealingDraught(choosePotionHealTargetIndex());
     return;
   }
   if (autoSpecial) {
@@ -7436,19 +7808,29 @@ function chooseAutoBattleTarget(unitIndex) {
   return ranked[0]?.index ?? -1;
 }
 
+function choosePotionHealTargetIndex() {
+  return [state.hero, ...state.party]
+    .map((unit, index) => ({ unit, index, missing: Math.max(0, (unit?.maxHp || 0) - Math.max(0, unit?.hp || 0)) }))
+    .filter(({ unit, missing }) => unit?.hp > 0 && missing > 0)
+    .sort((a, b) => b.missing - a.missing || (a.unit.hp / Math.max(1, a.unit.maxHp)) - (b.unit.hp / Math.max(1, b.unit.maxHp)) || a.unit.name.localeCompare(b.unit.name))[0]?.index ?? -1;
+}
+
 function expectedPlayerDamage(unit, enemy, fromPos, enemyPos) {
   const penalty = rangedDamagePenalty(unit, fromPos, enemyPos);
-  return Math.max(1, (unit.atk || 0) + (unit.power || 0) - (enemy.def || 0) - penalty * 2);
+  const terrain = battleTerrainDamageModifier(fromPos, enemyPos, battleAttackFeedbackStyle(unit));
+  return Math.max(1, (unit.atk || 0) + (unit.power || 0) - (enemy.def || 0) - penalty * 2 + terrain.amount);
 }
 
 function expectedPlayerSpecialDamage(unit, enemy, fromPos, enemyPos, special) {
   if (!unit || !enemy || !fromPos || !enemyPos || !special || ["heal", "guard"].includes(special.type)) return 0;
   const penalty = rangedDamagePenalty(unit, fromPos, enemyPos);
+  const effectStyle = battleSpecialEffectKind(special, unit);
+  const terrain = battleTerrainDamageModifier(fromPos, enemyPos, battleAttackFeedbackStyle(unit, effectStyle));
   const bonus = special.type === "magic" ? Math.ceil((unit.power || 0) * 0.9) + 3
     : special.type === "pierce" ? Math.ceil((unit.power || 0) * 0.5) + 4
       : Math.ceil((unit.power || 0) * 0.6) + 3;
   const defense = special.type === "pierce" ? Math.floor((enemy.def || 0) * 0.45) : Math.floor((enemy.def || 0) * 0.75);
-  return Math.max(3, unit.atk + bonus + (unit.level || 1) - defense - penalty);
+  return Math.max(3, unit.atk + bonus + (unit.level || 1) - defense - penalty + terrain.amount);
 }
 
 function shouldAutoUsePlayerSpecial(unit, unitIndex) {
@@ -7524,6 +7906,7 @@ function playerSpecialTargetIndex(unit, unitIndex, preferredTargetIndex = curren
 }
 
 function usePlayerSpecial(unitIndex, preferredTargetIndex = currentBattleTargetIndex()) {
+  if (activeBattle) activeBattle.healingTargetMode = false;
   const unit = [state.hero, ...state.party][unitIndex];
   const special = playerSpecialDefinition(unit, unitIndex);
   if (!canUsePlayerSpecial(unit, unitIndex, preferredTargetIndex) || !special) return renderBattle();
@@ -7545,23 +7928,26 @@ function usePlayerSpecial(unitIndex, preferredTargetIndex = currentBattleTargetI
   const pos = activeBattle.positions[unitIndex];
   const attackPos = attackPositionForTarget(unit, unitIndex, enemyPos);
   if (attackPos && (attackPos.x !== pos.x || attackPos.y !== pos.y)) {
+    faceBattlePositionByDelta(pos, attackPos);
     pos.x = attackPos.x;
     pos.y = attackPos.y;
     activeBattle.log.push(`${unit.name} moves into special range.`);
   }
+  faceBattlePositionToward(pos, enemyPos);
   const penalty = rangedDamagePenalty(unit, pos, enemyPos);
+  const effectStyle = battleSpecialEffectKind(special, unit);
+  const terrain = battleTerrainDamageModifier(pos, enemyPos, battleAttackFeedbackStyle(unit, effectStyle));
   const bonus = special.type === "magic" ? Math.ceil((unit.power || 0) * 0.9) + 3
     : special.type === "pierce" ? Math.ceil((unit.power || 0) * 0.5) + 4
       : Math.ceil((unit.power || 0) * 0.6) + 3;
   const defense = special.type === "pierce" ? Math.floor((enemy.def || 0) * 0.45) : Math.floor((enemy.def || 0) * 0.75);
-  const damage = Math.max(3, unit.atk + bonus + (unit.level || 1) - defense - penalty);
+  const damage = Math.max(3, unit.atk + bonus + (unit.level || 1) - defense - penalty + terrain.amount);
   enemy.hp = Math.max(0, enemy.hp - damage);
-  const effectStyle = battleSpecialEffectKind(special, unit);
   activeBattle.feedback = { type: "hit", unitIndex, enemyIndex: targetIndex, target: "enemy", style: battleAttackFeedbackStyle(unit, effectStyle) };
   queueBattleAttackEffect(unit, pos, enemyPos, effectStyle);
   addBattleFloater(enemyPos.x, enemyPos.y, `-${damage}`, effectStyle === "spell" ? "magic" : "damage");
   playSfx(effectStyle === "spell" ? "spell" : effectStyle === "shot" ? "shot" : "slash");
-  activeBattle.log.push(`${unit.name} uses ${special.name} on ${enemy.name} for ${damage}.`);
+  activeBattle.log.push(`${unit.name} uses ${special.name} on ${enemy.name} for ${damage}${terrain.note}.`);
   if (enemy.hp <= 0) {
     enemy.hp = 0;
     activeBattle.log.push(`${enemy.name} falls.`);
@@ -7602,6 +7988,8 @@ function battleAttackButtonText(unit, targetIndex) {
   if (!unit) return "Attack";
   if (!Number.isInteger(targetIndex) || targetIndex < 0) return "No target";
   if (!canActiveUnitAttackEnemy(targetIndex)) return "Move closer";
+  const pos = activeBattle?.positions?.[activeBattle.selectedIndex];
+  if (battleTerrainAt(pos?.x, pos?.y)?.type === "focus") return "Strike +Focus";
   return attackTypeLabel(unit) === "Ranged" ? `Shoot, best <= ${attackRange(unit)}` : "Melee Attack";
 }
 
@@ -7631,12 +8019,15 @@ function battleFeedbackClassForUnit(index) {
 function battleFeedbackClassForEnemy(index) {
   const feedback = activeBattle?.feedback;
   if (!feedback || feedback.target !== "enemy" || feedback.enemyIndex !== index) return "";
-  if (feedback.type === "hit") return "battle-feedback-damage";
+  if (feedback.type === "hit" || feedback.type === "tower") return "battle-feedback-damage";
   if (feedback.type === "move") return "battle-feedback-move";
   return "";
 }
-function battleUnitPortrait(unit) {
-  if (!unit.id && heroDirectionSheetReady) return getHeroBattlePortraitDataUrl("right");
+function battleUnitPortrait(unit, index = -1) {
+  if (!unit.id && heroDirectionSheetReady) {
+    const direction = activeBattle?.positions?.[index]?.facing || "right";
+    return getHeroBattlePortraitDataUrl(direction);
+  }
   if (unit.id && unitArtReady(unit.id) && unitCell(unit.id, 0)) return getUnitPortraitDataUrl(unit.id);
   const sprite = spriteNameForUnit(unit);
   if (!sprite) return "";
@@ -7696,6 +8087,16 @@ function selectBattleEnemy(index) {
 }
 
 function handleBattleEnemyClick(index) {
+  if (!activeBattle || battleInputLocked()) return;
+  if (activeBattle.turn === "tower") {
+    activeBattle.selectedEnemyIndex = index;
+    if (canTowerAttackEnemy(index)) {
+      selectedTowerAttack(index);
+      return;
+    }
+    renderBattle();
+    return;
+  }
   if (!activeBattle || activeBattle.turn !== "player" || battleInputLocked()) return;
   const enemy = activeBattle.enemies[index];
   if (!enemy || enemy.hp <= 0) return;
@@ -7713,8 +8114,58 @@ function selectedBattleUnit() {
   return [state.hero, ...state.party][activeBattle.selectedIndex] || null;
 }
 
+function canTowerAttackEnemy(enemyIndex) {
+  const tower = activeBattle?.tower;
+  const enemy = activeBattle?.enemies?.[enemyIndex];
+  const enemyPos = activeBattle?.enemyPositions?.[enemyIndex];
+  return Boolean(activeBattle?.turn === "tower" && tower?.unit?.hp > 0 && tower.pos && !tower.pos.acted && !battleInputLocked() && enemy?.hp > 0 && enemyPos && canAttackTarget(tower.unit, tower.pos, enemyPos));
+}
+
+function selectedTowerAttack(enemyIndex = activeBattle?.selectedEnemyIndex) {
+  if (!activeBattle || activeBattle.turn !== "tower" || battleInputLocked()) return;
+  const targetIndex = Number.isInteger(enemyIndex) ? livingEnemyIndex(enemyIndex) : currentBattleTargetIndex();
+  if (!canTowerAttackEnemy(targetIndex)) return renderBattle();
+  const tower = activeBattle.tower;
+  const enemy = activeBattle.enemies[targetIndex];
+  const enemyPos = activeBattle.enemyPositions[targetIndex];
+  activeBattle.selectedEnemyIndex = targetIndex;
+  activeBattle.resolving = true;
+  tower.pos.acted = true;
+  faceBattlePositionToward(tower.pos, enemyPos);
+  const penalty = rangedDamagePenalty(tower.unit, tower.pos, enemyPos);
+  const terrain = battleTerrainDamageModifier(tower.pos, enemyPos, "ranged");
+  const damage = Math.max(2, tower.unit.atk + Math.ceil((tower.unit.power || 0) / 2) - (enemy.def || 0) - penalty + terrain.amount + Math.floor(Math.random() * 3));
+  activeBattle.feedback = { type: "tower", enemyIndex: targetIndex, target: "enemy", style: "ranged" };
+  queueBattleEffect("towerShot", tower.pos, enemyPos, 760);
+  enemy.hp = Math.max(0, enemy.hp - damage);
+  addBattleFloater(enemyPos.x, enemyPos.y, `-${damage}`, "damage");
+  playSfx("shot");
+  activeBattle.log.push(`Watchtower shoots ${enemy.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}${terrain.note}.`);
+  if (enemy.hp <= 0) {
+    activeBattle.log.push(`${enemy.name} falls under tower fire.`);
+    normalizeSelectedBattleEnemy();
+  }
+  renderBattle();
+  if (!livingEnemies().length) return queueBattleFollowthrough(() => finishBattle(true));
+  queueBattleFollowthrough(() => {
+    activeBattle.resolving = false;
+    advanceBattleTurn();
+    renderBattle();
+  });
+}
+
+function holdTowerFire() {
+  if (!activeBattle || activeBattle.turn !== "tower" || battleInputLocked()) return;
+  activeBattle.tower.pos.acted = true;
+  activeBattle.feedback = { type: "guard", target: "tower" };
+  activeBattle.log.push("Watchtower holds fire.");
+  advanceBattleTurn();
+  renderBattle();
+}
+
 function moveSelectedBattleUnit(x, y) {
   if (!activeBattle || activeBattle.turn !== "player" || battleInputLocked()) return;
+  activeBattle.healingTargetMode = false;
   const unit = selectedBattleUnit();
   const pos = activeBattle.positions[activeBattle.selectedIndex];
   if (!unit || unit.hp <= 0 || !pos || pos.acted) return;
@@ -7723,14 +8174,17 @@ function moveSelectedBattleUnit(x, y) {
     return renderBattle();
   }
   if (x < 0 || y < 0 || x >= BATTLE_COLS || y >= BATTLE_ROWS) return;
-  const distance = battleDistance(pos, { x, y }, unit);
+  const distance = battleMovementDistance(pos, { x, y }, unit, { unitIndex: activeBattle.selectedIndex });
   const range = moveRange(unit);
   if (distance > range) {
     activeBattle.log.push(`${unit.name} can move ${range} tiles.`);
     return renderBattle();
   }
+  const previousPos = { x: pos.x, y: pos.y };
+  faceBattlePositionByDelta(pos, { x, y });
   pos.x = x;
   pos.y = y;
+  triggerBattleTerrainEnter("unit", activeBattle.selectedIndex, previousPos);
   activeBattle.feedback = { type: "move", unitIndex: activeBattle.selectedIndex };
   activeBattle.log.push(`${unit.name} moves.`);
   finishBattleUnitAction();
@@ -7738,6 +8192,7 @@ function moveSelectedBattleUnit(x, y) {
 
 function selectedBattleAttack(enemyIndex = activeBattle?.selectedEnemyIndex) {
   if (!activeBattle || activeBattle.turn !== "player" || battleInputLocked()) return;
+  activeBattle.healingTargetMode = false;
   const unit = selectedBattleUnit();
   const pos = activeBattle.positions[activeBattle.selectedIndex];
   const explicitTarget = Number.isInteger(enemyIndex);
@@ -7762,22 +8217,40 @@ function selectedBattleAttack(enemyIndex = activeBattle?.selectedEnemyIndex) {
     return renderBattle();
   }
   if (attackPos.x !== pos.x || attackPos.y !== pos.y) {
+    faceBattlePositionByDelta(pos, attackPos);
     pos.x = attackPos.x;
     pos.y = attackPos.y;
     activeBattle.log.push(`${unit.name} moves into range.`);
   }
+  faceBattlePositionToward(pos, enemyPos);
   beginBattleUnitResolution(activeBattle.selectedIndex);
   playerBattleAction(activeBattle.selectedIndex, targetIndex);
 }
 
 function isBattleOccupied(x, y) {
+  if (isBattleObstacle(x, y)) return true;
+  if (activeBattle.tower?.unit?.hp > 0 && activeBattle.tower.pos?.x === x && activeBattle.tower.pos?.y === y) return true;
   if (activeBattle.enemyPositions.some((pos, index) => pos.x === x && pos.y === y && activeBattle.enemies[index]?.hp > 0)) return true;
   return activeBattle.positions.some((pos, index) => pos.x === x && pos.y === y && [state.hero, ...state.party][index]?.hp > 0);
 }
 
 function isBattleOccupiedExceptUnit(x, y, unitIndex) {
+  if (isBattleObstacle(x, y)) return true;
+  if (activeBattle.tower?.unit?.hp > 0 && activeBattle.tower.pos?.x === x && activeBattle.tower.pos?.y === y) return true;
   if (activeBattle.enemyPositions.some((pos, index) => pos.x === x && pos.y === y && activeBattle.enemies[index]?.hp > 0)) return true;
   return activeBattle.positions.some((pos, index) => index !== unitIndex && pos.x === x && pos.y === y && [state.hero, ...state.party][index]?.hp > 0);
+}
+
+function isBattleObstacle(x, y) {
+  return battleTerrainAt(x, y)?.type === "obstacle";
+}
+
+function isBattleBlockedForMovement(x, y, options = {}) {
+  if (x < 0 || y < 0 || x >= BATTLE_COLS || y >= BATTLE_ROWS) return true;
+  if (isBattleObstacle(x, y)) return true;
+  if (activeBattle?.tower?.unit?.hp > 0 && options.tower !== true && activeBattle.tower.pos?.x === x && activeBattle.tower.pos?.y === y) return true;
+  if (activeBattle?.enemyPositions?.some((pos, index) => index !== options.enemyIndex && pos.x === x && pos.y === y && activeBattle.enemies[index]?.hp > 0)) return true;
+  return activeBattle?.positions?.some((pos, index) => index !== options.unitIndex && pos.x === x && pos.y === y && [state.hero, ...state.party][index]?.hp > 0);
 }
 
 function attackPositionForTarget(unit, unitIndex, enemyPos) {
@@ -7790,7 +8263,7 @@ function attackPositionForTarget(unit, unitIndex, enemyPos) {
   for (let y = 0; y < BATTLE_ROWS; y += 1) {
     for (let x = 0; x < BATTLE_COLS; x += 1) {
       const tile = { x, y };
-      const movementCost = battleDistance(from, tile, unit);
+      const movementCost = battleMovementDistance(from, tile, unit, { unitIndex });
       if (movementCost > range) continue;
       if (isBattleOccupiedExceptUnit(x, y, unitIndex)) continue;
       if (!canAttackTarget(unit, tile, enemyPos)) continue;
@@ -7800,6 +8273,22 @@ function attackPositionForTarget(unit, unitIndex, enemyPos) {
     }
   }
   return best ? { x: best.x, y: best.y } : null;
+}
+
+function battleDirectionFromDelta(dx, dy, fallback = "right") {
+  if (Math.abs(dx) >= Math.abs(dy) && dx !== 0) return dx > 0 ? "right" : "left";
+  if (dy !== 0) return dy > 0 ? "down" : "up";
+  return fallback;
+}
+
+function faceBattlePositionByDelta(pos, to) {
+  if (!pos || !to) return;
+  pos.facing = battleDirectionFromDelta(to.x - pos.x, to.y - pos.y, pos.facing);
+}
+
+function faceBattlePositionToward(pos, target) {
+  if (!pos || !target) return;
+  pos.facing = battleDirectionFromDelta(target.x - pos.x, target.y - pos.y, pos.facing);
 }
 
 function moveRange(unit) {
@@ -7819,6 +8308,24 @@ function attackTypeLabel(unit) {
 
 function rangeText(unit) {
   return attackTypeLabel(unit) === "Ranged" ? `Ranged, best <= ${attackRange(unit)}` : "Melee adjacent";
+}
+
+function battleTerrainDamageModifier(attackerPos, targetPos, effectStyle = "") {
+  const attackerTerrain = battleTerrainAt(attackerPos?.x, attackerPos?.y);
+  const targetTerrain = battleTerrainAt(targetPos?.x, targetPos?.y);
+  let amount = 0;
+  const notes = [];
+  if (attackerTerrain?.type === "focus") {
+    const bonus = 1;
+    amount += bonus;
+    notes.push(`focus +${bonus}`);
+  }
+  if (targetTerrain?.type === "cover") {
+    const reduction = ["spell", "ranged", "shot"].includes(effectStyle) ? 2 : 1;
+    amount -= reduction;
+    notes.push(`cover -${reduction}`);
+  }
+  return { amount, note: notes.length ? ` (${notes.join(", ")})` : "" };
 }
 
 function unitRole(unit) {
@@ -7860,7 +8367,7 @@ function partyCompositionSummary() {
 }
 
 function isTargetInAttackRange(attacker, from, to) {
-  return Boolean(attacker && from && to && attackDistance(from, to) <= attackRange(attacker));
+  return Boolean(attacker && from && to && attackDistance(from, to) <= attackReach(attacker));
 }
 
 function canAttackTarget(attacker, from, to) {
@@ -7873,6 +8380,11 @@ function rangedDamagePenalty(attacker, from, to) {
   return Math.max(0, attackDistance(from, to) - attackRange(attacker));
 }
 
+function attackReach(unit) {
+  if (attackTypeLabel(unit) !== "Ranged") return attackRange(unit);
+  return Math.max(attackRange(unit), BATTLE_COLS - 1, BATTLE_ROWS - 1);
+}
+
 function attackDistance(from, to) {
   return Math.max(Math.abs(from.x - to.x), Math.abs(from.y - to.y));
 }
@@ -7881,6 +8393,31 @@ function battleDistance(from, to, unit) {
   const dx = Math.abs(from.x - to.x);
   const dy = Math.abs(from.y - to.y);
   return unit?.moveType === "flying" ? Math.max(dx, dy) : dx + dy;
+}
+
+function battleMovementDistance(from, to, unit, options = {}) {
+  if (!from || !to) return Number.POSITIVE_INFINITY;
+  if (to.x < 0 || to.y < 0 || to.x >= BATTLE_COLS || to.y >= BATTLE_ROWS || isBattleObstacle(to.x, to.y)) return Number.POSITIVE_INFINITY;
+  if (unit?.moveType === "flying") return battleDistance(from, to, unit);
+  const startKey = `${from.x},${from.y}`;
+  const targetKey = `${to.x},${to.y}`;
+  const seen = new Set([startKey]);
+  const queue = [{ x: from.x, y: from.y, distance: 0 }];
+  while (queue.length) {
+    const tile = queue.shift();
+    if (`${tile.x},${tile.y}` === targetKey) return tile.distance;
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+      const nx = tile.x + dx;
+      const ny = tile.y + dy;
+      const key = `${nx},${ny}`;
+      if (seen.has(key)) return;
+      if (key !== targetKey && isBattleBlockedForMovement(nx, ny, options)) return;
+      if (key === targetKey && isBattleObstacle(nx, ny)) return;
+      seen.add(key);
+      queue.push({ x: nx, y: ny, distance: tile.distance + 1 });
+    });
+  }
+  return Number.POSITIVE_INFINITY;
 }
 
 function beginBattleUnitResolution(unitIndex = activeBattle?.selectedIndex) {
@@ -7916,7 +8453,9 @@ function playerBattleAction(attackerIndex, enemyIndex) {
   const enemyPos = activeBattle.enemyPositions[enemyIndex];
   const penalty = rangedDamagePenalty(attacker, attackerPos, enemyPos);
   const moraleBonus = (attacker.morale || 0) >= 7 ? 2 : 0;
-  let damage = Math.max(1, attacker.atk + Math.ceil((attacker.power || 0) / 2) + attacker.level + moraleBonus - (enemy.def || 0) - penalty * 2 + Math.floor(Math.random() * 4) - 1);
+  const effectStyle = battleAttackFeedbackStyle(attacker);
+  const terrain = battleTerrainDamageModifier(attackerPos, enemyPos, effectStyle);
+  let damage = Math.max(1, attacker.atk + Math.ceil((attacker.power || 0) / 2) + attacker.level + moraleBonus - (enemy.def || 0) - penalty * 2 + terrain.amount + Math.floor(Math.random() * 4) - 1);
   let bossNote = "";
   if (enemy.passBoss && activeBattle.bossState?.kind === "passGuardian" && activeBattle.bossState.shieldCharges > 0) {
     const absorbed = Math.min(Math.max(0, damage - 1), 5);
@@ -7937,13 +8476,13 @@ function playerBattleAction(attackerIndex, enemyIndex) {
     bossNote = ` Moon ward absorbs ${absorbed} before shattering.`;
     addBattleFloater(enemyPos.x, enemyPos.y, "Ward", "guard");
   }
-  const effectStyle = battleAttackFeedbackStyle(attacker);
+  faceBattlePositionToward(attackerPos, enemyPos);
   activeBattle.feedback = { type: "hit", unitIndex: attackerIndex, enemyIndex, target: "enemy", style: effectStyle };
   queueBattleAttackEffect(attacker, attackerPos, enemyPos);
   enemy.hp -= damage;
   addBattleFloater(enemyPos.x, enemyPos.y, `-${damage}`, "damage");
   playSfx(effectStyle === "spell" ? "spell" : effectStyle === "ranged" ? "shot" : "slash");
-  activeBattle.log.push(`${attacker.name} hits ${enemy.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}.${bossNote} ${randomBattleQuip("playerHit")}`);
+  activeBattle.log.push(`${attacker.name} hits ${enemy.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}${terrain.note}.${bossNote} ${randomBattleQuip("playerHit")}`);
   if (enemy.hp > 0) maybeTriggerBossPhase(enemyIndex);
   if (enemy.hp <= 0) {
     enemy.hp = 0;
@@ -8004,6 +8543,7 @@ function maybeTriggerBossPhase(enemyIndex) {
 
 function guardBattleAction() {
   if (!activeBattle || battleInputLocked()) return;
+  activeBattle.healingTargetMode = false;
   const unit = selectedBattleUnit();
   beginBattleUnitResolution(activeBattle.selectedIndex);
   activeBattle.feedback = { type: "guard", unitIndex: activeBattle.selectedIndex };
@@ -8013,7 +8553,7 @@ function guardBattleAction() {
   finishBattleUnitAction();
 }
 
-function useBattleHealingDraught() {
+function useBattleHealingDraught(targetIndex = null) {
   if (!activeBattle || activeBattle.turn !== "player" || battleInputLocked()) return;
   const unit = selectedBattleUnit();
   const pos = activeBattle.positions[activeBattle.selectedIndex];
@@ -8026,19 +8566,32 @@ function useBattleHealingDraught() {
     activeBattle.log.push("Everyone is already healthy enough to make poor choices.");
     return renderBattle();
   }
+  if (!Number.isInteger(targetIndex)) {
+    activeBattle.healingTargetMode = !activeBattle.healingTargetMode;
+    activeBattle.log.push(activeBattle.healingTargetMode ? "Choose a wounded unit for the Healing Draught." : "Healing target cancelled.");
+    return renderBattle();
+  }
+  const target = [state.hero, ...state.party][targetIndex];
+  const targetPos = activeBattle.positions[targetIndex];
+  if (!target || target.hp <= 0 || !targetPos) {
+    activeBattle.log.push("That unit cannot drink the draught.");
+    return renderBattle();
+  }
+  const missing = Math.max(0, (target.maxHp || 0) - Math.max(0, target.hp || 0));
+  if (missing <= 0) {
+    activeBattle.log.push(`${target.name} does not need healing.`);
+    return renderBattle();
+  }
   removeInventoryItem("healingDraught", 1);
+  activeBattle.healingTargetMode = false;
   beginBattleUnitResolution(activeBattle.selectedIndex);
-  [state.hero, ...state.party].forEach((member, index) => {
-    if (member.hp <= 0) return;
-    const before = member.hp;
-    member.hp = Math.min(member.maxHp, member.hp + HEALING_DRAUGHT_AMOUNT);
-    const healed = member.hp - before;
-    const memberPos = activeBattle.positions[index];
-    if (healed > 0 && memberPos) addBattleFloater(memberPos.x, memberPos.y, `+${healed}`, "heal");
-  });
+  const before = target.hp;
+  target.hp = Math.min(target.maxHp, target.hp + HEALING_DRAUGHT_AMOUNT);
+  const healed = target.hp - before;
+  if (healed > 0) addBattleFloater(targetPos.x, targetPos.y, `+${healed}`, "heal");
   activeBattle.feedback = { type: "guard", unitIndex: activeBattle.selectedIndex };
   playSfx("coin");
-  activeBattle.log.push(`${unit.name} uses a Healing Draught. ${randomBattleQuip("potion")}`);
+  activeBattle.log.push(`${unit.name} uses a Healing Draught on ${target.name} for ${healed}. ${randomBattleQuip("potion")}`);
   finishBattleUnitAction();
 }
 
@@ -8064,7 +8617,7 @@ function enemyBattleTurn() {
     return renderBattle();
   }
   const targetIndex = battleTeamIndex(target);
-  if (targetIndex < 0) {
+  if (targetIndex < 0 && targetIndex !== -2) {
     advanceBattleTurn();
     return renderBattle();
   }
@@ -8161,7 +8714,7 @@ function enemySingleSpecial(enemyIndex, name, bonusDamage, note) {
   const targets = livingTeam();
   const target = nearestEnemyTarget(enemyIndex, targets);
   const targetIndex = battleTeamIndex(target);
-  if (!target || targetIndex < 0) {
+  if (!target || (targetIndex < 0 && targetIndex !== -2)) {
     advanceBattleTurn();
     return renderBattle();
   }
@@ -8204,7 +8757,7 @@ function consumeTeamWard() {
 function resolveEnemyAttack(enemyIndex, targetIndex) {
   if (!activeBattle) return;
   const enemy = activeBattle.enemies[enemyIndex];
-  const target = [state.hero, ...state.party][targetIndex];
+  const target = battleTargetUnitByIndex(targetIndex);
   if (!enemy || enemy.hp <= 0) {
     advanceBattleTurn();
     return renderBattle();
@@ -8212,11 +8765,11 @@ function resolveEnemyAttack(enemyIndex, targetIndex) {
   if (!target || target.hp <= 0) {
     const nextTarget = nearestEnemyTarget(enemyIndex, livingTeam());
     if (!nextTarget) return finishBattle(false);
-    targetIndex = [state.hero, ...state.party].indexOf(nextTarget);
+    targetIndex = battleTeamIndex(nextTarget);
   }
   const enemyPos = activeBattle.enemyPositions[enemyIndex];
-  const resolvedTarget = [state.hero, ...state.party][targetIndex];
-  const targetPos = activeBattle.positions[targetIndex];
+  const resolvedTarget = battleTargetUnitByIndex(targetIndex);
+  const targetPos = battleTargetPositionByIndex(targetIndex);
   if (!resolvedTarget || !targetPos || !canAttackTarget(enemy, enemyPos, targetPos)) {
     activeBattle.feedback = { type: "move", enemyIndex, target: "enemy" };
     activeBattle.log.push(`${resolvedTarget?.name || "The party"} is too far for ${enemy.name}'s attack.`);
@@ -8236,13 +8789,16 @@ function resolveEnemyAttack(enemyIndex, targetIndex) {
   const effectStyle = special.note.includes("fangs") || special.note.includes("dive") || gatekeeperCrush || passBossCrush
     ? "slash"
     : battleAttackEffectKind(enemy);
+  const terrain = battleTerrainDamageModifier(enemyPos, targetPos, battleAttackFeedbackStyle(enemy, effectStyle));
+  const finalDamage = Math.max(1, damage + terrain.amount);
+  faceBattlePositionToward(enemyPos, targetPos);
   activeBattle.feedback = { type: "hit", unitIndex: targetIndex, enemyIndex, target: "unit", style: battleAttackFeedbackStyle(enemy, effectStyle) };
   queueBattleAttackEffect(enemy, enemyPos, targetPos, effectStyle);
-  resolvedTarget.hp -= damage;
+  resolvedTarget.hp -= finalDamage;
   if (resolvedTarget.hp <= 0) resolvedTarget.hp = 0;
-  addBattleFloater(targetPos.x, targetPos.y, `-${damage}`, "damage");
+  addBattleFloater(targetPos.x, targetPos.y, `-${finalDamage}`, "damage");
   playSfx(effectStyle === "spell" ? "spell" : effectStyle === "shot" ? "shot" : "slash");
-  activeBattle.log.push(`${enemy.name} ${gatekeeperCrush || passBossCrush ? "crushes" : "strikes"} ${resolvedTarget.name} for ${damage}${penalty ? ` (${penalty} range penalty)` : ""}${trait.note}${special.note}${ward ? " (warded)" : ""}. ${randomBattleQuip("enemyHit")}`);
+  activeBattle.log.push(`${enemy.name} ${gatekeeperCrush || passBossCrush ? "crushes" : "strikes"} ${resolvedTarget.name} for ${finalDamage}${penalty ? ` (${penalty} range penalty)` : ""}${trait.note}${special.note}${ward ? " (warded)" : ""}${terrain.note}. ${randomBattleQuip("enemyHit")}`);
   if (resolvedTarget.hp <= 0) activeBattle.log.push(`${resolvedTarget.name} falls.`);
   activeBattle.guarding = false;
   renderBattle();
@@ -8264,7 +8820,7 @@ function enemyAttackTraitBonus(enemy, targetIndex) {
 }
 
 function isBattleUnitIsolated(targetIndex) {
-  const targetPos = activeBattle?.positions?.[targetIndex];
+  const targetPos = battleTargetPositionByIndex(targetIndex);
   if (!targetPos) return false;
   return activeBattle.positions.every((pos, index) => {
     if (index === targetIndex || !pos || [state.hero, ...state.party][index]?.hp <= 0) return true;
@@ -8286,9 +8842,27 @@ function nearestEnemyTarget(enemyIndex, targets) {
       const wounded = 1 - Math.max(0, unit.hp || 0) / Math.max(1, unit.maxHp || 1);
       return { unit, distance, attackable, wounded, index };
     })
-    .filter(Boolean)
+    .filter(Boolean);
+  const towerTarget = nearestTowerTarget(enemyIndex);
+  if (towerTarget) rankedTargets.push(towerTarget);
+  rankedTargets
     .sort((a, b) => Number(b.attackable) - Number(a.attackable) || a.distance - b.distance || b.wounded - a.wounded || a.unit.name.localeCompare(b.unit.name));
   return rankedTargets[0]?.unit || null;
+}
+
+function nearestTowerTarget(enemyIndex) {
+  const tower = activeBattle?.tower;
+  const enemy = activeBattle?.enemies?.[enemyIndex];
+  const enemyPos = activeBattle?.enemyPositions?.[enemyIndex];
+  if (!tower?.unit || tower.unit.hp <= 0 || !tower.pos || !enemy || enemy.hp <= 0 || !enemyPos) return null;
+  return {
+    unit: tower.unit,
+    index: -2,
+    pos: tower.pos,
+    distance: battleDistance(enemyPos, tower.pos, enemy),
+    attackable: canAttackTarget(enemy, enemyPos, tower.pos),
+    wounded: 1 - Math.max(0, tower.unit.hp || 0) / Math.max(1, tower.unit.maxHp || 1),
+  };
 }
 
 function moveEnemyTowardTarget(enemyIndex, target) {
@@ -8296,26 +8870,31 @@ function moveEnemyTowardTarget(enemyIndex, target) {
   const from = activeBattle.enemyPositions[enemyIndex];
   const start = from ? { x: from.x, y: from.y } : null;
   const targetIndex = battleTeamIndex(target);
-  const to = targetIndex >= 0 ? activeBattle.positions[targetIndex] : null;
+  const to = battleTargetPositionByIndex(targetIndex);
   const range = moveRange(enemy);
   if (!enemy || !from || !to || canAttackTarget(enemy, from, to)) return false;
   let best = { ...from, distance: battleDistance(from, to, enemy), movementCost: 0 };
   for (let y = 0; y < BATTLE_ROWS; y += 1) {
     for (let x = 0; x < BATTLE_COLS; x += 1) {
       if (x === from.x && y === from.y) continue;
-      const movementCost = battleDistance(from, { x, y }, enemy);
+      const movementCost = battleMovementDistance(from, { x, y }, enemy, { enemyIndex });
       if (movementCost > range) continue;
       if (isBattleOccupiedByOther(x, y, enemyIndex)) continue;
       const distance = battleDistance({ x, y }, to, enemy);
       if (distance < best.distance || (distance === best.distance && movementCost < best.movementCost)) best = { x, y, distance, movementCost };
     }
   }
+  faceBattlePositionByDelta(from, best);
   from.x = best.x;
   from.y = best.y;
-  return Boolean(start && (from.x !== start.x || from.y !== start.y));
+  const moved = Boolean(start && (from.x !== start.x || from.y !== start.y));
+  if (moved) triggerBattleTerrainEnter("enemy", enemyIndex, start);
+  return moved;
 }
 
 function isBattleOccupiedByOther(x, y, movingEnemyIndex = -1) {
+  if (isBattleObstacle(x, y)) return true;
+  if (activeBattle.tower?.unit?.hp > 0 && activeBattle.tower.pos?.x === x && activeBattle.tower.pos?.y === y) return true;
   const enemyOccupied = activeBattle.enemyPositions.some((pos, index) => index !== movingEnemyIndex && pos.x === x && pos.y === y && activeBattle.enemies[index]?.hp > 0);
   if (enemyOccupied) return true;
   return activeBattle.positions.some((pos, index) => pos.x === x && pos.y === y && [state.hero, ...state.party][index]?.hp > 0);
