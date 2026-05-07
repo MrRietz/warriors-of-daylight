@@ -7787,6 +7787,12 @@ function runAutoBattleAction() {
     selectedBattleAttack(targetIndex);
     return;
   }
+  const advance = chooseAutoBattleAdvance(activeIndex);
+  if (advance) {
+    activeBattle.selectedEnemyIndex = advance.targetIndex;
+    moveSelectedBattleUnit(advance.x, advance.y);
+    return;
+  }
   guardBattleAction();
 }
 
@@ -7817,6 +7823,40 @@ function chooseAutoBattleTarget(unitIndex) {
       || a.distanceNow - b.distanceNow
       || a.enemy.name.localeCompare(b.enemy.name));
   return ranked[0]?.index ?? -1;
+}
+
+function chooseAutoBattleAdvance(unitIndex) {
+  if (!activeBattle) return null;
+  const unit = [state.hero, ...state.party][unitIndex];
+  const from = activeBattle.positions[unitIndex];
+  if (!unit || !from) return null;
+  const range = moveRange(unit);
+  const livingTargets = activeBattle.enemies
+    .map((enemy, index) => ({ enemy, index, pos: activeBattle.enemyPositions[index] }))
+    .filter(({ enemy, pos }) => enemy?.hp > 0 && pos);
+  let best = null;
+  for (let y = 0; y < BATTLE_ROWS; y += 1) {
+    for (let x = 0; x < BATTLE_COLS; x += 1) {
+      if (x === from.x && y === from.y) continue;
+      if (isBattleOccupiedExceptUnit(x, y, unitIndex)) continue;
+      const movementCost = battleMovementDistance(from, { x, y }, unit, { unitIndex });
+      if (movementCost > range) continue;
+      livingTargets.forEach(({ enemy, index, pos }) => {
+        const approach = battleApproachScore(unit, { x, y }, pos, { unitIndex });
+        if (!Number.isFinite(approach)) return;
+        const currentApproach = battleApproachScore(unit, from, pos, { unitIndex });
+        const terrain = battleTerrainAt(x, y);
+        const tileBonus = terrain?.type === "focus" ? -0.35 : terrain?.type === "cover" ? -0.25 : terrain?.type === "well" && unit.hp < unit.maxHp ? -0.3 : 0;
+        const score = approach + movementCost * 0.08 + Math.max(0, enemy.hp) * 0.01 + tileBonus;
+        const improves = !Number.isFinite(currentApproach) || approach < currentApproach || canAttackTarget(unit, { x, y }, pos);
+        if (!improves) return;
+        if (!best || score < best.score || (score === best.score && enemy.hp < best.enemyHp)) {
+          best = { x, y, targetIndex: index, score, enemyHp: enemy.hp };
+        }
+      });
+    }
+  }
+  return best;
 }
 
 function choosePotionHealTargetIndex() {
@@ -8284,6 +8324,30 @@ function attackPositionForTarget(unit, unitIndex, enemyPos) {
     }
   }
   return best ? { x: best.x, y: best.y } : null;
+}
+
+function battleApproachScore(unit, from, targetPos, options = {}) {
+  if (!unit || !from || !targetPos) return Number.POSITIVE_INFINITY;
+  if (canAttackTarget(unit, from, targetPos)) return 0;
+  const startKey = `${from.x},${from.y}`;
+  const seen = new Set([startKey]);
+  const queue = [{ x: from.x, y: from.y, distance: 0 }];
+  while (queue.length) {
+    const tile = queue.shift();
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = tile.x + dx;
+      const ny = tile.y + dy;
+      const key = `${nx},${ny}`;
+      if (seen.has(key)) continue;
+      if (nx < 0 || ny < 0 || nx >= BATTLE_COLS || ny >= BATTLE_ROWS) continue;
+      if (isBattleBlockedForMovement(nx, ny, options)) continue;
+      const next = { x: nx, y: ny };
+      if (canAttackTarget(unit, next, targetPos)) return tile.distance + 1;
+      seen.add(key);
+      queue.push({ ...next, distance: tile.distance + 1 });
+    }
+  }
+  return Number.POSITIVE_INFINITY;
 }
 
 function battleDirectionFromDelta(dx, dy, fallback = "right") {
@@ -8884,17 +8948,25 @@ function moveEnemyTowardTarget(enemyIndex, target) {
   const to = battleTargetPositionByIndex(targetIndex);
   const range = moveRange(enemy);
   if (!enemy || !from || !to || canAttackTarget(enemy, from, to)) return false;
-  let best = { ...from, distance: battleDistance(from, to, enemy), movementCost: 0 };
+  const currentApproach = battleApproachScore(enemy, from, to, { enemyIndex });
+  let best = { ...from, approach: currentApproach, distance: battleDistance(from, to, enemy), movementCost: 0, score: Number.POSITIVE_INFINITY };
   for (let y = 0; y < BATTLE_ROWS; y += 1) {
     for (let x = 0; x < BATTLE_COLS; x += 1) {
       if (x === from.x && y === from.y) continue;
       const movementCost = battleMovementDistance(from, { x, y }, enemy, { enemyIndex });
       if (movementCost > range) continue;
       if (isBattleOccupiedByOther(x, y, enemyIndex)) continue;
-      const distance = battleDistance({ x, y }, to, enemy);
-      if (distance < best.distance || (distance === best.distance && movementCost < best.movementCost)) best = { x, y, distance, movementCost };
+      const candidate = { x, y };
+      const approach = battleApproachScore(enemy, candidate, to, { enemyIndex });
+      if (!Number.isFinite(approach)) continue;
+      const distance = battleDistance(candidate, to, enemy);
+      const score = approach + movementCost * 0.08 + distance * 0.03;
+      const improves = !Number.isFinite(currentApproach) || approach < currentApproach || canAttackTarget(enemy, candidate, to);
+      if (!improves) continue;
+      if (score < best.score || (score === best.score && movementCost < best.movementCost)) best = { x, y, approach, distance, movementCost, score };
     }
   }
+  if (best.x === from.x && best.y === from.y) return false;
   faceBattlePositionByDelta(from, best);
   from.x = best.x;
   from.y = best.y;
