@@ -2882,6 +2882,78 @@ dialog.notice-modal .modal-card {
   color: var(--gold);
 }
 
+.night-purpose-panel {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+  border: 2px solid rgba(240, 193, 91, 0.48);
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 10% 12%, rgba(240, 193, 91, 0.16), transparent 22%),
+    linear-gradient(145deg, rgba(50, 39, 18, 0.38), rgba(15, 18, 25, 0.96));
+}
+
+.night-purpose-panel > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.night-purpose-panel small,
+.night-purpose-grid span {
+  color: #d7ecff;
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.night-purpose-panel strong {
+  color: #fff2b6;
+  font-size: 0.95rem;
+}
+
+.night-purpose-panel p {
+  font-size: 0.74rem;
+}
+
+.night-purpose-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.night-purpose-grid article {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px;
+  border: 2px solid rgba(87, 96, 113, 0.46);
+  border-radius: 5px;
+  background: rgba(15, 18, 25, 0.48);
+}
+
+.night-purpose-grid span {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border: 1px solid rgba(215, 236, 255, 0.42);
+  border-radius: 50%;
+  color: #10141d;
+  background: #d7ecff;
+  letter-spacing: 0;
+}
+
+.night-purpose-grid strong {
+  color: #f4ead7;
+  font-size: 0.73rem;
+}
+
+.night-purpose-grid p {
+  font-size: 0.66rem;
+  line-height: 1.25;
+}
+
 .night-summary-bar {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -7144,6 +7216,7 @@ dialog.notice-modal .modal-card {
   .trade-summary,
   .barracks-summary,
   .night-summary-bar,
+  .night-purpose-grid,
   .night-defense-strip {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7152,6 +7225,7 @@ dialog.notice-modal .modal-card {
   .trade-summary span,
   .barracks-summary span,
   .night-summary-bar span,
+  .night-purpose-grid article,
   .night-defense-strip span {
     min-width: 0;
     width: 100%;

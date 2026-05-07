@@ -3767,6 +3767,31 @@ function nightfallCampArtMarkup() {
   `;
 }
 
+function nightPurposeMarkup(currentPlanId, currentPlan) {
+  const waveCount = activeNight?.encounters?.length || 0;
+  const builtCount = Object.keys(state.campUpgrades || {}).length;
+  const dawnGoal = currentPlanId === "nightRaid"
+    ? "Survive harder waves for better dawn loot."
+    : currentPlanId === "scoutLines"
+      ? "Survive to reveal where the next target is."
+      : "Survive safely and recover for tomorrow.";
+  return `
+    <section class="night-purpose-panel" aria-label="Nightfall purpose">
+      <div>
+        <small>Why Nightfall?</small>
+        <strong>Survive the camp watch, then reach dawn stronger.</strong>
+        <p>Nightfall is the risk/reward layer between travel days: choose a plan, handle a camp problem, prepare defenses, then fight off waves before dawn pays out.</p>
+      </div>
+      <div class="night-purpose-grid">
+        <article><span>1</span><strong>Pick posture</strong><p>${escapeHtml(currentPlan.name)} changes risk, rewards, wave pressure, and recovery.</p></article>
+        <article><span>2</span><strong>Hold camp</strong><p>${waveCount} wave${waveCount === 1 ? "" : "s"} must be beaten before the party can rest.</p></article>
+        <article><span>3</span><strong>Build advantage</strong><p>${builtCount ? `${builtCount} camp upgrade${builtCount === 1 ? "" : "s"} active.` : "Camp upgrades make future nights safer and more tactical."}</p></article>
+        <article><span>4</span><strong>Dawn payoff</strong><p>${escapeHtml(dawnGoal)}</p></article>
+      </div>
+    </section>
+  `;
+}
+
 function nightfallMarkup() {
   const currentPlanId = currentNightPlanId();
   const currentPlan = currentNightPlan();
@@ -3783,11 +3808,12 @@ function nightfallMarkup() {
       <div class="nightfall-head">
         <div class="night-watch-crest" aria-hidden="true"><i></i></div>
         <div>
-          <strong>Camp Command</strong>
-          <p>Pick, resolve, review, stand guard.</p>
+          <strong>Nightfall: Survive to Dawn</strong>
+          <p>Every night is a compact defense run: choose risk, prep camp, beat the waves, claim dawn rewards.</p>
         </div>
       </div>
       ${nightfallCampArtMarkup()}
+      ${nightPurposeMarkup(currentPlanId, currentPlan)}
       <div class="night-summary-bar">
         <span><small>Waves</small><strong>${activeNight.encounters.length}</strong></span>
         <span><small>Chosen</small><strong>${currentPlan.name}</strong></span>
@@ -3821,7 +3847,7 @@ function nightfallMarkup() {
         <div class="night-section">
           <div class="night-section-head">
             <h3>Tactics</h3>
-            <p class="night-section-note">Pick one. We move on.</p>
+            <p class="night-section-note">This is the main night decision: safer rest, more loot, or scouting for tomorrow.</p>
           </div>
           ${nightRecommendationBanner()}
           <div class="camp-upgrade-list night-plan-list">${Object.entries(nightPlanDefinitions).map(([id, plan]) => nightPlanCard(id, plan, currentPlanId)).join("")}</div>
@@ -3831,7 +3857,7 @@ function nightfallMarkup() {
         <div class="night-section">
           <div class="night-section-head">
             <h3>Camp Event</h3>
-            <p class="night-section-note">One choice. One tradeoff.</p>
+            <p class="night-section-note">One camp complication changes morale, healing, gold, or wave pressure tonight.</p>
           </div>
           ${campEventMarkup(event)}
         </div>
@@ -3840,7 +3866,7 @@ function nightfallMarkup() {
         <div class="night-section">
           <div class="night-section-head">
             <h3>Tonight</h3>
-            <p class="night-section-note">${state.campUpgrades?.watchtower ? "Full read ready." : "Threat read only."}</p>
+            <p class="night-section-note">${state.campUpgrades?.watchtower ? "Watchtower gives full wave intel and joins battle." : "Without a watchtower, some threat details stay hidden."}</p>
           </div>
           ${nightForecastSummaryMarkup()}
           ${nightCampLineMarkup()}
@@ -3857,7 +3883,7 @@ function nightfallMarkup() {
         <div class="night-section">
           <div class="night-section-head">
             <h3>Camp Prep</h3>
-            <p class="night-section-note">Optional builds.</p>
+            <p class="night-section-note">Optional persistent builds. They make future nights easier or more tactical.</p>
           </div>
           ${nightCampLineMarkup(true)}
           <div class="camp-upgrade-list">${Object.entries(campUpgradeDefinitions).map(([id, upgrade]) => campUpgradeCard(id, upgrade)).join("")}</div>
@@ -3887,7 +3913,7 @@ function nightCommandSteps() {
     {
       id: "plan",
       label: "Tactic",
-      title: "Choose tactic",
+      title: "Choose the night's purpose",
       note: nightTacticShortText(currentNightPlanId()),
       complete: true,
       unlocked: true,
@@ -3898,7 +3924,7 @@ function nightCommandSteps() {
     steps.push({
       id: "event",
       label: "Event",
-      title: "Resolve event",
+      title: "Resolve the camp tradeoff",
       note: activeNight?.campEventResolved
         ? (activeNight?.report?.eventChoiceLabel ? `${activeNight.report.eventChoiceLabel}: ${nightEventOutcomeShort(activeNight.report)}` : "Event resolved.")
         : "Pick the tradeoff.",
@@ -3910,10 +3936,10 @@ function nightCommandSteps() {
   steps.push({
     id: "forecast",
     label: "Forecast",
-    title: "Review tonight",
+    title: "Review the waves",
     note: state.campUpgrades?.watchtower
-      ? "Waves, event impact, and threat."
-      : "Waves, event impact, and rough threat.",
+      ? "Wave intel, event impact, and tower support."
+      : "Wave count, event impact, and rough threat.",
     complete: false,
     unlocked: !activeNight?.campEvent || Boolean(activeNight?.campEventResolved),
     canAdvance: !activeNight?.campEvent || Boolean(activeNight?.campEventResolved),
@@ -3921,7 +3947,7 @@ function nightCommandSteps() {
   steps.push({
     id: "prep",
     label: "Prep",
-    title: "Optional prep",
+    title: "Spend gold on camp tools",
     note: Object.keys(state.campUpgrades || {}).length
       ? "Build more if you want."
       : "Skip if ready.",
