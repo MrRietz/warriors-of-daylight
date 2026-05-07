@@ -7707,8 +7707,8 @@ dialog.notice-modal .modal-card {
   }
 
   html.mobile-touch .battle-arena {
-    min-height: 168px;
-    overflow: visible;
+    min-height: 238px;
+    overflow: hidden;
   }
 
   html.mobile-touch .battle-grid {
@@ -7718,9 +7718,9 @@ dialog.notice-modal .modal-card {
     min-width: 0;
     margin: 0;
     grid-template-columns: repeat(9, minmax(0, 1fr));
-    grid-template-rows: repeat(5, minmax(0, 1fr));
+    grid-template-rows: repeat(7, minmax(0, 1fr));
     gap: 2px;
-    overflow: visible;
+    overflow: hidden;
   }
 
   html.mobile-touch .battle-roster {
@@ -7733,6 +7733,7 @@ dialog.notice-modal .modal-card {
   }
 
   html.mobile-touch .battle-combatant {
+    overflow: hidden;
     pointer-events: none;
   }
 
@@ -7742,19 +7743,34 @@ dialog.notice-modal .modal-card {
   }
 
   html.mobile-touch .battle-base {
-    width: clamp(36px, 7vw, 52px);
-    height: clamp(40px, 8vw, 56px);
-    bottom: 6px;
+    width: min(34px, 92%);
+    height: min(38px, 92%);
+    bottom: 4px;
   }
 
   html.mobile-touch .battle-sprite-img {
-    width: clamp(32px, 6vw, 44px);
-    height: clamp(36px, 7vw, 48px);
+    width: min(30px, 88%);
+    height: min(34px, 90%);
   }
 
   html.mobile-touch .battle-sprite-img.enemy {
-    width: clamp(38px, 7vw, 54px);
-    height: clamp(42px, 8vw, 58px);
+    width: min(34px, 92%);
+    height: min(38px, 92%);
+  }
+
+  html.mobile-touch .battle-tower .battle-base {
+    width: min(38px, 94%);
+    height: min(44px, 96%);
+  }
+
+  html.mobile-touch .battle-tower-sprite {
+    width: min(38px, 96%);
+    height: min(44px, 96%);
+  }
+
+  html.mobile-touch .battle-mini-hp {
+    bottom: 1px;
+    width: min(34px, 86%);
   }
 
   html.mobile-touch .battle-log {
