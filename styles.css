@@ -7657,7 +7657,13 @@ dialog.notice-modal .modal-card {
   }
 
   html.mobile-touch dialog.battle-modal .modal-text {
-    padding: 6px 8px;
+    padding: 5px 7px;
+  }
+
+  html.mobile-touch dialog.battle-modal .modal-card h2 {
+    padding: 6px 9px;
+    font-size: 0.92rem;
+    line-height: 1.1;
   }
 
   html.mobile-touch dialog.battle-modal .battle-tutorial-hint {
@@ -7666,12 +7672,12 @@ dialog.notice-modal .modal-card {
 
   html.mobile-touch dialog.battle-modal .battle-focus {
     gap: 4px;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
   }
 
   html.mobile-touch dialog.battle-modal .battle-focus article {
     min-height: 0;
-    padding: 6px 7px;
+    padding: 5px 6px;
   }
 
   html.mobile-touch dialog.battle-modal .battle-focus small {
@@ -7689,7 +7695,11 @@ dialog.notice-modal .modal-card {
   }
 
   html.mobile-touch dialog.battle-modal .turn-order {
+    max-height: 28px;
     margin-bottom: 5px;
+    overflow: hidden;
+    padding: 4px 5px;
+    font-size: 0.64rem;
   }
 
   html.mobile-touch .modal-actions button:only-child {
@@ -7707,8 +7717,13 @@ dialog.notice-modal .modal-card {
   }
 
   html.mobile-touch .battle-arena {
-    min-height: 238px;
+    min-height: clamp(246px, 42dvh, 350px);
     overflow: hidden;
+    border-width: 2px;
+    box-shadow:
+      inset 0 -42px 0 rgba(0, 0, 0, 0.28),
+      inset 0 0 0 2px rgba(244, 234, 215, 0.08),
+      0 4px 0 rgba(0, 0, 0, 0.24);
   }
 
   html.mobile-touch .battle-grid {
@@ -7729,7 +7744,23 @@ dialog.notice-modal .modal-card {
 
   html.mobile-touch .battle-cell {
     display: block;
+    border-color: rgba(244, 234, 215, 0.18);
+    background-color: rgba(15, 18, 25, 0.18);
     pointer-events: auto;
+  }
+
+  html.mobile-touch .battle-cell.reachable {
+    border-color: rgba(135, 204, 255, 0.82);
+    background: rgba(102, 167, 216, 0.24);
+    box-shadow: inset 0 0 0 1px rgba(215, 236, 255, 0.22);
+  }
+
+  html.mobile-touch .battle-cell.attack-lane {
+    border-color: rgba(255, 143, 143, 0.95);
+    background:
+      radial-gradient(circle at center, rgba(217, 93, 93, 0.32), transparent 58%),
+      rgba(217, 93, 93, 0.16);
+    box-shadow: inset 0 0 0 2px rgba(255, 143, 143, 0.52);
   }
 
   html.mobile-touch .battle-combatant {
@@ -7743,19 +7774,19 @@ dialog.notice-modal .modal-card {
   }
 
   html.mobile-touch .battle-base {
-    width: min(34px, 92%);
-    height: min(38px, 92%);
+    width: min(38px, 94%);
+    height: min(42px, 94%);
     bottom: 4px;
   }
 
   html.mobile-touch .battle-sprite-img {
-    width: min(30px, 88%);
-    height: min(34px, 90%);
+    width: min(34px, 90%);
+    height: min(38px, 92%);
   }
 
   html.mobile-touch .battle-sprite-img.enemy {
-    width: min(34px, 92%);
-    height: min(38px, 92%);
+    width: min(38px, 94%);
+    height: min(42px, 94%);
   }
 
   html.mobile-touch .battle-tower .battle-base {
@@ -7770,16 +7801,17 @@ dialog.notice-modal .modal-card {
 
   html.mobile-touch .battle-mini-hp {
     bottom: 1px;
-    width: min(34px, 86%);
+    width: min(38px, 88%);
+    height: 7px;
   }
 
   html.mobile-touch .battle-log {
     min-height: 0;
-    max-height: 54px;
+    max-height: 42px;
     overflow: hidden;
-    padding: 5px 8px 5px 22px;
-    font-size: 0.7rem;
-    line-height: 1.15;
+    padding: 4px 8px 4px 20px;
+    font-size: 0.66rem;
+    line-height: 1.12;
   }
 
   html.mobile-touch .battle-floater {
@@ -7794,19 +7826,19 @@ dialog.notice-modal .modal-card {
 
   html.mobile-touch .battle-action {
     grid-template-columns: 1fr;
-    grid-template-rows: 26px auto;
+    grid-template-rows: 30px auto;
     justify-items: center;
     text-align: center;
     row-gap: 2px;
-    min-height: 42px;
-    padding: 4px 4px;
+    min-height: 50px;
+    padding: 5px 4px;
   }
 
   html.mobile-touch .battle-action-icon {
     grid-row: 1;
     grid-column: 1;
-    width: 26px;
-    height: 26px;
+    width: 30px;
+    height: 30px;
   }
 
   html.mobile-touch .battle-action span {
@@ -7815,7 +7847,7 @@ dialog.notice-modal .modal-card {
 
   html.mobile-touch .battle-action b {
     grid-column: 1;
-    font-size: 0.72rem;
+    font-size: 0.76rem;
     line-height: 1.05;
   }
 
@@ -7992,5 +8024,41 @@ dialog.notice-modal .modal-card {
 
   html.mobile-touch .menu-tabs {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+  html.mobile-touch .battle-arena {
+    min-height: clamp(204px, 57dvh, 260px);
+  }
+
+  html.mobile-touch dialog.battle-modal .battle-focus {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  html.mobile-touch dialog.battle-modal .battle-focus-guidance {
+    grid-column: auto;
+  }
+
+  html.mobile-touch dialog.battle-modal .battle-focus article {
+    padding: 4px 5px;
+  }
+
+  html.mobile-touch .battle-log {
+    display: none;
+  }
+
+  html.mobile-touch .battle-action {
+    min-height: 44px;
+    grid-template-rows: 24px auto;
+  }
+
+  html.mobile-touch .battle-action-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  html.mobile-touch .battle-action b {
+    font-size: 0.68rem;
   }
 }
