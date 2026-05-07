@@ -3244,6 +3244,28 @@ dialog.notice-modal .modal-card {
   }
 }
 
+@keyframes critical-unit-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes critical-hp-shimmer {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+
+  50% {
+    filter: brightness(1.35);
+  }
+}
+
 @keyframes battle-slash-cut {
   0% { opacity: 0; transform: rotate(14deg) scaleY(0.4); }
   30% { opacity: 1; }
@@ -5781,6 +5803,15 @@ dialog.notice-modal .modal-card {
   animation: target-pulse 760ms ease-in-out infinite;
 }
 
+.battle-combatant.wounded .battle-base {
+  filter: drop-shadow(0 0 9px rgba(240, 193, 91, 0.58));
+}
+
+.battle-combatant.critical .battle-base {
+  filter: drop-shadow(0 0 12px rgba(217, 93, 93, 0.84));
+  animation: critical-unit-pulse 760ms ease-in-out infinite;
+}
+
 .battle-attack-icon {
   position: absolute;
   top: -8px;
@@ -5994,6 +6025,19 @@ dialog.notice-modal .modal-card {
   background: var(--red);
 }
 
+.battle-combatant.wounded .battle-mini-hp span {
+  background: linear-gradient(90deg, #fff2b6, #d79542);
+}
+
+.battle-combatant.critical .battle-mini-hp {
+  box-shadow: 0 0 10px rgba(217, 93, 93, 0.54), 0 2px 0 rgba(0, 0, 0, 0.26);
+}
+
+.battle-combatant.critical .battle-mini-hp span {
+  background: linear-gradient(90deg, #fff8df, #ff8f8f 38%, #d95d5d);
+  animation: critical-hp-shimmer 860ms ease-in-out infinite;
+}
+
 .battle-roster {
   display: grid;
   align-content: start;
@@ -6015,6 +6059,20 @@ dialog.notice-modal .modal-card {
 
 .battle-stat-card.enemy {
   background: rgba(217, 93, 93, 0.12);
+}
+
+.battle-stat-card.wounded {
+  border-color: rgba(240, 193, 91, 0.46);
+  background:
+    linear-gradient(90deg, rgba(240, 193, 91, 0.1), transparent 38%),
+    #151a24;
+}
+
+.battle-stat-card.critical {
+  border-color: rgba(217, 93, 93, 0.58);
+  background:
+    linear-gradient(90deg, rgba(217, 93, 93, 0.16), transparent 42%),
+    #151a24;
 }
 
 .battle-stat-card strong,

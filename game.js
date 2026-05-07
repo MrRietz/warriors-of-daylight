@@ -7554,7 +7554,8 @@ function battleRosterMarkup() {
 function battleStatCard(unit, active, enemy = false) {
   const attackText = rangeText(unit);
   const role = unitRole(unit);
-  return `<div class="battle-stat-card ${active ? "active" : ""} ${enemy ? "enemy" : ""}"><strong>${unit.name}</strong><span>${role}</span><span>HP ${Math.max(0, unit.hp)}/${unit.maxHp || unit.hp}</span><span>Attack ${unit.atk || 0} / Defense ${unit.def || 0}</span><span>Speed ${unit.speed || 1} / Move ${moveRange(unit)} ${unit.moveType || "ground"}</span><span>${attackText}</span></div>`;
+  const healthClass = battleHealthClass(unit);
+  return `<div class="battle-stat-card ${active ? "active" : ""} ${enemy ? "enemy" : ""} ${healthClass}"><strong>${unit.name}</strong><span>${role}</span><span>HP ${Math.max(0, unit.hp)}/${unit.maxHp || unit.hp}</span><span>Attack ${unit.atk || 0} / Defense ${unit.def || 0}</span><span>Speed ${unit.speed || 1} / Move ${moveRange(unit)} ${unit.moveType || "ground"}</span><span>${attackText}</span></div>`;
 }
 
 function bindBattleBoard() {
@@ -7620,6 +7621,14 @@ function hpPercent(unit) {
   return Math.max(0, Math.min(100, Math.round((unit.hp / unit.maxHp) * 100)));
 }
 
+function battleHealthClass(unit) {
+  if (!unit || unit.hp <= 0) return "defeated";
+  const ratio = unit.hp / Math.max(1, unit.maxHp || unit.hp);
+  if (ratio <= 0.22) return "critical";
+  if (ratio <= 0.42) return "wounded";
+  return "";
+}
+
 function battleUnitMarkup(unit, index) {
   const fill = hpPercent(unit);
   const pos = activeBattle.positions[index] || { x: 1, y: index };
@@ -7630,11 +7639,12 @@ function battleUnitMarkup(unit, index) {
   const facingClass = battleFacingClass(pos?.facing || "right");
   const facingStyle = battleFacingStyle(pos?.facing || "right");
   const terrainClass = battleTerrainClassAt(pos);
+  const healthClass = battleHealthClass(unit);
   const sprite = portrait
     ? `<img class="battle-sprite-img" src="${portrait}" alt="" />`
     : `<div class="battle-token" style="--unit-color:${unit.color || "#f0c15b"}"></div>`;
   return `
-    <button type="button" class="battle-combatant battle-unit ${facingClass} ${terrainClass} ${defeated ? "down" : ""} ${selected ? "selected" : ""} ${feedbackClass}" data-battle-unit="${index}" style="grid-column:${pos.x + 1};grid-row:${pos.y + 1};--battle-layer:${pos.y + 2};${facingStyle}" aria-label="${defeated ? `${unit.name} defeated` : `Select ${unit.name}`}" ${defeated ? "disabled" : ""}>
+    <button type="button" class="battle-combatant battle-unit ${facingClass} ${terrainClass} ${healthClass} ${defeated ? "down" : ""} ${selected ? "selected" : ""} ${feedbackClass}" data-battle-unit="${index}" style="grid-column:${pos.x + 1};grid-row:${pos.y + 1};--battle-layer:${pos.y + 2};${facingStyle}" aria-label="${defeated ? `${unit.name} defeated` : `Select ${unit.name}`}" ${defeated ? "disabled" : ""}>
       <div class="battle-base">${terrainClass ? `<span class="battle-terrain-aura" aria-hidden="true"></span>` : ""}${sprite}</div>
       <div class="battle-mini-hp" style="--fill:${fill}%"><span></span></div>
     </button>
@@ -7650,6 +7660,7 @@ function battleEnemyMarkup(enemy, index) {
   const pos = activeBattle.enemyPositions[index];
   const facingClass = battleFacingClass(pos?.facing || "left");
   const terrainClass = battleTerrainClassAt(pos);
+  const healthClass = battleHealthClass(enemy);
   const naturalFacing = visual?.source === "enemy" && !visual.flipInBattle ? -1 : 1;
   const facingStyle = battleFacingStyle(pos?.facing || "left", naturalFacing);
   const sprite = portrait
@@ -7658,7 +7669,7 @@ function battleEnemyMarkup(enemy, index) {
   const selected = !defeated && activeBattle.selectedEnemyIndex === index;
   const intentChip = battleEnemyIntentChip(enemy, index, selected);
   return `
-    <button type="button" class="battle-combatant battle-enemy ${facingClass} ${terrainClass} ${defeated ? "down" : ""} ${selected ? "selected" : ""} ${attackable ? "attackable" : ""} ${feedbackClass}" data-battle-enemy="${index}" style="grid-column:${pos.x + 1};grid-row:${pos.y + 1};--battle-layer:${pos.y + 2};${facingStyle}" aria-label="${defeated ? `${enemy.name} defeated` : `Target ${enemy.name}`}" ${defeated ? "disabled" : ""}>
+    <button type="button" class="battle-combatant battle-enemy ${facingClass} ${terrainClass} ${healthClass} ${defeated ? "down" : ""} ${selected ? "selected" : ""} ${attackable ? "attackable" : ""} ${feedbackClass}" data-battle-enemy="${index}" style="grid-column:${pos.x + 1};grid-row:${pos.y + 1};--battle-layer:${pos.y + 2};${facingStyle}" aria-label="${defeated ? `${enemy.name} defeated` : `Target ${enemy.name}`}" ${defeated ? "disabled" : ""}>
       <div class="battle-base">${terrainClass ? `<span class="battle-terrain-aura" aria-hidden="true"></span>` : ""}${sprite}</div>
       ${intentChip}
       ${attackable ? `<span class="battle-attack-icon" aria-hidden="true">&#9876;</span>` : ""}
